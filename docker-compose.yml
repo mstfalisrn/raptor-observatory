@@ -1,12 +1,10 @@
-# RAPTOR Agentic Observatory — Docker Compose (pinned, indepoendent of Hermes)
-# Tüm versiyonlar sabittir (latest YOK). PostgreSQL/Redis host porta açılmaz.
-# Yalnızca raptor-gateway host'ta 127.0.0.1:<PORT>'a bind eder; diğerleri internal network.
+# RAPTOR Agentic Observatory — Docker Compose (pinned, Hermes'ten bağımsız)
+# Yalnız raptor-gateway host'ta 127.0.0.1:<GATEWAY_PORT>'e bind eder.
+# PostgreSQL/Redis host portu AÇILMAZ (internal network). Web UI, api image'ına gömülüdür (tek origin).
 name: raptor-observatory
 
 services:
-  # ------------------------------------------------------------------
-  # Veritabanı — PostgreSQL 16 + pgvector
-  # ------------------------------------------------------------------
+  # ------------------------------------------------------ PostgreSQL 16 + pgvector
   raptor-postgres:
     image: pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
     container_name: raptor-postgres
@@ -17,20 +15,17 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-raptor}
     volumes:
       - raptor_pgdata:/var/lib/postgresql/data
+      - ./infra/compose/initdb/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raptor}"]
       interval: 10s
       timeout: 5s
       retries: 6
       start_period: 10s
-    # HOST PORTU AÇILMAZ — sadece internal network
-    expose:
-      - "5432"
+    expose: ["5432"]
     networks: [raptor_internal]
 
-  # ------------------------------------------------------------------
-  # Kuyruk / koordinasyon — Redis 7
-  # ------------------------------------------------------------------
+  # ------------------------------------------------------ Redis 7
   raptor-redis:
     image: redis:7.2-alpine@sha256:ccd6aa8d45ff3f033d6fa15b8cc1a50579f65c89f38cf9bb607a954c4f2128ed
     container_name: raptor-redis
@@ -43,13 +38,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
-    expose:
-      - "6379"
+    expose: ["6379"]
     networks: [raptor_internal]
 
-  # ------------------------------------------------------------------
-  # API + SSE + Telegram webhook + UI static (FastAPI)
-  # ------------------------------------------------------------------
+  # ------------------------------------------------------ API + SSE + webhook + (gömülü UI static)
   raptor-api:
     build:
       context: .
@@ -60,15 +52,12 @@ services:
     restart: unless-stopped
     user: "10001:10001"
     read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     environment:
       APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
       REDIS_URL: redis://raptor-redis:6379/0
       JWT_SECRET: ${JWT_SECRET}
       SESSION_ENCRYPTION_MASTER_KEY: ${SESSION_ENCRYPTION_MASTER_KEY}
@@ -81,50 +70,38 @@ services:
       LLM_MODEL: ${LLM_MODEL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       RUN_MAX_ITERATIONS: ${RUN_MAX_ITERATIONS:-40}
-      RUN_MAX_TOOL_CALLS: ${RUN_MAX_TOOL_CALLS:-80}
       RUN_MAX_WALL_SECONDS: ${RUN_MAX_WALL_SECONDS:-900}
       RUN_MAX_TOKEN_BUDGET: ${RUN_MAX_TOKEN_BUDGET:-200000}
-      CONNECTOR_ALLOWED_HOSTS: ${CONNECTOR_ALLOWED_HOSTS:-}
       TECHNOCORE_BASE_URL: ${TECHNOCORE_BASE_URL:-https://technocore.chat}
     depends_on:
-      raptor-postgres:
-        condition: service_healthy
-      raptor-redis:
-        condition: service_healthy
+      raptor-postgres: { condition: service_healthy }
+      raptor-redis: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8000/health/live',timeout=3)\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live',timeout=3)\""]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 25s
     networks: [raptor_internal]
 
-  # ------------------------------------------------------------------
-  # Gateway (Caddy) — tek host bind, 127.0.0.1
-  # ------------------------------------------------------------------
+  # ------------------------------------------------------ Gateway (Caddy) — tek host bind
   raptor-gateway:
     image: caddy:2.8@sha256:226d1f059b75399fe19182893c7184591c07b97afc8dfcf44eeb80c9a77a530f
     container_name: raptor-gateway
     restart: unless-stopped
     user: "0:0"
-    security_opt:
-      - no-new-privileges:true
-    cap_add:
-      - NET_BIND_SERVICE
-    cap_drop:
-      - ALL
+    security_opt: ["no-new-privileges:true"]
+    cap_add: ["NET_BIND_SERVICE"]
+    cap_drop: ["ALL"]
     ports:
       - "127.0.0.1:${GATEWAY_PORT:-3525}:80"
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
-      raptor-api:
-        condition: service_healthy
+      raptor-api: { condition: service_healthy }
     networks: [raptor_internal]
 
-  # ------------------------------------------------------------------
-  # Worker (agent run execution; Redis queue'dan çeker)
-  # ------------------------------------------------------------------
+  # ------------------------------------------------------ Worker (agent run execution)
   raptor-worker:
     build:
       context: .
@@ -133,15 +110,12 @@ services:
     restart: unless-stopped
     user: "10001:10001"
     read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     environment:
       APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
       REDIS_URL: redis://raptor-redis:6379/0
       SESSION_ENCRYPTION_MASTER_KEY: ${SESSION_ENCRYPTION_MASTER_KEY}
       LLM_PROVIDER: ${LLM_PROVIDER:-mock}
@@ -151,14 +125,12 @@ services:
       RUN_MAX_ITERATIONS: ${RUN_MAX_ITERATIONS:-40}
       RUN_MAX_TOOL_CALLS: ${RUN_MAX_TOOL_CALLS:-80}
       RUN_MAX_WALL_SECONDS: ${RUN_MAX_WALL_SECONDS:-900}
-      RUN_MAX_TOKEN_BUDGET: ${RUN_MAX_TOKEN_BUDGET:-200000}
       CONNECTOR_ALLOWED_HOSTS: ${CONNECTOR_ALLOWED_HOSTS:-}
       TECHNOCORE_BASE_URL: ${TECHNOCORE_BASE_URL:-https://technocore.chat}
+      TECHNOCORE_ED25519_KEY_PATH: ${TECHNOCORE_ED25519_KEY_PATH:-}
     depends_on:
-      raptor-postgres:
-        condition: service_healthy
-      raptor-redis:
-        condition: service_healthy
+      raptor-postgres: { condition: service_healthy }
+      raptor-redis: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/live',timeout=3)\""]
       interval: 15s
@@ -166,9 +138,7 @@ services:
       retries: 5
     networks: [raptor_internal]
 
-  # ------------------------------------------------------------------
-  # Scheduler (periyodik görev/takip planları)
-  # ------------------------------------------------------------------
+  # ------------------------------------------------------ Scheduler
   raptor-scheduler:
     build:
       context: .
@@ -177,23 +147,18 @@ services:
     restart: unless-stopped
     user: "10001:10001"
     read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
     environment:
       APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
       REDIS_URL: redis://raptor-redis:6379/0
       SESSION_ENCRYPTION_MASTER_KEY: ${SESSION_ENCRYPTION_MASTER_KEY}
       TECHNOCORE_BASE_URL: ${TECHNOCORE_BASE_URL:-https://technocore.chat}
     depends_on:
-      raptor-postgres:
-        condition: service_healthy
-      raptor-redis:
-        condition: service_healthy
+      raptor-postgres: { condition: service_healthy }
+      raptor-redis: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health/live',timeout=3)\""]
       interval: 15s
@@ -201,40 +166,13 @@ services:
       retries: 5
     networks: [raptor_internal]
 
-  # ------------------------------------------------------------------
-  # Web (React + Vite) — statik üretim build; api container'ı tarafından servis edilir
-  # (Vite dev sunucusu değil; build output => api static)
-  # ------------------------------------------------------------------
-  raptor-web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-    container_name: raptor-web
-    restart: unless-stopped
-    user: "101:101"
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    environment:
-      VITE_API_BASE: /api
-      VITE_SSE_BASE: /events
-    volumes:
-      - raptor_webdist:/app/dist
-    networks: [raptor_internal]
-
 volumes:
   raptor_pgdata:
     driver: local
   raptor_redisdata:
     driver: local
-  raptor_webdist:
-    driver: local
 
 networks:
   raptor_internal:
     driver: bridge
-    internal: false   # internet erişimi (connectors) gerekir; yalnız host ports kapalı
+    internal: false   # connectors internet erişimi gerekir; yalnız host portları kapalı

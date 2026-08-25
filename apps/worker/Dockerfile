@@ -4,10 +4,11 @@ RUN groupadd -g 10001 raptor && useradd -u 10001 -g raptor -s /usr/sbin/nologin 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1
 RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -rf /var/lib/apt/lists/*
 WORKDIR /srv/raptor
+# packages/ içeriğini köke kopyala => from observability, agent_core, policy vs top-level
 COPY packages/requirements-worker.txt /srv/raptor/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
-COPY packages/ packages/
-COPY apps/worker/ apps/worker/
+COPY packages/ /srv/raptor/
+COPY apps/worker/ /srv/raptor/apps/worker/
 USER raptor
 EXPOSE 8001
 CMD ["uvicorn", "apps.worker.worker:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
