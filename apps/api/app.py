@@ -276,9 +276,9 @@ async def events_stream():
             while True:
                 async with async_session_factory() as s:
                     res = await s.execute(
-                        select(models.RunEvent).order_by(models.RunEvent.created_at.desc()).limit(5)
+                        select(models.RunEvent).order_by(models.RunEvent.ts.desc()).limit(5)
                     )
-                    events = [{"seq": e.seq, "event_type": e.event_type, "ts": e.created_at.isoformat()}
+                    events = [{"seq": e.seq, "event_type": e.event_type, "ts": e.ts.isoformat()}
                               for e in res.scalars().all()]
                 yield f"data: {json.dumps({'events': events}, default=str)}\n\n"
                 await _a.sleep(3)

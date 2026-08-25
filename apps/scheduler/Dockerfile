@@ -6,8 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -r
 WORKDIR /srv/raptor
 COPY packages/requirements-scheduler.txt /srv/raptor/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
-COPY packages/ packages/
-COPY apps/scheduler/ apps/scheduler/
+COPY packages/ /srv/raptor/
+COPY apps/scheduler/ /srv/raptor/apps/scheduler/
 USER raptor
 EXPOSE 8002
 CMD ["uvicorn", "apps.scheduler.scheduler:app", "--host", "0.0.0.0", "--port", "8002", "--workers", "1"]
