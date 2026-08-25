@@ -1,0 +1,37 @@
+# RAPTOR — Docker ignore
+# Secret / env
+.env
+**/.env
+*secrets*
+app.env
+/root/secrets
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+*.log
+
+# Node
+node_modules/
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# Git / OS
+.git
+.gitignore
+.DS_Store
+Thumbs.db
+
+# Test artefacts
+tests/.coverage
+tests/artifacts/

@@ -26,6 +26,17 @@ from policy.engine import PolicyEngine, action_hash, build_approval_token
 
 app = FastAPI(title="RAPTOR Agentic Observatory", version="1.0.0")
 
+# --- Fail-fast: production'da eksik/placeholder secret ile boot etme (P58) ---
+import os as _os
+if _os.getenv("APP_ENV") == "production":
+    _missing = []
+    for _k in ("JWT_SECRET", "SESSION_ENCRYPTION_MASTER_KEY", "TELEGRAM_WEBHOOK_SECRET"):
+        _v = getattr(settings, _k.lower(), "") or _os.getenv(_k, "")
+        if not _v or _v in ("CHANGE_ME", "dev-only-change-me") or len(str(_v)) < 16:
+            _missing.append(_k)
+    if _missing:
+        raise RuntimeError(f"RAPTOR fail-fast: eksik/placeholder secret: {', '.join(_missing)}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # UI aynı origin üzerinden; production'da dış origin yok

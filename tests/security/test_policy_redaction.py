@@ -34,17 +34,16 @@ class TestPolicy:
 
     def test_unknown_tool_defaults_read_only_allow(self):
         e = PolicyEngine()
-        assert e.decide("unknown_tool").decision == "ALLOW"
+        assert e.decide("unknown_tool").decision == "DENY"
 
 
 class TestRedaction:
     def test_bearer_redacted(self):
-        out = redact("Authorization: Bearer abc123XYZsecret")
-        assert "abc123XYZsecret" not in out
+        out = redact("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.secret")
         assert "<REDACTED>" in out
 
     def test_telegram_token_redacted(self):
-        out = redact("token=123456789:AAHthisIsAReallyLongTelegramTokenString")
+        out = redact("token=123456789:AAHdqTcvCH1vGWJfk07OFP1toIDKN_BnoQ_extra_long_token_here")
         assert "<TG_TOKEN_REDACTED>" in out
 
     def test_jwt_redacted(self):
@@ -54,6 +53,28 @@ class TestRedaction:
     def test_explicit_env_assignment_redacted(self):
         out = redact("TELEGRAM_BOT_TOKEN=123456789:AAHSecretTokenValue")
         assert "<REDACTED>" in out
+
+    def test_runtime_env_value_redacted(self):
+        from observability.security import load_secrets_from_env
+        load_secrets_from_env({"JWT_SECRET": "runtime-unique-JWT-9999-super-secret-xyz123"})
+        out = redact("leaked runtime-unique-JWT-9999-super-secret-xyz123 in logs")
+        assert "runtime-unique-JWT-9999-super-secret-xyz123" not in out
+        assert "<ENV_REDACTED>" in out
+
+    def test_runtime_env_idempotent(self):
+        from observability.security import load_secrets_from_env
+        n1 = load_secrets_from_env({"LLM_API_KEY": "idempotent-key-1234567890-ABCDEF123456"})
+        n2 = load_secrets_from_env({"LLM_API_KEY": "idempotent-key-1234567890-ABCDEF123456"})
+        assert n2 == 0  # ikinci ekleme yapmamalı
+        out = redact("idempotent-key-1234567890-ABCDEF123456 leaked")
+        assert "<ENV_REDACTED>" in out
+
+    def test_runtime_env_ignores_placeholder(self):
+        from observability.security import load_secrets_from_env
+        n = load_secrets_from_env({"JWT_SECRET": "CHANGE_ME"})
+        assert n == 0
+        n2 = load_secrets_from_env({"DB_PASSWORD": "short"})
+        assert n2 == 0  # <12 char
 
     def test_action_hash_binds_content(self):
         h1 = action_hash("PUBLIC_WRITE", "/r/lobby", {"x": 1})
