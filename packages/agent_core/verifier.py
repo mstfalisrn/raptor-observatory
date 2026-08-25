@@ -28,15 +28,27 @@ class Verifier:
                 ok, meta = False, {"error": type(e).__name__}
             evidence.append({"check": name, "passed": ok, "meta": meta})
             all_passed = all_passed and ok
+        # hiç check yoksa bile evidence'e göre karar ver
+        if not self._checks:
+            ev = run_result.get("evidence") or []
+            # en az bir başarılı tool + hiç hata yok
+            has_ok = any(x.get("ok") for x in ev) if isinstance(ev, list) else False
+            has_err = any(not x.get("ok", True) for x in ev) if isinstance(ev, list) else False
+            all_passed = bool(ev) and has_ok and not has_err
+            evidence.append({"check": "default_evidence", "passed": all_passed, "meta": {"n": len(ev) if isinstance(ev, list) else 0}})
         return VerificationResult(passed=all_passed, evidence=evidence)
 
 
 class DefaultVerifier(Verifier):
     def __init__(self) -> None:
         super().__init__()
-        # Hedef: çıktıda ya planlanan olgu ya da "doğrulanamadı" açıklaması olmalı
-        async def _wrapper(fn):
-            return fn
-        self.add_check("hedef_kanit_var_mi", lambda r: (bool(r.get("evidence")) or bool(r.get("claim")), {
-            "has_evidence": bool(r.get("evidence")), "claim": r.get("claim")
-        }))
+        # Gerçek kanıt: en az bir başarılı tool + hata yok + evidence var
+        def _evidence_check(r: dict):
+            ev = r.get("evidence") or []
+            if not ev:
+                return False, {"has_evidence": False}
+            has_ok = any(x.get("ok") for x in ev)
+            has_err = any(not x.get("ok", True) for x in ev)
+            return (has_ok and not has_err), {"has_evidence": bool(ev), "has_ok": has_ok, "has_err": has_err, "n": len(ev)}
+
+        self.add_check("hedef_kanit_var_mi", _evidence_check)

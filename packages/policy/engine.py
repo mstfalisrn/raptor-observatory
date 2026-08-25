@@ -53,7 +53,9 @@ class PolicyEngine:
     def decide(self, tool: str) -> PolicyDecision:
         if tool in self._overrides:
             return PolicyDecision(ActionClass.READ_ONLY.value, self._overrides[tool], "override")
-        action_class = TOOL_TO_ACTION.get(tool, ActionClass.READ_ONLY.value)
+        if tool not in TOOL_TO_ACTION:
+            return PolicyDecision(ActionClass.DESTRUCTIVE.value, "DENY", f"bilinmeyen araç: {tool}")
+        action_class = TOOL_TO_ACTION[tool]
         if action_class == ActionClass.DESTRUCTIVE.value:
             return PolicyDecision(action_class, "DENY", "destructive yalnız fasıl onayı")
         if action_class == ActionClass.PRIVILEGED_HOST.value:

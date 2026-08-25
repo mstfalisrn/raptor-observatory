@@ -116,8 +116,13 @@ class RunCoordinator:
         self.emit("CONTEXT", {"segments": assembler.inspector_metadata()})
 
         executed = []
+        had_error = False
         # her plan aracı yalnızca BİR kez çalıştırılır (iteration, araç sayısı kadardır)
         plan_tools = [t for t in plan.get("tools", []) if not self.allowlist or t in self.allowlist]
+        # planner LLM usage'ını bütçeye yansıt
+        usage = plan.get("_llm_usage") or {}
+        if usage:
+            self.tokens_used += int(usage.get("total_tokens") or usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0) or 0)
         for tool in plan_tools:
             if not self.can_continue():
                 break
@@ -141,11 +146,13 @@ class RunCoordinator:
             try:
                 result = await executor.execute(tool)
                 self.tool_calls_count += 1
-                executed.append({"tool": tool, "result": result})
+                executed.append({"tool": tool, "result": result, "ok": True})
                 self.emit("TOOL_CALL", {"tool": tool, "ok": True})
                 self._breaker.reset(tool)
             except Exception as e:
-                self.emit("TOOL_ERROR", {"tool": tool, "error": type(e).__name__})
+                had_error = True
+                self.emit("TOOL_ERROR", {"tool": tool, "error": type(e).__name__, "msg": str(e)[:200]})
+                executed.append({"tool": tool, "error": type(e).__name__, "ok": False})
                 if self._breaker.record_failure(tool):
                     self.status = RunStatus.FAILED
                     self.emit("CIRCUIT_OPEN", {"tool": tool})
@@ -156,14 +163,19 @@ class RunCoordinator:
         elif self._kill:
             self.status = RunStatus.CANCELLED
         elif self.status == RunStatus.QUEUED or self.status == RunStatus.EXECUTING:
-            # normal bitiş
-            self.status = RunStatus.VERIFYING
-            try:
-                vres = await verifier.verify({"evidence": executed})
-            except Exception:
-                vres = None
-            self.emit("VERIFY", {"passed": bool(vres and vres.passed)})
-            self.status = RunStatus.PERSISTING if not self.is_killed else RunStatus.CANCELLED
+            # normal bitiş — tool hatası varsa direkt FAILED (P0-4)
+            if had_error:
+                self.status = RunStatus.FAILED
+                self.emit("VERIFY", {"passed": False, "reason": "tool_error"})
+            else:
+                self.status = RunStatus.VERIFYING
+                try:
+                    vres = await verifier.verify({"evidence": executed})
+                except Exception:
+                    vres = None
+                passed = bool(vres and vres.passed)
+                self.emit("VERIFY", {"passed": passed, "evidence_n": len(executed)})
+                self.status = RunStatus.PERSISTING if passed and not self.is_killed else (RunStatus.CANCELLED if self.is_killed else RunStatus.FAILED)
 
         if self.status not in (RunStatus.CANCELLED.value, RunStatus.PAUSED.value, RunStatus.WAITING_APPROVAL.value, RunStatus.FAILED.value):
             if self.status == RunStatus.PERSISTING:

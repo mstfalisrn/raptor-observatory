@@ -3,8 +3,8 @@
 ARG PYTHON_IMAGE
 FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS web-build
 WORKDIR /web
-COPY apps/web/package.json /web/package.json
-RUN npm install --no-audit --no-fund --unsafe-perm 2>/dev/null || npm install --no-audit --no-fund
+COPY apps/web/package.json apps/web/package-lock.json /web/
+RUN npm ci --no-audit --no-fund
 COPY apps/web/ /web/
 ENV VITE_API_BASE=/api VITE_SSE_BASE=/events
 RUN npm run build

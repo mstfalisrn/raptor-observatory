@@ -27,6 +27,24 @@ class ToolRegistry:
     async def call(self, name: str, **kw) -> Any:
         if name not in self._fns:
             raise KeyError(f"kayıtsız araç: {name}")
+        # runtime JSON-schema doğrulaması (required + type)
+        schema = self._schemas.get(name, {})
+        params = schema.get("parameters") or {}
+        required = params.get("required") or []
+        props = params.get("properties") or {}
+        for r in required:
+            if r not in kw:
+                raise ValueError(f"araç {name}: gerekli argüman eksik: {r}")
+        for k, v in list(kw.items()):
+            if k not in props and props:
+                raise ValueError(f"araç {name}: bilinmeyen argüman: {k}")
+            exp = props.get(k, {}).get("type")
+            if exp == "string" and not isinstance(v, str):
+                raise ValueError(f"araç {name}: {k} string olmalı")
+            if exp == "integer" and not isinstance(v, int):
+                raise ValueError(f"araç {name}: {k} integer olmalı")
+            if exp == "object" and not isinstance(v, dict):
+                raise ValueError(f"araç {name}: {k} object olmalı")
         return await self._fns[name](**kw)
 
 
