@@ -1,0 +1,28 @@
+:root {
+  --bg: #0b1220; --panel: #111a2e; --panel2: #152038; --border: #24365a;
+  --fg: #e6edfb; --muted: #8ea1c4; --accent: #5b8cff; --ok: #3ddc84; --warn: #ffb84d;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--fg); }
+.app { display: flex; min-height: 100vh; }
+.nav { width: 200px; background: var(--panel); border-right: 1px solid var(--border); padding: 16px 10px; position: sticky; top: 0; height: 100vh; }
+.nav .brand { font-weight: 700; font-size: 18px; margin-bottom: 18px; color: var(--accent); }
+.nav button { display: block; width: 100%; text-align: left; padding: 9px 12px; margin-bottom: 4px; background: transparent; color: var(--fg); border: none; border-radius: 8px; cursor: pointer; }
+.nav button:hover { background: var(--panel2); }
+.nav button.active { background: var(--accent); color: #04101f; font-weight: 600; }
+.content { flex: 1; padding: 24px 32px; max-width: 1100px; }
+h1 { font-size: 22px; margin-top: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+.card b { display: inline-block; margin-right: 6px; }
+.muted { color: var(--muted); font-size: 13px; margin: 4px 0; }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--border); font-size: 12px; margin-right: 6px; }
+.warn { color: var(--warn); }
+.ok { color: var(--ok); }
+button { background: var(--panel2); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 7px 14px; cursor: pointer; margin-top: 8px; margin-right: 6px; }
+button:hover { border-color: var(--accent); }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+input { background: var(--panel2); border: 1px solid var(--border); color: var(--fg); border-radius: 8px; padding: 8px 12px; margin-right: 8px; }
+.title { margin-bottom: 18px; }
+.imperative { display: flex; gap: 14px; align-items: center; }
