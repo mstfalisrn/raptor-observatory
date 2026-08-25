@@ -1,10 +1,10 @@
 # RAPTOR — Worker
-# Redis kuyruğundan run alır, RunCoordinator ile yürütür, sonucu DB'ye yazar.
-# Agent'a keyfi shell/docker YOK; yalnız kayıtlı şemalı araçlar.
+# Redis Streams consumer group + ACK/lease, outbox uyumlu
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 
 from fastapi import FastAPI
@@ -13,6 +13,7 @@ from sqlalchemy import select
 from observability.config import settings
 from observability.db import async_session_factory
 from observability import models
+from observability.queue import ensure_stream_group, read_group, ack, claim_pending, STREAM, GROUP
 
 from agent_core.coordinator import RunCoordinator, RunBudget
 from agent_core.llm import build_provider
@@ -34,7 +35,8 @@ async def health_live():
 class WorkerLoop:
     def __init__(self) -> None:
         import redis as redis_lib
-        self.redis = redis_lib.from_url(settings.REDIS_URL)
+        self.redis = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
+        self.consumer_name = f"worker-{os.getpid()}-{uuid.uuid4().hex[:6]}"
         self.registry = build_default_registry(
             http_hosts=set(filter(None, settings.CONNECTOR_ALLOWED_HOSTS.split(","))) if settings.CONNECTOR_ALLOWED_HOSTS else None,
             technocore_key_path=settings.TECHNOCORE_ED25519_KEY_PATH or "/root/secrets/raptor-observatory/did.ed25519",
@@ -44,18 +46,75 @@ class WorkerLoop:
         self.planner = Planner()
         self.policy = PolicyEngine()
         self.verifier = DefaultVerifier()
+        # ensure consumer group exists (idempotent)
+        try:
+            ensure_stream_group(self.redis)
+        except Exception:
+            pass
+        self._lease_ms = 30000  # pending reclaim after 30s
 
-    async def process_one(self) -> bool:
-        raw = self.redis.rpop("raptor:queue")
-        if not raw:
-            return False
-        payload = json.loads(raw)
-        run_id = payload["run_id"]
+    async def _handle_entry(self, entry_id: str, fields: dict) -> bool:
+        # fields: {"data": json, "idempotency_key": ...} (decode_responses=True)
+        raw = fields.get("data") or fields.get(b"data")
+        if raw is None:
+            # malformed -> ack to avoid poison
+            try:
+                ack(self.redis, entry_id)
+            except Exception:
+                pass
+            return True
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            try:
+                ack(self.redis, entry_id)
+            except Exception:
+                pass
+            return True
+        run_id = payload.get("run_id")
+        if not run_id:
+            try:
+                ack(self.redis, entry_id)
+            except Exception:
+                pass
+            return True
+        # fallback for old rpop style: if payload came as legacy list entry without data field
+        ok = await self._process_run(run_id)
+        # always ACK after processing attempt (at-least-once semantics; failure handled via run status)
+        try:
+            ack(self.redis, entry_id)
+        except Exception:
+            pass
+        return ok
+
+    async def _process_run(self, run_id: str) -> bool:
         async with async_session_factory() as s:
+            # idempotency: if run already terminal, skip execution
             run = await s.get(models.Run, uuid.UUID(run_id))
             if run is None:
                 return True
+            if run.status in (models.RunStatus.COMPLETED.value, models.RunStatus.FAILED.value, models.RunStatus.CANCELLED.value):
+                return True
             task = await s.get(models.Task, run.task_id)
+            if task is None:
+                run.status = models.RunStatus.FAILED.value
+                run.error = "task_not_found"
+                await s.commit()
+                return True
+            # lease acquisition: set heartbeat/lease
+            import datetime as _dt
+            now = _dt.datetime.now(_dt.timezone.utc)
+            # optimistic: claim run for this worker if not already claimed or lease expired
+            if run.status == models.RunStatus.QUEUED.value:
+                run.status = models.RunStatus.EXECUTING.value
+                run.started_at = run.started_at or now
+            run.heartbeat_at = now
+            run.lease_expires_at = now + _dt.timedelta(milliseconds=self._lease_ms)
+            run.worker_id = self.consumer_name
+            await s.commit()
+            # need fresh session for execution? reuse s after commit
             task_dict = {"prompt": task.prompt, "scope": task.scope}
             executor = ToolExecutor(self.registry, task=task_dict)
             coordinator = RunCoordinator(
@@ -65,7 +124,6 @@ class WorkerLoop:
             )
             coordinator.status = models.RunStatus.EXECUTING
             assembler = ContextAssembler(max_tokens=rum_budget(run))
-            # descriptor: bağlam
             assembler.add("task_goal", task.prompt, title=task.title, relevance=1.0)
             try:
                 status, executed, events = await coordinator.run(executor, self.planner,
@@ -74,24 +132,97 @@ class WorkerLoop:
             except Exception as exc:
                 status = models.RunStatus.FAILED.value
                 events = [{"event_type": "FATAL", "payload": {"error": type(exc).__name__}, "seq": 0}]
-            run.status = status
-            run.iteration = coordinator.iteration
-            import datetime as _dt
-            run.finished_at = _dt.datetime.now(_dt.timezone.utc)
+            # reload run for update (avoid stale)
+            run2 = await s.get(models.Run, uuid.UUID(run_id))
+            if run2 is None:
+                return True
+            run2.status = status
+            run2.iteration = coordinator.iteration
+            run2.finished_at = _dt.datetime.now(_dt.timezone.utc) if status in (models.RunStatus.COMPLETED.value, models.RunStatus.FAILED.value, models.RunStatus.CANCELLED.value) else run2.finished_at
             if status == models.RunStatus.FAILED.value:
-                run.error = "worker_yurutme_hatasi"
-            # event kaydı
+                run2.error = run2.error or "worker_yurutme_hatasi"
+            run2.heartbeat_at = _dt.datetime.now(_dt.timezone.utc)
+            # event kaydı — unique (run_id,seq) ile idempotent insert
             for ev in events:
-                s.add(models.RunEvent(run_id=run.id, seq=ev["seq"], event_type=ev["event_type"], payload=ev.get("payload", {})))
-            await s.commit()
+                s.add(models.RunEvent(run_id=run2.id, seq=ev["seq"], event_type=ev["event_type"], payload=ev.get("payload", {})))
+            # commit with integrity handling for duplicate seq (append-only)
+            try:
+                await s.commit()
+            except Exception as e:
+                await s.rollback()
+                # if duplicate seq constraint, re-fetch and skip duplicates
+                if "uq_run_events_run_seq" in str(e) or "UniqueViolation" in str(type(e).__name__):
+                    # fallback: insert one-by-one ignoring duplicates
+                    for ev in events:
+                        try:
+                            async with async_session_factory() as s2:
+                                s2.add(models.RunEvent(run_id=run2.id, seq=ev["seq"], event_type=ev["event_type"], payload=ev.get("payload", {})))
+                                await s2.commit()
+                        except Exception:
+                            try:
+                                await s2.rollback()
+                            except Exception:
+                                pass
+                    # finally update run status if not yet
+                    async with async_session_factory() as s3:
+                        r3 = await s3.get(models.Run, uuid.UUID(run_id))
+                        if r3 and r3.status != status:
+                            r3.status = status
+                            r3.iteration = coordinator.iteration
+                            await s3.commit()
+                else:
+                    raise
         return True
+
+    async def _fallback_legacy_queue(self) -> bool:
+        """Consume legacy list raptor:queue for backward compatibility during rollout."""
+        try:
+            raw = self.redis.rpop("raptor:queue")
+        except Exception:
+            return False
+        if not raw:
+            return False
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        try:
+            payload = json.loads(raw)
+            run_id = payload.get("run_id")
+        except Exception:
+            return True
+        if run_id:
+            await self._process_run(run_id)
+        return True
+
+    async def process_one(self) -> bool:
+        # 1) try stream read (non-blocking first, then block)
+        try:
+            entries = read_group(self.redis, self.consumer_name, count=1, block_ms=2000)
+            if entries:
+                for _stream, msgs in entries:
+                    for entry_id, fields in msgs:
+                        await self._handle_entry(entry_id, fields)
+                        return True
+            # 2) reclaim pending that exceeded lease (stuck consumer)
+            pending = claim_pending(self.redis, self.consumer_name, min_idle_ms=self._lease_ms, count=1)
+            if pending:
+                for entry_id, fields in pending:
+                    await self._handle_entry(entry_id, fields)
+                    return True
+            # 3) fallback legacy queue
+            return await self._fallback_legacy_queue()
+        except Exception:
+            # on redis error, still try legacy
+            try:
+                return await self._fallback_legacy_queue()
+            except Exception:
+                return False
 
     async def run(self) -> None:
         while True:
             try:
                 processed = await self.process_one()
                 if not processed:
-                    await asyncio.sleep(1.0)
+                    await asyncio.sleep(0.5)
             except Exception:
                 await asyncio.sleep(2.0)
 

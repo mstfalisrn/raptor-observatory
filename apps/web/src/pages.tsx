@@ -1,36 +1,137 @@
-import { useEffect, useState } from 'react'
-import { api } from './api'
+import { useEffect, useState, useCallback } from 'react'
+import { api, errMsg } from './api'
 
-function useFetch<T>(path: string, dep: any = '') {
+// ---------- helpers ----------
+function useFetch<T>(path: string, deps: any[] = []) {
   const [data, setData] = useState<T | null>(null)
   const [err, setErr] = useState('')
-  useEffect(() => { let on = true; api<T>(path).then(d => on && setData(d)).catch(e => on && setErr(String(e))); return () => { on = false } }, [path, dep])
-  return { data, err }
+  const [loading, setLoading] = useState(true)
+  const [tick, setTick] = useState(0)
+  const reload = useCallback(()=> setTick(x=>x+1), [])
+  const key = path
+  useEffect(() => {
+    if (!path) { setLoading(false); setData(null); setErr(''); return }
+    let on = true
+    setLoading(true); setErr('')
+    api<T>(path).then(d => { if(on){ setData(d); setLoading(false) }})
+      .catch(e => { if(on){ setErr(errMsg(e)); setLoading(false) }})
+    return () => { on=false }
+  }, [key, tick, ...deps])
+  return { data, err, loading, reload }
+}
+
+function Loading(){ return <div className="muted">yükleniyor…</div> }
+function Err({msg, onRetry}:{msg:string, onRetry?:()=>void}){ return <div className="card err"><span className="warn">⚠ {msg}</span> {onRetry && <button onClick={onRetry}>Yeniden dene</button>}</div>}
+function Empty({msg}:{msg:string}){ return <p className="muted">{msg}</p> }
+
+// ---------- Command Center ----------
+export function CommandCenter({ onCreated, compact }: { onCreated?:(runId:string)=>void, compact?:boolean }) {
+  const [prompt, setPrompt] = useState('')
+  const [title, setTitle] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [ok, setOk] = useState('')
+  async function submit() {
+    if (!prompt.trim()) { setErr('prompt gerekli'); return }
+    setBusy(true); setErr(''); setOk('')
+    try {
+      const r = await api<any>('/v1/tasks', { method:'POST', body: JSON.stringify({ title: title||prompt.slice(0,60), prompt }) })
+      const id = r.run_id || r.runId || r.id || ''
+      setOk(`Run kuyruğa alındı: ${String(id).slice(0,8)}`)
+      setPrompt(''); setTitle('')
+      onCreated?.(String(id))
+    } catch(e){ setErr(errMsg(e)) } finally { setBusy(false) }
+  }
+  return (
+    <div className={compact ? '' : 'card'} style={compact?undefined:{borderColor:'var(--accent)'}}>
+      <h3 style={{marginTop:0}}>{compact ? '⚡ Komut' : '🎛️ Command Center'}</h3>
+      {!compact && <p className="muted">Prompt gir, run oluştur. SSE ile canlı takip.</p>}
+      <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+        <input placeholder="başlık (opsiyonel)" value={title} onChange={e=>setTitle(e.target.value)} style={{flex:'0 0 220px'}} />
+        <input placeholder="prompt — ne yapsın?" value={prompt} onChange={e=>setPrompt(e.target.value)} style={{flex:'1 1 320px'}} onKeyDown={e=> e.key==='Enter' && submit()} />
+        <button onClick={submit} disabled={busy || !prompt.trim()}>{busy?'gönderiliyor…':'▶️ Çalıştır'}</button>
+      </div>
+      {err && <div className="warn" style={{marginTop:8}}>⚠ {err}</div>}
+      {ok && <div className="ok" style={{marginTop:8}}>✓ {ok}</div>}
+    </div>
+  )
 }
 
 // ---------- Dashboard ----------
-export function Dashboard({ live, onOpen }: any) {
+export function Dashboard({ live, sseState, lastId, onOpen, onOpenRun }: any) {
+  const { data: runs, err: e1, loading: l1, reload: r1 } = useFetch<any[]>('/v1/runs')
+  const { data: approvals, err: e2, loading: l2, reload: r2 } = useFetch<any[]>('/v1/approvals')
+  const { data: health } = useFetch<any>('/health/live')
+  const pending = approvals?.filter((a:any)=>a.status==='PENDING').length ?? 0
+  const running = runs?.filter((r:any)=>['RUNNING','QUEUED'].includes(r.status)).length ?? 0
   return (
     <div>
       <h1>📊 Dashboard</h1>
       <div className="cards">
-        <div className="card"><b>Canlı SSE</b><div>{live ? 'bağlı' : 'bekleniyor'}</div></div>
+        <div className="card"><b>SSE</b><div className={`pill sse-${sseState}`}>{sseState}</div><div className="muted">Last-Event-ID: {lastId || '—'}</div><div className="muted">{live ? `son event: ${live.event_type||live.seq||JSON.stringify(live).slice(0,60)}` : 'bekleniyor'}</div></div>
+        <div className="card"><b>Run'lar</b><div>{l1 ? '...' : `${runs?.length ?? 0} toplam · ${running} aktif`}</div><button onClick={()=>onOpen('runs')}>Run'ları gör</button></div>
+        <div className="card"><b>Onaylar</b><div>{l2 ? '...' : `${pending} bekleyen`}</div><button onClick={()=>onOpen('approvals')}>Onaylara git</button>{pending>0 && <span className="pill warn">{pending} PENDING</span>}</div>
+        <div className="card"><b>Sağlık</b><div>{health ? `✓ ${health.status}` : '...'}</div><div className="muted">{health?.time || ''}</div></div>
       </div>
-      <p><button onClick={() => onOpen('runs')}>▶️ Run'ları gör</button></p>
+      {(e1||e2) && <Err msg={e1||e2} onRetry={()=>{r1();r2()}} />}
+      {/* son run'lar */}
+      <h3 style={{marginTop:18}}>Son Run'lar</h3>
+      {l1 ? <Loading/> : !runs?.length ? <Empty msg="henüz run yok — Command Center'dan oluştur."/> : (
+        <table><thead><tr><th>ID</th><th>Durum</th><th>Iter</th><th>Oluşturma</th></tr></thead><tbody>
+          {runs!.slice(0,5).map(r=> <tr key={r.id} style={{cursor:'pointer'}} onClick={()=>onOpenRun?.(r.id)}><td>{r.id.slice(0,8)}</td><td><span className="pill">{r.status}</span></td><td>{r.iteration}</td><td className="muted">{r.created_at?.slice(0,19)}</td></tr>)}
+        </tbody></table>
+      )}
     </div>
   )
 }
 
 // ---------- Runs ----------
-export function RunsPage() {
-  const { data } = useFetch<any[]>('/v1/runs')
+export function RunsPage({ onOpenDetail }: { onOpenDetail?:(id:string)=>void }) {
+  const [limit, setLimit] = useState(20)
+  const { data, err, loading, reload } = useFetch<any[]>(`/v1/runs?limit=${limit}`, [limit])
+  const [q, setQ] = useState('')
+  const filtered = !q ? data : data?.filter(r=> r.id.includes(q) || r.status.toLowerCase().includes(q.toLowerCase()))
   return (
     <div>
       <h1>▶️ Runs</h1>
-      {!data ? <p>yükleniyor…</p> : data.length === 0 ? <p>run yok</p> : (
-        <table><thead><tr><th>ID</th><th>Durum</th><th>Iter</th><th>Hata</th></tr></thead><tbody>
-          {data.map(r => <tr key={r.id}><td>{r.id.slice(0,8)}</td><td>{r.status}</td><td>{r.iteration}</td><td>{r.error||''}</td></tr>)}
+      <div style={{display:'flex', gap:8, marginBottom:10}}>
+        <input placeholder="filtre (id/durum)" value={q} onChange={e=>setQ(e.target.value)} />
+        <button onClick={()=>reload()}>↻ Yenile</button>
+        <select value={String(limit)} onChange={e=>setLimit(parseInt(e.target.value))} style={{background:'var(--panel2)', color:'var(--fg)', border:'1px solid var(--border)', borderRadius:8, padding:'7px'}}>
+          <option value="10">10</option><option value="20">20</option><option value="50">50</option>
+        </select>
+      </div>
+      {loading ? <Loading/> : err ? <Err msg={err} onRetry={reload}/> : !filtered?.length ? <Empty msg={data?.length? 'filtreye uygun run yok':'run yok — Command Center ile oluştur.'}/> : (
+        <table><thead><tr><th>ID</th><th>Durum</th><th>Iter</th><th>Hata</th><th></th></tr></thead><tbody>
+          {filtered!.map(r => <tr key={r.id}><td title={r.id}>{r.id.slice(0,8)}</td><td><span className="pill">{r.status}</span></td><td>{r.iteration}</td><td className="warn">{r.error||''}</td><td><button onClick={()=>onOpenDetail?.(r.id)}>Detay</button></td></tr>)}
         </tbody></table>
+      )}
+    </div>
+  )
+}
+
+export function RunDetailPage({ runId, onBack }: { runId:string, onBack:()=>void }) {
+  const { data, err, loading, reload } = useFetch<any[]>(`/v1/runs/${runId}/events`, [runId])
+  const [filter, setFilter] = useState('')
+  const evs = !filter ? data : data?.filter((e:any)=> e.event_type.toLowerCase().includes(filter.toLowerCase()))
+  return (
+    <div>
+      <button onClick={onBack}>← Geri</button>
+      <h2>Run: {runId.slice(0,8)} <span className="muted" style={{fontSize:12}}>{runId}</span></h2>
+      <div style={{display:'flex', gap:8, marginBottom:10}}>
+        <input placeholder="event tipi filtre" value={filter} onChange={e=>setFilter(e.target.value)} />
+        <button onClick={reload}>↻ Yenile</button>
+      </div>
+      {loading ? <Loading/> : err ? <Err msg={err} onRetry={reload}/> : !evs?.length ? <Empty msg="event yok"/> : (
+        <div>
+          <div className="muted">{evs.length} event</div>
+          {evs.map((e:any,i:number)=> (
+            <div className="card" key={i}>
+              <div><b>{e.event_type}</b> <span className="pill">seq {e.seq}</span> <span className="muted">{e.ts?.slice(0,19)}</span></div>
+              {e.payload && <pre className="payload">{JSON.stringify(e.payload, null, 2).slice(0,2000)}</pre>}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
@@ -38,85 +139,125 @@ export function RunsPage() {
 
 // ---------- Approvals ----------
 export function ApprovalsPage() {
-  const { data } = useFetch<any[]>('/v1/approvals')
-  const [done, setDone] = useState('')
+  const { data, err, loading, reload } = useFetch<any[]>('/v1/approvals')
+  const [busy, setBusy] = useState('')
+  const [msg, setMsg] = useState('')
+  const [err2, setErr2] = useState('')
   async function decide(id: string, decision: string) {
-    await api(`/v1/approvals/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision, approval_id: id }) })
-    setDone('karar kaydedildi')
+    setBusy(id+decision); setErr2(''); setMsg('')
+    try { await api(`/v1/approvals/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision, approval_id: id }) }); setMsg('karar kaydedildi ✓'); reload() }
+    catch(e){ setErr2(errMsg(e)) } finally { setBusy('') }
   }
   return (
     <div>
       <h1>🕐 Approvals</h1>
-      {!data ? <p>yükleniyor…</p> : data.length === 0 ? <p>onay yok</p> : data.map(a => (
+      <button onClick={reload}>↻ Yenile</button>
+      {loading ? <Loading/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <Empty msg="onay yok"/> : data.map(a => (
         <div className="card" key={a.id}>
           <b>{a.action_class}</b> — {a.target}
           <div className="muted">etki: {a.impact_summary}</div>
-          <span className="pill">{a.status}</span>
+          <div className="muted">expires: {a.expires_at?.slice(0,19) || '—'}</div>
+          <span className={`pill ${a.status==='PENDING'?'warn':''}`}>{a.status}</span>
           {a.status === 'PENDING' && (<>
-            <button onClick={() => decide(a.id, 'approve')}>✅ Onayla</button>
-            <button onClick={() => decide(a.id, 'reject')}>❌ Reddet</button>
+            <button disabled={!!busy} onClick={() => decide(a.id, 'approve')}>{busy===a.id+'approve'?'...':'✅ Onayla'}</button>
+            <button disabled={!!busy} onClick={() => decide(a.id, 'reject')}>{busy===a.id+'reject'?'...':'❌ Reddet'}</button>
           </>)}
         </div>
       ))}
-      {done && <p className="ok">{done}</p>}
+      {msg && <p className="ok">{msg}</p>}
+      {err2 && <p className="warn">⚠ {err2}</p>}
     </div>
   )
 }
 
 // ---------- Context Inspector ----------
-export function ContextPage() {
-  const [runId, setRunId] = useState('')
-  const { data } = useFetch<any[]>(runId ? `/v1/runs/${runId}/events` : '', runId)
+export function ContextPage({ initialRunId }: { initialRunId?:string }) {
+  const [runId, setRunId] = useState(initialRunId || '')
+  useEffect(()=>{ if(initialRunId) setRunId(initialRunId)},[initialRunId])
+  const { data: runs } = useFetch<any[]>('/v1/runs?limit=20')
+  const path = runId ? `/v1/runs/${runId}/events` : ''
+  const { data, err, loading, reload } = useFetch<any[]>(path, [runId])
+  // extract context segments from payloads
+  const segments = (data||[]).flatMap((e:any)=> (e.payload?.segments||[]).map((s:any)=> ({...s, _event:e.event_type, _seq:e.seq})))
   return (
     <div>
       <h1>🧩 Context Inspector</h1>
-      <input placeholder="run_id" value={runId} onChange={e => setRunId(e.target.value)} />
-      {data?.length ? data.map((e, i) => (
-        <div className="card" key={i}><b>{e.event_type}</b>
-          {e.payload?.segments?.map((s: any, j: number) => (
-            <div key={j} className="ctx">
-              <div><b>{s.segment_type}</b> · {s.token_count} tok · güv {s.confidence}</div>
+      <div style={{display:'flex', gap:8, flexWrap:'wrap', marginBottom:10}}>
+        {runs && <select value={runId} onChange={e=>setRunId(e.target.value)} style={{background:'var(--panel2)', color:'var(--fg)', border:'1px solid var(--border)', borderRadius:8, padding:'8px'}}>
+          <option value="">run seç…</option>
+          {runs.map((r:any)=> <option key={r.id} value={r.id}>{r.id.slice(0,8)} · {r.status}</option>)}
+        </select>}
+        <input placeholder="run_id" value={runId} onChange={e => setRunId(e.target.value)} style={{flex:'1 1 260px'}} />
+        <button onClick={reload} disabled={!runId}>↻ Yükle</button>
+      </div>
+      {!runId ? <Empty msg="run seçerek context segment metadata'sını gör."/> : loading ? <Loading/> : err ? <Err msg={err} onRetry={reload}/> : !segments.length ? <Empty msg="bu run için segment yok (event payload'ında segments beklenir)."/> : (
+        <div>
+          <div className="muted">{segments.length} segment · {data?.length} event</div>
+          {segments.map((s:any, j:number) => (
+            <div key={j} className="card ctx">
+              <div><b>{s.segment_type}</b> · {s.token_count} tok · güv {s.confidence} <span className="pill">{s._event} #{s._seq}</span> {s.contains_untrusted_input && <span className="warn">UNTRUSTED</span>}</div>
               <div className="muted">neden: {s.included_reason}</div>
-              {s.contains_untrusted_input && <span className="warn">UNTRUSTED</span>}
+              {s.preview && <pre className="payload">{String(s.preview).slice(0,800)}</pre>}
+              {s.content_preview && <pre className="payload">{String(s.content_preview).slice(0,800)}</pre>}
             </div>
           ))}
+          <details style={{marginTop:12}}><summary className="muted">Ham event'ler ({data?.length})</summary>
+            {data!.map((e:any,i:number)=>(<div className="card" key={i}><b>{e.event_type}</b><pre className="payload">{JSON.stringify(e.payload||{}, null,2).slice(0,1500)}</pre></div>))}
+          </details>
         </div>
-      )) : <p>run_id girerek context segment metadata'sını gör.</p>}
+      )}
     </div>
   )
 }
 
 // ---------- Memory ----------
 export function MemoryPage() {
-  const { data } = useFetch<any[]>('/v1/memory?limit=50')
+  const [status,setStatus]=useState('candidate')
+  const [q,setQ]=useState('')
+  const path = q ? `/v1/memory?q=${encodeURIComponent(q)}&status=${status}&limit=50` : `/v1/memory?status=${status}&limit=50`
+  // also support base call without status fallback
+  const { data, err, loading, reload } = useFetch<any[]>(path, [status,q])
+  const [busy,setBusy]=useState('')
+  const [msg,setMsg]=useState('')
   async function decide(id: string, decision: string) {
-    await api(`/v1/memory/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision }) })
+    setBusy(id); setMsg('')
+    try { await api(`/v1/memory/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision }) }); setMsg('✓ kaydedildi'); reload() }
+    catch(e){ setMsg('⚠ '+errMsg(e)) } finally { setBusy('') }
   }
   return (
     <div>
       <h1>🧠 Memory</h1>
-      {!data ? <p>yükleniyor…</p> : data.length === 0 ? <p>aday hafıza yok</p> : data.map(m => (
+      <div style={{display:'flex', gap:8, marginBottom:10, flexWrap:'wrap'}}>
+        <select value={status} onChange={e=>setStatus(e.target.value)} style={{background:'var(--panel2)', color:'var(--fg)', border:'1px solid var(--border)', borderRadius:8, padding:'8px'}}>
+          <option value="candidate">candidate</option><option value="active">active</option><option value="rejected">rejected</option>
+        </select>
+        <input placeholder="ara..." value={q} onChange={e=>setQ(e.target.value)} />
+        <button onClick={reload}>↻ Yenile</button>
+      </div>
+      {loading ? <Loading/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <Empty msg={`"${status}" için kayıt yok`}/> : data.map(m => (
         <div className="card" key={m.id}>
-          <p>{m.content}</p>
-          <div className="muted">{m.status} · güv {m.confidence} · {m.source}</div>
+          <p style={{marginTop:0}}>{m.content}</p>
+          <div className="muted">{m.status} · güv {m.confidence} · {m.source} {m.category?`· ${m.category}`:''}</div>
           <span className="pill">{m.status}</span>
-          <button onClick={() => decide(m.id, 'approve')}>✅</button>
-          <button onClick={() => decide(m.id, 'reject')}>❌</button>
+          <button disabled={!!busy} onClick={() => decide(m.id, 'approve')}>✅ Onayla</button>
+          <button disabled={!!busy} onClick={() => decide(m.id, 'reject')}>❌ Reddet</button>
         </div>
       ))}
+      {msg && <p className="muted">{msg}</p>}
     </div>
   )
 }
 
 // ---------- Sources ----------
 export function SourcesPage() {
-  const { data } = useFetch<any[]>('/v1/sources')
+  const { data, err, loading, reload } = useFetch<any[]>('/v1/sources')
   return (
     <div>
       <h1>📡 Sources</h1>
-      {!data ? <p>yükleniyor…</p> : data.length === 0 ? <p>kaynak yok. Teknolojik İlk Önce connector ile eklenir.</p> : data.map(s => (
+      <button onClick={reload}>↻ Yenile</button>
+      {loading ? <Loading/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <Empty msg="kaynak yok. Teknolojik İlk Önce connector ile eklenir."/> : data.map(s => (
         <div className="card" key={s.id}><b>{s.name}</b> · <span className="pill">{s.source_type}</span>
-          <div className="muted">{s.is_enabled ? 'aktif' : 'pasif'} · hata serisi: {s.error_series_len}</div></div>
+          <div className="muted">{s.is_enabled ? 'aktif' : 'pasif'} · hata serisi: {s.error_series_len} {s.last_accessed_at?`· son: ${s.last_accessed_at.slice(0,19)}`:''}</div></div>
       ))}
     </div>
   )
@@ -124,18 +265,23 @@ export function SourcesPage() {
 
 // ---------- Technocore ----------
 export function TechnocorePage() {
-  const { data } = useFetch<any>('/v1/technocore')
+  const { data, err, loading, reload } = useFetch<any>('/v1/technocore')
+  if (loading) return <div><h1>🛰️ Technocore</h1><Loading/></div>
+  if (err) return <div><h1>🛰️ Technocore</h1><Err msg={err} onRetry={reload}/></div>
   return (
     <div>
       <h1>🛰️ Technocore</h1>
-      {data && <div className="card"><b>{data.base_url}</b><div>Oda: {data.room_claim}</div><div>Kayıt: {data.registered ? '✓' : 'henüz değil (Faz 7)'}</div></div>}
+      {data && <div className="card"><b>{data.base_url || '—'}</b><div>Oda: {data.room_claim || '—'}</div><div>Kayıt: {data.registered ? '✓' : 'henüz değil (Faz 7)'}</div></div>}
+      <button onClick={reload}>↻ Yenile</button>
     </div>
   )
 }
 
 // ---------- Telegram ----------
 export function TelegramPage() {
-  const { data } = useFetch<any>('/v1/settings/non-secret')
+  const { data, err, loading, reload } = useFetch<any>('/v1/settings/non-secret')
+  if (loading) return <div><h1>✈️ Telegram</h1><Loading/></div>
+  if (err) return <div><h1>✈️ Telegram</h1><Err msg={err} onRetry={reload}/></div>
   return (
     <div>
       <h1>✈️ Telegram</h1>
@@ -144,13 +290,16 @@ export function TelegramPage() {
         <div>Allowlist kullanıcı: {data.telegram_allowed_user_ids_count}</div>
         <div>Grup: {data.telegram_group_enabled ? 'açık' : 'kapalı'}</div>
       </div>)}
+      <button onClick={reload}>↻ Yenile</button>
     </div>
   )
 }
 
 // ---------- Settings ----------
 export function SettingsPage() {
-  const { data } = useFetch<any>('/v1/settings/non-secret')
+  const { data, err, loading, reload } = useFetch<any>('/v1/settings/non-secret')
+  if (loading) return <div><h1>⚙️ Settings</h1><Loading/></div>
+  if (err) return <div><h1>⚙️ Settings</h1><Err msg={err} onRetry={reload}/></div>
   return (
     <div>
       <h1>⚙️ Settings</h1>
@@ -158,10 +307,13 @@ export function SettingsPage() {
         <div>Ortam: <b>{data.app_env}</b></div>
         <div>Provider: {data.llm_provider}</div>
         <div>Model: {data.llm_model || '-'}</div>
+        <div>Base URL: {data.llm_base_url || '-'}</div>
         <div>LLM key: <span className="pill">{data.llm_key_configured ? '✓' : '✗'}</span></div>
         <div>Max iterasyon: {data.run_max_iterations}</div>
+        <div>Max wall s: {data.run_max_wall_seconds}</div>
       </div>)}
       <p className="warn">Secret değerleri asla gösterilmez.</p>
+      <button onClick={reload}>↻ Yenile</button>
     </div>
   )
 }

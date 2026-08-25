@@ -26,3 +26,13 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--bor
 input { background: var(--panel2); border: 1px solid var(--border); color: var(--fg); border-radius: 8px; padding: 8px 12px; margin-right: 8px; }
 .title { margin-bottom: 18px; }
 .imperative { display: flex; gap: 14px; align-items: center; }
+.sse-badge { display:flex; align-items:center; gap:6px; font-size:12px; padding:6px 10px; border-radius:8px; background:var(--panel2); border:1px solid var(--border); margin-bottom:10px; }
+.sse-badge .dot { width:8px; height:8px; border-radius:50%; background: var(--muted); display:inline-block; }
+.sse-badge.sse-open .dot { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.sse-badge.sse-connecting .dot { background: var(--warn); }
+.sse-badge.sse-error .dot { background: #ff5a5a; }
+.card.err { border-color: #ff5a5a; background: #1a0f1a; }
+.payload { background:#0a1220; border:1px solid var(--border); border-radius:8px; padding:10px; overflow:auto; font-size:12px; max-height:320px; white-space:pre-wrap; word-break:break-all; }
+.toast { position:fixed; top:14px; right:14px; background: var(--panel2); border:1px solid var(--ok); color: var(--ok); padding:10px 14px; border-radius:10px; z-index:99; cursor:pointer; }
+.nav-foot { margin-top:12px; font-size:11px; }
+select { cursor:pointer; }

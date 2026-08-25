@@ -1,16 +1,19 @@
-# RAPTOR Gateway — Caddy
+# RAPTOR Gateway — Caddy (Faz 6: Telegram secure webhook)
 # Yalnız host bind 127.0.0.1:<port> (docker-compose), tek origin altında API+UI.
 
 :80 {
   encode gzip
 
-  # API / SSE / webhook
+  # API / SSE / webhook (Telegram opaque path + secret header)
   @api {
     path /api/* /health/* /webhooks/* /events*
   }
   handle @api {
     reverse_proxy raptor-api:8000 {
       flush_interval -1
+      # Telegram webhook header'ını ilet, buffering kapat
+      header_up X-Real-IP {remote_host}
+      header_up X-Forwarded-For {remote_host}
     }
   }
 
