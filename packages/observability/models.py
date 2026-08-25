@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     DateTime,
@@ -22,6 +23,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column, relationship
+
+# Portable JSON: SQLite test'te JSON, PostgreSQL production'da JSONB (test+prod uyumu)
+JSONType = JSON().with_variant(JSONB, "postgresql")
 
 # pgvector desteği — yoksa JSONB fallback (claim'i korumak için)
 try:
@@ -143,7 +147,7 @@ class AgentProfile(_UUIDMixin, _TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     system_policy: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    tool_allowlist: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    tool_allowlist: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
@@ -156,8 +160,8 @@ class Task(_UUIDMixin, _TimestampMixin, Base):
                            postgresql_where=Text("idempotency_key IS NOT NULL")),)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
-    scope: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    budget: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    scope: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
+    budget: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     owner_user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
@@ -199,7 +203,7 @@ class RunEvent(_UUIDMixin, Base):
     )
     seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    payload: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     run: Mapped[Run] = relationship(back_populates="events")
 
@@ -209,8 +213,8 @@ class Plan(_UUIDMixin, _TimestampMixin, Base):
     run_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("runs.id"), nullable=False
     )
-    plan_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    expected_evidence: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    plan_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
+    expected_evidence: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
 
 
@@ -240,7 +244,7 @@ class Approval(_UUIDMixin, _TimestampMixin, Base):
     action_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     target: Mapped[str] = mapped_column(Text, nullable=False, default="")
     impact_summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    payload: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=ApprovalStatus.PENDING.value)
     requester_user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True
@@ -298,9 +302,12 @@ class MemoryItem(_UUIDMixin, _TimestampMixin, Base):
     ttl: Mapped[int] = mapped_column(Integer, nullable=True)  # saniye; None = ölümsüz
     status: Mapped[str] = mapped_column(String(24), nullable=False, default=MemoryStatus.CANDIDATE.value)
     verification_status: Mapped[str] = mapped_column(String(24), nullable=False, default="unverified")
-    embedding: Mapped[list] = mapped_column(JSONB, nullable=True)  # legacy JSONB, pgvector ile birlikte saklanır
+    embedding: Mapped[list] = mapped_column(JSONType, nullable=True)  # legacy JSONB, pgvector ile birlikte saklanır
     # Faz4: pgvector vector sütunu — 1536 boyut (OpenAI ada-002 uyumlu); extension zaten initdb'de CREATE EXTENSION vector
-    embedding_vector: Mapped[list] = mapped_column(Vector(1536) if Vector is not None else JSONB, nullable=True)  # type: ignore[arg-type]
+    embedding_vector: Mapped[list] = mapped_column(
+        (Vector(1536).with_variant(JSONType, "sqlite") if Vector is not None else JSONType),
+        nullable=True,
+    )  # type: ignore[arg-type]
     category: Mapped[str] = mapped_column(String(64), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -323,10 +330,10 @@ class Source(_UUIDMixin, _TimestampMixin, Base):
     __tablename__ = "sources"
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     source_type: Mapped[str] = mapped_column(String(40), nullable=False)
-    config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    config: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_accessed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
-    error_series: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    error_series: Mapped[list] = mapped_column(JSONType, nullable=False, default=list)
     backoff_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
@@ -338,7 +345,7 @@ class SourceObservation(_UUIDMixin, _TimestampMixin, Base):
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     change_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    change: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    change: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
 
 
@@ -359,7 +366,7 @@ class Report(_UUIDMixin, _TimestampMixin, Base):
     report_type: Mapped[str] = mapped_column(String(64), nullable=False)
     subject: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    body: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    body: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     signed_did: Mapped[str] = mapped_column(Text, nullable=True)
@@ -374,7 +381,7 @@ class PublicationAttempt(_UUIDMixin, _TimestampMixin, Base):
     )
     target: Mapped[str] = mapped_column(String(120), nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending")
-    response: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    response: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False, default="")
 
 
@@ -413,7 +420,7 @@ class PolicyVersion(_UUIDMixin, _TimestampMixin, Base):
     __tablename__ = "policy_versions"
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    content: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    content: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     __table_args__ = (UniqueConstraint("name", "version", name="uq_policy_name_ver"),)
 
@@ -428,7 +435,7 @@ class AuditEvent(_UUIDMixin, Base):
     action: Mapped[str] = mapped_column(String(120), nullable=False)
     resource_type: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     resource_id: Mapped[str] = mapped_column(String(64), nullable=True)
-    detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    detail: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
@@ -457,7 +464,7 @@ class OutboxMessage(_UUIDMixin, Base):
         UniqueConstraint("idempotency_key", name="uq_outbox_idempotency"),
     )
     topic: Mapped[str] = mapped_column(String(120), nullable=False, default="raptor.run_queued")
-    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    payload: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     processed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
