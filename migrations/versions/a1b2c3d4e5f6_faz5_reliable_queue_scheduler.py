@@ -75,14 +75,14 @@ def upgrade() -> None:
             RETURN NULL;
         END; $$ LANGUAGE plpgsql;
     """)
+    op.execute("DROP TRIGGER IF EXISTS trg_run_events_append_only ON run_events;")
     op.execute("""
-        DROP TRIGGER IF EXISTS trg_run_events_append_only ON run_events;
         CREATE TRIGGER trg_run_events_append_only
         BEFORE UPDATE OR DELETE ON run_events
         FOR EACH ROW EXECUTE FUNCTION raptor_prevent_update_delete();
     """)
+    op.execute("DROP TRIGGER IF EXISTS trg_audit_events_append_only ON audit_events;")
     op.execute("""
-        DROP TRIGGER IF EXISTS trg_audit_events_append_only ON audit_events;
         CREATE TRIGGER trg_audit_events_append_only
         BEFORE UPDATE OR DELETE ON audit_events
         FOR EACH ROW EXECUTE FUNCTION raptor_prevent_update_delete();
