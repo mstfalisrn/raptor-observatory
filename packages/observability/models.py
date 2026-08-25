@@ -184,6 +184,7 @@ class Run(_UUIDMixin, _TimestampMixin, Base):
     lease_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     worker_id: Mapped[str] = mapped_column(String(64), nullable=True)
     control_request: Mapped[str | None] = mapped_column(String(16), nullable=True)  # "pause" | "stop" | None
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     task: Mapped[Task] = relationship(back_populates="runs")
     events: Mapped[list["RunEvent"]] = relationship(back_populates="run")
     tool_calls: Mapped[list["ToolCall"]] = relationship(back_populates="run")

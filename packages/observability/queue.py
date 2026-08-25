@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 STREAM = "raptor:stream:run_queue"
 GROUP = "raptor-workers"
 CONSUMER_PREFIX = "worker-"
+DLQ_STREAM = "raptor:stream:dlq"
 
 # outbox topic
 TOPIC_RUN_QUEUED = "raptor.run_queued"
@@ -30,6 +31,12 @@ def publish_to_stream(redis_client, payload: dict, idempotency_key: str | None =
         fields["idempotency_key"] = idempotency_key
     # maxlen approx 10000 to avoid unbounded growth
     return redis_client.xadd(STREAM, fields, maxlen=10000, approximate=True)
+
+
+def publish_to_dlq(redis_client, payload: dict, reason: str) -> str:
+    """Poison/terminal message'ı DLQ stream'ine yaz."""
+    fields = {"data": json.dumps(payload, ensure_ascii=False), "reason": reason}
+    return redis_client.xadd(DLQ_STREAM, fields, maxlen=10000, approximate=True)
 
 
 def read_group(redis_client, consumer_name: str, count: int = 1, block_ms: int = 5000):

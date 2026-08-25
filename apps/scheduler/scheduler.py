@@ -95,14 +95,28 @@ class SchedulerLoop:
                 except Exception:
                     seq_max = 0
                 s.add(models.RunEvent(run_id=r.id, seq=seq_max + 1, event_type="STUCK_RECOVERED", payload={"reason": "lease_expired", "worker_id": r.worker_id}))
-                # optional requeue: create new run for same task if iterations < limit
-                try:
-                    if r.iteration < 3:
+                # retry_count artır + DLQ/requeue kararı
+                retry = (r.retry_count or 0) + 1
+                r.retry_count = retry
+                if retry > 3:
+                    # max retry aşıldı → DLQ
+                    try:
+                        from observability.queue import publish_to_dlq
+                        publish_to_dlq(self.redis, {"run_id": str(r.id), "task_id": str(r.task_id), "retry_of": str(r.id)},
+                                       reason="max_retries_exceeded")
+                        s.add(models.RunEvent(run_id=r.id, seq=seq_max + 2, event_type="DLQ", payload={"retry_count": retry}))
+                    except Exception:
+                        pass
+                else:
+                    # exponential backoff ile requeue
+                    backoff_sec = 30 * (2 ** (retry - 1))  # 30s, 60s, 120s
+                    try:
                         new_run = models.Run(
                             task_id=r.task_id,
                             status=models.RunStatus.QUEUED.value,
                             token_budget=r.token_budget,
                             cost_budget=r.cost_budget,
+                            retry_count=retry,
                         )
                         s.add(new_run)
                         await s.flush()
@@ -113,9 +127,9 @@ class SchedulerLoop:
                             processed=False,
                         )
                         s.add(ob)
-                        s.add(models.RunEvent(run_id=new_run.id, seq=0, event_type="RETRY_QUEUED", payload={"from_run": str(r.id)}))
-                except Exception:
-                    pass
+                        s.add(models.RunEvent(run_id=new_run.id, seq=0, event_type="RETRY_QUEUED", payload={"from_run": str(r.id), "backoff_sec": backoff_sec}))
+                    except Exception:
+                        pass
                 recovered += 1
             if recovered:
                 await s.commit()

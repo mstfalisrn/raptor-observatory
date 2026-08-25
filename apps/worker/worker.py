@@ -8,7 +8,7 @@ import os
 import uuid
 
 from fastapi import FastAPI
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from observability.config import settings
 from observability.db import async_session_factory
@@ -52,6 +52,7 @@ class WorkerLoop:
         except Exception:
             pass
         self._lease_ms = 30000  # pending reclaim after 30s
+        self._heartbeat_interval_s = 5  # run boyunca lease yenileme
 
     async def _handle_entry(self, entry_id: str, fields: dict) -> bool:
         # fields: {"data": json, "idempotency_key": ...} (decode_responses=True)
@@ -103,17 +104,25 @@ class WorkerLoop:
                 run.error = "task_not_found"
                 await s.commit()
                 return True
-            # lease acquisition: set heartbeat/lease
+            # lease acquisition: ATOMİK claim (yalnız QUEUED veya lease'i dolmuş EXECUTING)
             import datetime as _dt
             now = _dt.datetime.now(_dt.timezone.utc)
-            # optimistic: claim run for this worker if not already claimed or lease expired
-            if run.status == models.RunStatus.QUEUED.value:
-                run.status = models.RunStatus.EXECUTING.value
-                run.started_at = run.started_at or now
-            run.heartbeat_at = now
-            run.lease_expires_at = now + _dt.timedelta(milliseconds=self._lease_ms)
-            run.worker_id = self.consumer_name
+            lease = now + _dt.timedelta(milliseconds=self._lease_ms)
+            res = await s.execute(
+                text("""
+                    UPDATE runs SET status='EXECUTING', worker_id=:w, heartbeat_at=:now,
+                           lease_expires_at=:lease, started_at=COALESCE(started_at, :now)
+                    WHERE id=:id AND (
+                        status='QUEUED'
+                        OR (status='EXECUTING' AND (lease_expires_at IS NULL OR lease_expires_at < :now))
+                    )
+                """),
+                {"w": self.consumer_name, "now": now, "lease": lease, "id": str(uuid.UUID(run_id))}
+            )
             await s.commit()
+            if res.rowcount != 1:
+                # başka worker claim etti ya da terminal — bu mesajı atla (dedup)
+                return True
             # need fresh session for execution? reuse s after commit
             task_dict = {"prompt": task.prompt, "scope": task.scope}
             executor = ToolExecutor(self.registry, task=task_dict)
@@ -180,6 +189,28 @@ class WorkerLoop:
                 except Exception:
                     return False
 
+            # heartbeat: run boyunca lease'i düzenli yenile (uzun run stuck sayılmaz)
+            hb_stop = asyncio.Event()
+
+            async def _heartbeat_loop():
+                while not hb_stop.is_set():
+                    try:
+                        async with async_session_factory() as s_hb:
+                            hb_now = _dt.datetime.now(_dt.timezone.utc)
+                            await s_hb.execute(
+                                text("UPDATE runs SET heartbeat_at=:now, lease_expires_at=:lease WHERE id=:id AND worker_id=:w"),
+                                {"now": hb_now, "lease": hb_now + _dt.timedelta(milliseconds=self._lease_ms),
+                                 "id": str(uuid.UUID(run_id)), "w": self.consumer_name},
+                            )
+                            await s_hb.commit()
+                    except Exception:
+                        pass
+                    try:
+                        await asyncio.wait_for(hb_stop.wait(), timeout=self._heartbeat_interval_s)
+                    except asyncio.TimeoutError:
+                        pass
+
+            hb_task = asyncio.create_task(_heartbeat_loop())
             try:
                 status, executed, events = await coordinator.run(executor, self.planner,
                                                                  assembler, self.policy,
@@ -190,6 +221,9 @@ class WorkerLoop:
             except Exception as exc:
                 status = models.RunStatus.FAILED.value
                 events = [{"event_type": "FATAL", "payload": {"error": type(exc).__name__}, "seq": 0}]
+            finally:
+                hb_stop.set()
+                hb_task.cancel()
             # reload run for update (avoid stale)
             run2 = await s.get(models.Run, uuid.UUID(run_id))
             if run2 is None:
