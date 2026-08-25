@@ -1,0 +1,32 @@
+# Secrets — asla commit etme
+.env
+**/.env
+*secrets*
+app.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Node / Vite
+node_modules/
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# Test artefaktları
+tests/.coverage
+tests/artifacts/
+
+# Sistemsel
+*.log
+.DS_Store
