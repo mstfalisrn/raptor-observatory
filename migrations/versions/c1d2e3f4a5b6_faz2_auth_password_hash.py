@@ -20,6 +20,8 @@ def upgrade() -> None:
     op.add_column('runs', sa.Column('retry_count', sa.Integer(), nullable=False, server_default='0'))
     op.add_column('telegram_updates', sa.Column('status', sa.String(length=16), nullable=False, server_default='PENDING'))
     op.add_column('telegram_updates', sa.Column('attempt_count', sa.Integer(), nullable=False, server_default='0'))
+    op.add_column('run_events', sa.Column('global_seq', sa.BigInteger(), sa.Identity(), nullable=False))
+    op.create_index('ix_run_events_global_seq', 'run_events', ['global_seq'])
 
 
 def downgrade() -> None:
