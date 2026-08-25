@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import hmac
+import json
 import time
 
+from observability.config import settings
 from observability.models import ActionClass, ApprovalStatus
 
 
@@ -67,15 +70,18 @@ class PolicyEngine:
         return PolicyDecision(action_class, "ALLOW", f"otomatik ({action_class})")
 
 
+def canonical_json(payload: dict) -> str:
+    """Sıralı, kompakt canonical JSON — hash bağlaması için deterministik."""
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+
+
 def action_hash(action_class: str, target: str, payload: dict) -> str:
     """Tek kullanımlık onay eylemine bağlı hash — onay başka içeriğe taşınamaz."""
-    material = hashlib.sha256(
-        f"{action_class}|{target}|{sorted(payload.items())}".encode()
-    ).hexdigest()
-    return material
+    material = canonical_json({"action_class": action_class, "target": target, "payload": payload})
+    return hashlib.sha256(material.encode()).hexdigest()
 
 
 def build_approval_token(approval_id: str, action_hash: str, user_id: str, expiry: int) -> str:
-    """Callback/onay kaydı: kullanıcı ID + action ID + expiry + action hash ile bağlı token."""
+    """Callback/onay kaydı: HMAC-SHA256 (düz SHA-256 değil) — JWT_SECRET anahtarlı."""
     raw = f"{approval_id}:{action_hash}:{user_id}:{expiry}"
-    return hashlib.sha256(raw.encode()).hexdigest()
+    return hmac.new(settings.JWT_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()

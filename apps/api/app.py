@@ -290,24 +290,25 @@ async def list_approvals(limit: int = 20, user: dict = Depends(get_current_user)
 
 @app.post("/api/v1/approvals/{approval_id}/decision")
 async def decide_approval(approval_id: str, d: ApprovalDecision, user: dict = Depends(require_role("operator"))):
+    # path approval_id ile body approval_id aynı olmalı
+    if d.approval_id != approval_id:
+        raise HTTPException(400, "path approval_id ile body approval_id uyuşmuyor")
+    from policy.approval import ApprovalService
     try:
-        uid = uuid.UUID(approval_id)
-    except ValueError:
-        raise HTTPException(400, "approval_id geçersiz")
-    if d.decision not in ("approve", "reject"):
-        raise HTTPException(400, "decision approve|reject olmalı")
-    async with async_session_factory() as s:
-        a = await s.get(models.Approval, uid)
-        if a is None:
-            raise HTTPException(404, "onay yok")
-        if a.status != models.ApprovalStatus.PENDING.value:
-            raise HTTPException(409, "zaten karara bağlanmış (idempotent)")
-        a.status = (models.ApprovalStatus.APPROVED if d.decision == "approve"
-                    else models.ApprovalStatus.REJECTED).value
-        a.decision = d.decision
-        a.decided_by_user_id = user.get("user_id")  # auth'tan doldurulur
-        await s.commit()
-        return {"id": str(a.id), "status": a.status}
+        async with async_session_factory() as s:
+            svc = ApprovalService(s)
+            a = await svc.decide(approval_id, d.decision, user.get("user_id"))
+            await s.commit()
+            return {"id": str(a.id), "status": a.status, "decision": a.decision}
+    except ValueError as e:
+        msg = str(e)
+        if "süresi dolmuş" in msg or "EXPIRED" in msg:
+            raise HTTPException(410, msg)
+        if "bulunamadı" in msg:
+            raise HTTPException(404, msg)
+        if "zaten" in msg:
+            raise HTTPException(409, msg)
+        raise HTTPException(400, msg)
 
 
 # ---------------------------------------------------------------------------
