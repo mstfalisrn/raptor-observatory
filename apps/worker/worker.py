@@ -134,6 +134,16 @@ class WorkerLoop:
             coordinator.status = models.RunStatus.EXECUTING
             assembler = ContextAssembler(max_tokens=rum_budget(run))
             assembler.add("task_goal", task.prompt, title=task.title, relevance=1.0)
+            # AŞAMA 8: task başında aktif + verified memory retrieval (context'e ekle)
+            try:
+                from memory.service import MemoryService
+                mem = MemoryService(s)
+                mem_items = await mem.retrieve_for_context(task.prompt, limit=10)
+                for _m in mem_items:
+                    assembler.add("memory", _m.content, title=f"memory:{_m.category or 'genel'}",
+                                  relevance=max(0.0, min(1.0, _m.confidence or 0.5)))
+            except Exception:
+                pass
 
             from observability.security import redact as _redact
 
