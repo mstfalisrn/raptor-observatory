@@ -100,37 +100,77 @@ class RunCoordinator:
         return True
 
     # --- ana döngü ---
-    async def run(self, executor, planner, assembler, policy, provider, verifier):
-        """Coordinator döngüsü — belli araçlar ve onay motoruyla çalışır."""
+    async def _sink(self, event_sink, etype: str, payload: dict) -> None:
+        if event_sink is not None:
+            try:
+                await event_sink(self.run_id, etype, payload)
+            except Exception:
+                pass
+
+    def _add_usage(self, usage: dict) -> None:
+        if not usage:
+            return
+        try:
+            pt = int(usage.get("prompt_tokens") or 0)
+            ct = int(usage.get("completion_tokens") or 0)
+            tt = int(usage.get("total_tokens") or (pt + ct))
+            self.tokens_used += tt
+            # maliyet tahmini (opencode-go kredisi bilinmiyorsa token bazlı düşük tahmin)
+            self.cost_used += float(usage.get("cost") or 0.0)
+        except Exception:
+            pass
+
+    async def run(self, executor, planner, assembler, policy, provider, verifier,
+                  event_sink=None, pause_check=None, stop_check=None):
+        """Coordinator döngüsü — argümanlı action'lar, LLM context, bütçe/sınır."""
+        import json as _json
         self.status = RunStatus.CONTEXT_BUILDING
         self.started_at = time.monotonic()
         self.emit("STARTED", {"run_id": self.run_id})
+        await self._sink(event_sink, "STARTED", {"run_id": self.run_id})
 
         # 1) plan
         self.status = RunStatus.PLANNING
         plan = await planner.make_plan(task=executor.task)
         self.emit("PLAN", {"plan": plan})
+        await self._sink(event_sink, "PLAN", {"plan": plan})
+        self._add_usage(plan.get("_llm_usage") or {})
 
-        # 2) context
+        # 2) context (prompt modele gönderilir — replan/karar için)
         ordered, prompt = assembler.assemble()
         self.emit("CONTEXT", {"segments": assembler.inspector_metadata()})
+        await self._sink(event_sink, "CONTEXT", {"segments": assembler.inspector_metadata()})
 
-        executed = []
+        executed: list[dict] = []
         had_error = False
-        # her plan aracı yalnızca BİR kez çalıştırılır (iteration, araç sayısı kadardır)
-        plan_tools = [t for t in plan.get("tools", []) if not self.allowlist or t in self.allowlist]
-        # planner LLM usage'ını bütçeye yansıt
-        usage = plan.get("_llm_usage") or {}
-        if usage:
-            self.tokens_used += int(usage.get("total_tokens") or usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0) or 0)
-        for tool in plan_tools:
+        actions = plan.get("actions", [])
+        if not actions:
+            # eski format toleransı: tools isim listesi -> args'sız action
+            actions = [{"action_id": f"action_{i+1}", "tool": t, "arguments": {}}
+                       for i, t in enumerate(plan.get("tools", []))]
+
+        for act in actions:
+            if not isinstance(act, dict):
+                continue
+            tool = act.get("tool", "")
+            args = act.get("arguments") or {}
+            # pause/stop DB kontrolü (her iterasyonda)
+            if pause_check is not None and await pause_check():
+                self.status = RunStatus.PAUSED
+                self.emit("PAUSED", {})
+                break
+            if stop_check is not None and await stop_check():
+                self.status = RunStatus.CANCELLED
+                self.emit("CANCELLED", {})
+                break
             if not self.can_continue():
                 break
             self.iteration += 1
             self.status = RunStatus.EXECUTING
 
             decision = policy.decide(tool)
-            self.emit("POLICY_CHECK", {"tool": tool, "decision": decision.decision})
+            self.emit("POLICY_CHECK", {"tool": tool, "arguments": args, "decision": decision.decision})
+            await self._sink(event_sink, "POLICY_CHECK", {"tool": tool, "arguments": args, "decision": decision.decision})
 
             if decision.decision == "DENY":
                 self.status = RunStatus.FAILED
@@ -139,31 +179,38 @@ class RunCoordinator:
 
             if decision.decision == "REQUIRE_APPROVAL":
                 self.status = RunStatus.WAITING_APPROVAL
-                self.emit("AWAITING_APPROVAL", {"tool": tool})
-                # worker dışarıdan onay ister; bloker döner
+                self.emit("AWAITING_APPROVAL", {"tool": tool, "arguments": args})
+                await self._sink(event_sink, "AWAITING_APPROVAL", {"tool": tool, "arguments": args})
                 break
 
             try:
-                result = await executor.execute(tool)
+                result = await executor.execute(tool, **args)
                 self.tool_calls_count += 1
-                executed.append({"tool": tool, "result": result, "ok": True})
-                self.emit("TOOL_CALL", {"tool": tool, "ok": True})
+                executed.append({"action_id": act.get("action_id"), "tool": tool,
+                                 "arguments": args, "result": result, "ok": True})
+                self.emit("TOOL_CALL", {"tool": tool, "arguments": args, "ok": True})
+                await self._sink(event_sink, "TOOL_CALL", {"tool": tool, "arguments": args, "result": result, "ok": True})
+                # tool çıktısı UNTRUSTED_DATA olarak context'e
+                assembler.add("untrusted", _json.dumps(result, default=str)[:4000],
+                              title=f"tool:{tool}", relevance=0.5)
                 self._breaker.reset(tool)
             except Exception as e:
                 had_error = True
                 self.emit("TOOL_ERROR", {"tool": tool, "error": type(e).__name__, "msg": str(e)[:200]})
-                executed.append({"tool": tool, "error": type(e).__name__, "ok": False})
+                await self._sink(event_sink, "TOOL_ERROR", {"tool": tool, "error": type(e).__name__})
+                executed.append({"tool": tool, "arguments": args, "error": type(e).__name__, "ok": False})
                 if self._breaker.record_failure(tool):
                     self.status = RunStatus.FAILED
                     self.emit("CIRCUIT_OPEN", {"tool": tool})
                     break
 
+        # finalize
         if self._pause:
             self.status = RunStatus.PAUSED
         elif self._kill:
             self.status = RunStatus.CANCELLED
-        elif self.status == RunStatus.QUEUED or self.status == RunStatus.EXECUTING:
-            # normal bitiş — tool hatası varsa direkt FAILED (P0-4)
+        elif self.status in (RunStatus.QUEUED, RunStatus.EXECUTING, RunStatus.PLANNING,
+                             RunStatus.CONTEXT_BUILDING, RunStatus.POLICY_CHECK):
             if had_error:
                 self.status = RunStatus.FAILED
                 self.emit("VERIFY", {"passed": False, "reason": "tool_error"})
@@ -175,10 +222,11 @@ class RunCoordinator:
                     vres = None
                 passed = bool(vres and vres.passed)
                 self.emit("VERIFY", {"passed": passed, "evidence_n": len(executed)})
-                self.status = RunStatus.PERSISTING if passed and not self.is_killed else (RunStatus.CANCELLED if self.is_killed else RunStatus.FAILED)
+                await self._sink(event_sink, "VERIFY", {"passed": passed, "evidence_n": len(executed)})
+                self.status = RunStatus.PERSISTING if passed else RunStatus.FAILED
 
-        if self.status not in (RunStatus.CANCELLED.value, RunStatus.PAUSED.value, RunStatus.WAITING_APPROVAL.value, RunStatus.FAILED.value):
-            if self.status == RunStatus.PERSISTING:
-                self.status = RunStatus.COMPLETED
+        if self.status == RunStatus.PERSISTING:
+            self.status = RunStatus.COMPLETED
         self.emit("END", {"final_status": self.status.value})
+        await self._sink(event_sink, "END", {"final_status": self.status.value})
         return self.status.value, executed, self._events

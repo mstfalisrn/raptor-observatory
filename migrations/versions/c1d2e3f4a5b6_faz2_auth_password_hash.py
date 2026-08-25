@@ -16,7 +16,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.add_column('users', sa.Column('password_hash', sa.String(length=255), nullable=False, server_default=''))
+    op.add_column('runs', sa.Column('control_request', sa.String(length=16), nullable=True))
 
 
 def downgrade() -> None:
+    op.drop_column('runs', 'control_request')
     op.drop_column('users', 'password_hash')
