@@ -31,4 +31,4 @@ COPY --from=web-build /web/dist/ /srv/raptor/apps/web/dist/
 
 USER raptor
 EXPOSE 8000
-CMD ["sh", "-c", "alembic -c migrations/alembic.ini upgrade head && uvicorn apps.api.app:app --host 0.0.0.0 --port 8000 --workers 1"]
+CMD ["sh", "-c", "uvicorn apps.api.app:app --host 0.0.0.0 --port 8000 --workers 1"]

@@ -41,6 +41,30 @@ services:
     expose: ["6379"]
     networks: [raptor_internal]
 
+  # ------------------------------------------------------ One-shot migration (API migration çalıştırmaz)
+  raptor-migrate:
+    build:
+      context: .
+      dockerfile: apps/migrate/Dockerfile
+      args:
+        PYTHON_IMAGE: python:3.12-slim@sha256:7a8b475003c4fe15a2cd4e55e5cfc2f3560bdc9333d624f24cdd6d4340fd7a17
+    container_name: raptor-migrate
+    restart: "no"
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
+    depends_on:
+      raptor-postgres: { condition: service_healthy }
+    networks: [raptor_internal]
+
   # ------------------------------------------------------ API + SSE + webhook + (gömülü UI static)
   raptor-api:
     build:
@@ -82,6 +106,7 @@ services:
       RUN_MAX_TOKEN_BUDGET: ${RUN_MAX_TOKEN_BUDGET:-200000}
       TECHNOCORE_BASE_URL: ${TECHNOCORE_BASE_URL:-https://technocore.chat}
     depends_on:
+      raptor-migrate: { condition: service_completed_successfully }
       raptor-postgres: { condition: service_healthy }
       raptor-redis: { condition: service_healthy }
     healthcheck:
@@ -129,6 +154,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    volumes:
+      # Technocore DID key (host) → container'a read-only; host'ta UID 10001 okunabilir olmalı (0640 root:10001)
+      - ${TECHNOCORE_KEY_HOST_PATH:-./secrets/raptor-observatory/did.ed25519}:/run/secrets/technocore/did.ed25519:ro
     environment:
       APP_ENV: ${APP_ENV:-production}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
@@ -143,8 +171,9 @@ services:
       RUN_MAX_WALL_SECONDS: ${RUN_MAX_WALL_SECONDS:-900}
       CONNECTOR_ALLOWED_HOSTS: ${CONNECTOR_ALLOWED_HOSTS:-}
       TECHNOCORE_BASE_URL: ${TECHNOCORE_BASE_URL:-https://technocore.chat}
-      TECHNOCORE_ED25519_KEY_PATH: ${TECHNOCORE_ED25519_KEY_PATH:-}
+      TECHNOCORE_ED25519_KEY_PATH: /run/secrets/technocore/did.ed25519
     depends_on:
+      raptor-migrate: { condition: service_completed_successfully }
       raptor-postgres: { condition: service_healthy }
       raptor-redis: { condition: service_healthy }
     healthcheck:
@@ -181,6 +210,7 @@ services:
       SESSION_ENCRYPTION_MASTER_KEY: ${SESSION_ENCRYPTION_MASTER_KEY}
       TECHNOCORE_BASE_URL: ${TECHNOCORE_BASE_URL:-https://technocore.chat}
     depends_on:
+      raptor-migrate: { condition: service_completed_successfully }
       raptor-postgres: { condition: service_healthy }
       raptor-redis: { condition: service_healthy }
     healthcheck:
