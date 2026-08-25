@@ -28,7 +28,29 @@ from policy.engine import PolicyEngine, action_hash, build_approval_token
 
 log = logging.getLogger("raptor.api")
 
-app = FastAPI(title="RAPTOR Agentic Observatory", version="1.0.0")
+
+# --- Lifespan: admin kullanıcısını seed et ---
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    if settings.ADMIN_PASSWORD_HASH:
+        async with async_session_factory() as s:
+            res = await s.execute(select(models.User).where(models.User.username == settings.ADMIN_EMAIL))
+            u = res.scalar_one_or_none()
+            if u is None:
+                s.add(models.User(username=settings.ADMIN_EMAIL, display_name="Admin",
+                                  role="admin", is_active=True, password_hash=settings.ADMIN_PASSWORD_HASH))
+                await s.commit()
+                log.info("admin kullanıcı seed edildi: %s", settings.ADMIN_EMAIL)
+            elif u.password_hash != settings.ADMIN_PASSWORD_HASH:
+                u.password_hash = settings.ADMIN_PASSWORD_HASH
+                await s.commit()
+    yield
+
+
+app = FastAPI(title="RAPTOR Agentic Observatory", version="1.0.0", lifespan=_lifespan)
 
 # --- Fail-fast: production'da eksik/placeholder secret ile boot etme (P58) ---
 import os as _os
@@ -53,37 +75,34 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Requested-With", "Cf-Access-Jwt-Assertion", "X-Telegram-Bot-Api-Secret-Token"],
 )
 
-# --- Cloudflare Access JWT doğrulaması (P11) — production'da fail-closed ---
-import base64 as _b64
-import json as _json
+# --- Local auth (CF Access kullanılmıyor) + rate limit + body size ---
+from observability.auth import (
+    get_current_user,
+    require_role,
+    rate_limiter,
+    create_session_token,
+    verify_password,
+    hash_password,
+)
+
+_PUBLIC_PATHS = {"/health/live", "/health/ready", "/api/v1/auth/login", "/api/v1/auth/status"}
+
 
 @app.middleware("http")
-async def _cf_access_guard(request: Request, call_next):
-    # Telegram webhook ve health her zaman muaf (webhook secret ile korunur)
+async def _guard(request: Request, call_next):
     path = request.url.path
-    if path.startswith("/webhooks/telegram/") or path in ("/health/live", "/health/ready"):
+    # Telegram webhook + health + login muaf (webhook secret header ile korunur)
+    if path.startswith("/webhooks/telegram/") or path in _PUBLIC_PATHS:
         return await call_next(request)
-    # development'te Access zorunlu değil (Tailscale/localhost)
-    if not settings.is_production or not settings.CLOUDFLARE_ACCESS_AUD:
-        return await call_next(request)
-    token = request.headers.get("Cf-Access-Jwt-Assertion", "")
-    if not token:
-        return JSONResponse({"detail": "Cloudflare Access JWT gerekli"}, status_code=401)
-    try:
-        # RS256 JWKS doğrulaması — team domain'den JWKS alınır (cache'li)
-        # Basit decode: header kid ile JWKS eşleştir, RS256 verify
-        import jwt as _jwt
-        # JWKS cache (memory)
-        jwks_url = f"https://{settings.CLOUDFLARE_ACCESS_AUD.split('/')[0] if '/' in settings.CLOUDFLARE_ACCESS_AUD else 'team'}.cloudflareaccess.com/cdn-cgi/access/certs"
-        # AUD kontrolü
-        payload = _jwt.decode(token, options={"verify_signature": False})
-        if payload.get("aud") and payload["aud"] != settings.CLOUDFLARE_ACCESS_AUD:
-            return JSONResponse({"detail": "Access AUD uyuşmuyor"}, status_code=403)
-        # Gerçek imza doğrulaması için JWKS fetch (httpx)
-        # Fail-closed: JWKS alınamazsa 503
-        return await call_next(request)
-    except Exception as e:
-        return JSONResponse({"detail": f"Access doğrulama hatası: {type(e).__name__}"}, status_code=403)
+    # Body boyut limiti (Content-Length + streaming guard)
+    cl = request.headers.get("content-length", "")
+    if cl.isdigit() and int(cl) > settings.MAX_REQUEST_BODY_BYTES:
+        return JSONResponse({"detail": "request body çok büyük"}, status_code=413)
+    # Global rate limit (IP bazlı)
+    ip = request.client.host if request.client else "unknown"
+    if not await rate_limiter.check(f"rl:global:{ip}", settings.RATE_LIMIT_PER_MINUTE, 60):
+        return JSONResponse({"detail": "rate limit aşıldı"}, status_code=429)
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
@@ -122,10 +141,47 @@ async def health_ready():
 
 
 # ---------------------------------------------------------------------------
+# Auth (local session)
+# ---------------------------------------------------------------------------
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/api/v1/auth/login")
+async def login(req: LoginRequest):
+    async with async_session_factory() as s:
+        res = await s.execute(select(models.User).where(models.User.username == req.email))
+        u = res.scalar_one_or_none()
+        if u is None or not u.is_active or not u.password_hash or not verify_password(req.password, u.password_hash):
+            raise HTTPException(401, "geçersiz email veya parola")
+        token = create_session_token(str(u.id), u.role, settings.SESSION_TTL_SECONDS)
+        return {"token": token, "role": u.role, "email": u.username, "display_name": u.display_name}
+
+
+@app.get("/api/v1/auth/status")
+async def auth_status():
+    return {"auth": "local", "admin_email": settings.ADMIN_EMAIL,
+            "roles": ["admin", "operator", "viewer"],
+            "session_ttl_seconds": settings.SESSION_TTL_SECONDS}
+
+
+@app.get("/api/v1/auth/me")
+async def auth_me(user: dict = Depends(get_current_user)):
+    async with async_session_factory() as s:
+        res = await s.execute(select(models.User).where(models.User.id == user["user_id"]))
+        u = res.scalar_one_or_none()
+    if u is None:
+        raise HTTPException(404, "kullanıcı yok")
+    return {"user_id": str(u.id), "username": u.username, "role": u.role,
+            "display_name": u.display_name, "is_active": u.is_active}
+
+
+# ---------------------------------------------------------------------------
 # Tasks / Runs — outbox pattern + Redis Streams
 # ---------------------------------------------------------------------------
 @app.post("/api/v1/tasks", status_code=201)
-async def create_task(t: TaskCreate):
+async def create_task(t: TaskCreate, user: dict = Depends(require_role("operator"))):
     from sqlalchemy.exc import IntegrityError
     outbox_key = f"task:{t.idempotency_key}" if t.idempotency_key else f"auto:{uuid.uuid4().hex}"
     async with async_session_factory() as s:
@@ -193,7 +249,7 @@ async def create_task(t: TaskCreate):
 
 
 @app.get("/api/v1/runs")
-async def list_runs(limit: int = 20, offset: int = 0):
+async def list_runs(limit: int = 20, offset: int = 0, user: dict = Depends(get_current_user)):
     async with async_session_factory() as s:
         res = await s.execute(
             select(models.Run).order_by(models.Run.created_at.desc()).limit(limit).offset(offset)
@@ -204,7 +260,7 @@ async def list_runs(limit: int = 20, offset: int = 0):
 
 
 @app.get("/api/v1/runs/{run_id}/events")
-async def run_events(run_id: str):
+async def run_events(run_id: str, user: dict = Depends(get_current_user)):
     try:
         uid = uuid.UUID(run_id)
     except ValueError:
@@ -221,7 +277,7 @@ async def run_events(run_id: str):
 # Approvals
 # ---------------------------------------------------------------------------
 @app.get("/api/v1/approvals")
-async def list_approvals(limit: int = 20):
+async def list_approvals(limit: int = 20, user: dict = Depends(get_current_user)):
     async with async_session_factory() as s:
         res = await s.execute(
             select(models.Approval).order_by(models.Approval.created_at.desc()).limit(limit)
@@ -233,7 +289,7 @@ async def list_approvals(limit: int = 20):
 
 
 @app.post("/api/v1/approvals/{approval_id}/decision")
-async def decide_approval(approval_id: str, d: ApprovalDecision):
+async def decide_approval(approval_id: str, d: ApprovalDecision, user: dict = Depends(require_role("operator"))):
     try:
         uid = uuid.UUID(approval_id)
     except ValueError:
@@ -249,7 +305,7 @@ async def decide_approval(approval_id: str, d: ApprovalDecision):
         a.status = (models.ApprovalStatus.APPROVED if d.decision == "approve"
                     else models.ApprovalStatus.REJECTED).value
         a.decision = d.decision
-        a.decided_by_user_id = None  # UI'dan; user auth eklenince doldurulur
+        a.decided_by_user_id = user.get("user_id")  # auth'tan doldurulur
         await s.commit()
         return {"id": str(a.id), "status": a.status}
 
@@ -266,7 +322,7 @@ class MemoryCreate(BaseModel):
 
 
 @app.get("/api/v1/memory")
-async def list_memory(status: str | None = None, q: str | None = None, limit: int = 50):
+async def list_memory(status: str | None = None, q: str | None = None, limit: int = 50, user: dict = Depends(get_current_user)):
     async with async_session_factory() as s:
         msvc = MemoryService(s)
         items = (await msvc.search(q, status, limit)) if q else (await msvc.list_status(status or "candidate", limit))
@@ -277,7 +333,7 @@ async def list_memory(status: str | None = None, q: str | None = None, limit: in
 
 
 @app.post("/api/v1/memory", status_code=201)
-async def create_memory_candidate(m: MemoryCreate):
+async def create_memory_candidate(m: MemoryCreate, user: dict = Depends(require_role("operator"))):
     async with async_session_factory() as s:
         msvc = MemoryService(s)
         item = await msvc.create_candidate(
@@ -289,7 +345,7 @@ async def create_memory_candidate(m: MemoryCreate):
 
 
 @app.post("/api/v1/memory/{memory_id}/decision")
-async def decide_memory(memory_id: str, d: dict):
+async def decide_memory(memory_id: str, d: dict, user: dict = Depends(require_role("admin"))):
     try:
         uid = uuid.UUID(memory_id)
     except ValueError:
@@ -338,7 +394,7 @@ async def technocore_status():
 
 
 @app.get("/api/v1/settings/non-secret")
-async def settings_non_secret():
+async def settings_non_secret(user: dict = Depends(get_current_user)):
     return {
         "app_env": settings.APP_ENV,
         "llm_provider": settings.LLM_PROVIDER,
