@@ -148,6 +148,18 @@ class WorkerLoop:
                                 result_summary=json.dumps(payload.get("result", ""), default=str)[:500],
                                 action_class="READ_ONLY", policy_decision="ALLOW",
                             ))
+                        elif etype == "AWAITING_APPROVAL":
+                            from policy.approval import ApprovalService
+                            svc = ApprovalService(s2)
+                            await svc.create(
+                                run_id=run_id,
+                                action_id=payload.get("action_id", ""),
+                                tool=payload.get("tool", ""),
+                                arguments=payload.get("arguments", {}),
+                                action_class=payload.get("action_class", "PUBLIC_WRITE"),
+                                target=json.dumps(payload.get("arguments", {}), default=str)[:200],
+                                impact_summary=f"tool {payload.get('tool','')} onay bekliyor",
+                            )
                         await s2.commit()
                 except Exception:
                     pass

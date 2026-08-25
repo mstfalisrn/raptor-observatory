@@ -179,8 +179,11 @@ class RunCoordinator:
 
             if decision.decision == "REQUIRE_APPROVAL":
                 self.status = RunStatus.WAITING_APPROVAL
-                self.emit("AWAITING_APPROVAL", {"tool": tool, "arguments": args})
-                await self._sink(event_sink, "AWAITING_APPROVAL", {"tool": tool, "arguments": args})
+                ap_payload = {"tool": tool, "arguments": args,
+                              "action_id": act.get("action_id", ""),
+                              "action_class": decision.action_class}
+                self.emit("AWAITING_APPROVAL", ap_payload)
+                await self._sink(event_sink, "AWAITING_APPROVAL", ap_payload)
                 break
 
             try:
