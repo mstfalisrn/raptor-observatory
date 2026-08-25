@@ -197,6 +197,30 @@ class TechnocoreConnector:
         self._signing_key = None  # nacl.signing.SigningKey
         self._did_pub: str | None = None
 
+    def load_key(self, key_path: str = "") -> str:
+        """Yalnızca mevcut key'i yükle; yoksa üretme (production güvenli). DID döner veya boş."""
+        from nacl.signing import SigningKey
+
+        path = Path(key_path or self._key_path)
+        if not str(path) or not path.exists():
+            return ""
+        seed = path.read_bytes()
+        if len(seed) == 64:
+            seed = seed[:32]
+        if len(seed) != 32:
+            raise TechnocoreError(f"key dosyası hatalı uzunluk: {len(seed)}")
+        self._signing_key = SigningKey(seed)
+        self._did_pub = _pubkey_to_did(bytes(self._signing_key.verify_key))
+        return self._did_pub
+
+    def status(self) -> dict:
+        """Public durum — private key ASLA döndürülmez."""
+        return {
+            "key_loaded": self._signing_key is not None,
+            "did": self.did_public or "",
+            "key_path": self._key_path,
+        }
+
     # --- DID kimliği ---
     def load_or_generate_key(self, key_path: str = "") -> tuple[str, str]:
         """Ed25519 key yükle/üret; private key yalnız 0600 dosyada. DID base58btc."""

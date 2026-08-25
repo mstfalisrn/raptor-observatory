@@ -13,6 +13,7 @@ class ToolRegistry:
     def __init__(self) -> None:
         self._fns: dict[str, Callable[..., Awaitable[Any]]] = {}
         self._schemas: dict[str, dict] = {}
+        self.technocore: Any = None  # TechnocoreConnector (status için attach edilir)
 
     def register(self, name: str, fn, schema: dict) -> None:
         self._fns[name] = fn
@@ -68,6 +69,14 @@ def build_default_registry(
     gh = GithubRepoConnector()
     health = InternalHealthConnector()
     tc = TechnocoreConnector(technocore_base_url, ed25519_key_path=technocore_key_path)
+    # worker startup: mevcut key'i yükle (production'da otomatik üretme yok)
+    try:
+        tc.load_key(technocore_key_path)
+    except Exception as e:
+        tc._signing_key = None
+        tc._did_pub = None
+    # connector'ı registry'ye attach et — worker/API technocore status için
+    reg.technocore = tc
 
     reg.register(
         "http_json_read",
