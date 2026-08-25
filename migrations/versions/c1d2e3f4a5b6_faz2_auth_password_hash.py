@@ -17,8 +17,12 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column('users', sa.Column('password_hash', sa.String(length=255), nullable=False, server_default=''))
     op.add_column('runs', sa.Column('control_request', sa.String(length=16), nullable=True))
+    op.add_column('telegram_updates', sa.Column('status', sa.String(length=16), nullable=False, server_default='PENDING'))
+    op.add_column('telegram_updates', sa.Column('attempt_count', sa.Integer(), nullable=False, server_default='0'))
 
 
 def downgrade() -> None:
+    op.drop_column('telegram_updates', 'attempt_count')
+    op.drop_column('telegram_updates', 'status')
     op.drop_column('runs', 'control_request')
     op.drop_column('users', 'password_hash')

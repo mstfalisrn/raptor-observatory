@@ -183,7 +183,7 @@ class Run(_UUIDMixin, _TimestampMixin, Base):
     heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     lease_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     worker_id: Mapped[str] = mapped_column(String(64), nullable=True)
-    control_request: Mapped[str] = mapped_column(String(16), nullable=True)  # "pause" | "stop" | None
+    control_request: Mapped[str | None] = mapped_column(String(16), nullable=True)  # "pause" | "stop" | None
     task: Mapped[Task] = relationship(back_populates="runs")
     events: Mapped[list["RunEvent"]] = relationship(back_populates="run")
     tool_calls: Mapped[list["ToolCall"]] = relationship(back_populates="run")
@@ -441,6 +441,8 @@ class TelegramUpdate(Base):
     update_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="PENDING", nullable=False)  # PENDING|PROCESSING|PROCESSED|FAILED
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
 # ----------------------------------------------------------------------------

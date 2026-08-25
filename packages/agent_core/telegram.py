@@ -30,6 +30,25 @@ class TelegramService:
     def __init__(self) -> None:
         self.token = settings.TELEGRAM_BOT_TOKEN
         self._app: Application | None = None
+        self._started = False
+
+    # --- lifecycle (singleton; lifespan'ta bir kez) ---
+    async def initialize(self) -> None:
+        if self._app is None:
+            await self.build()
+        await self._app.initialize()
+        await self._app.start()
+        self._started = True
+        log.info("Telegram Application initialize+start OK")
+
+    async def shutdown(self) -> None:
+        if self._app is not None and self._started:
+            try:
+                await self._app.stop()
+                await self._app.shutdown()
+            except Exception:
+                pass
+            self._started = False
 
     # --- allowlist: env + DB (BIGINT) ---
     def allowed(self, user_id: int) -> bool:
@@ -198,12 +217,12 @@ class TelegramService:
             s.add(run)
             await s.commit()
             run_id = str(run.id)
-        # Redis kuyruğu (best effort)
+        # Redis Streams (outbox/stream — LPUSH değil)
         try:
+            from observability.queue import publish_to_stream
             import redis as redis_lib
-            r = redis_lib.from_url(settings.REDIS_URL)
-            import json as _json
-            r.lpush("raptor:queue", _json.dumps({"run_id": run_id}))
+            r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
+            publish_to_stream(r, {"run_id": run_id}, idempotency_key=f"task:{run_id}")
         except Exception:
             pass
         await update.effective_message.reply_text(f"✅ Task oluşturuldu\nrun: `{run_id}`\n/status ile izle", parse_mode="Markdown")
@@ -233,9 +252,10 @@ class TelegramService:
             await s.commit()
             run_id = str(run.id)
         try:
-            import redis as redis_lib, json as _json
-            r = redis_lib.from_url(settings.REDIS_URL)
-            r.lpush("raptor:queue", _json.dumps({"run_id": run_id}))
+            from observability.queue import publish_to_stream
+            import redis as redis_lib
+            r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
+            publish_to_stream(r, {"run_id": run_id}, idempotency_key=f"task:{run_id}")
         except Exception:
             pass
         await update.effective_message.reply_text(f"✅ Task oluşturuldu\nrun `{run_id}` QUEUED", parse_mode="Markdown")
@@ -285,11 +305,13 @@ class TelegramService:
                 if run and run.status == models.RunStatus.WAITING_APPROVAL.value:
                     if decision == "approve":
                         run.status = models.RunStatus.QUEUED.value
-                        # outbox / redis
+                        run.control_request = None
+                        # outbox / stream
                         try:
-                            import redis as redis_lib, json as _json
-                            r = redis_lib.from_url(settings.REDIS_URL)
-                            r.lpush("raptor:queue", _json.dumps({"run_id": str(run.id)}))
+                            from observability.queue import publish_to_stream
+                            import redis as redis_lib
+                            r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
+                            publish_to_stream(r, {"run_id": str(run.id)}, idempotency_key=f"approve:{a.id}")
                         except Exception:
                             pass
                     else:
@@ -335,9 +357,10 @@ class TelegramService:
             if not run:
                 await update.effective_message.reply_text("Run yok")
                 return
-            run.status = models.RunStatus.PAUSED.value
+            # aktif run'ı gerçekten duraklat: coordinator her iterasyonda DB'den okur
+            run.control_request = "pause"
             await s.commit()
-        await update.effective_message.reply_text(f"⏸️ Paused {rid[:8]}")
+        await update.effective_message.reply_text(f"⏸️ Pause istendi {rid[:8]} (sonraki iterasyonda durur)")
 
     async def cmd_resume(self, update: Update, context: CallbackContext) -> None:
         if not await self._require(update, context):
@@ -356,16 +379,19 @@ class TelegramService:
             if not run:
                 await update.effective_message.reply_text("Run yok")
                 return
-            if run.status != models.RunStatus.PAUSED.value:
-                await update.effective_message.reply_text(f"Run durumu {run.status} — yalnız PAUSED resume edilir")
+            if run.status != models.RunStatus.PAUSED.value and run.control_request != "pause":
+                await update.effective_message.reply_text(f"Run durumu {run.status} — resume edilemez")
                 return
-            run.status = models.RunStatus.QUEUED.value
+            run.control_request = None
+            if run.status == models.RunStatus.PAUSED.value:
+                run.status = models.RunStatus.QUEUED.value
             await s.commit()
             run_id = str(run.id)
         try:
-            import redis as redis_lib, json as _json
-            r = redis_lib.from_url(settings.REDIS_URL)
-            r.lpush("raptor:queue", _json.dumps({"run_id": run_id}))
+            from observability.queue import publish_to_stream
+            import redis as redis_lib
+            r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
+            publish_to_stream(r, {"run_id": run_id}, idempotency_key=f"resume:{run_id}")
         except Exception:
             pass
         await update.effective_message.reply_text(f"▶️ Resumed {rid[:8]} → QUEUED")
@@ -387,9 +413,10 @@ class TelegramService:
             if not run:
                 await update.effective_message.reply_text("Run yok")
                 return
-            run.status = models.RunStatus.CANCELLED.value
+            # aktif run'ı gerçekten durdur: coordinator her iterasyonda DB'den okur
+            run.control_request = "stop"
             await s.commit()
-        await update.effective_message.reply_text(f"⏹️ Cancelled {rid[:8]}")
+        await update.effective_message.reply_text(f"⏹️ Stop istendi {rid[:8]} (sonraki iterasyonda iptal)")
 
     async def cmd_memory(self, update: Update, context: CallbackContext) -> None:
         if not await self._require(update, context):
@@ -492,3 +519,14 @@ def ensure_user_id_in_allowlist(user_id: int):
     current = set(s.allowed_user_ids)
     current.add(int(user_id))
     s.TELEGRAM_ALLOWED_USER_IDS = ",".join(str(x) for x in sorted(current))
+
+
+_singleton: TelegramService | None = None
+
+
+def get_service() -> TelegramService:
+    """Singleton TelegramService — her webhook'ta yeni instance oluşturulmaz."""
+    global _singleton
+    if _singleton is None:
+        _singleton = TelegramService()
+    return _singleton

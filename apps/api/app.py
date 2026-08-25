@@ -47,7 +47,19 @@ async def _lifespan(_app: FastAPI):
             elif u.password_hash != settings.ADMIN_PASSWORD_HASH:
                 u.password_hash = settings.ADMIN_PASSWORD_HASH
                 await s.commit()
+    # Telegram Application singleton: build+initialize+start BİR KEZ (webhook için)
+    _tg = None
+    if settings.TELEGRAM_BOT_TOKEN:
+        try:
+            from agent_core.telegram import get_service
+            _tg = get_service()
+            await _tg.initialize()
+            log.info("Telegram Application initialized")
+        except Exception as e:
+            log.warning("Telegram initialize atlandı (dev): %s", type(e).__name__)
     yield
+    if _tg is not None:
+        await _tg.shutdown()
 
 
 app = FastAPI(title="RAPTOR Agentic Observatory", version="1.0.0", lifespan=_lifespan)
@@ -511,36 +523,55 @@ async def telegram_webhook(opaque_path: str, request: Request):
         raise HTTPException(400, "geçersiz JSON")
 
     update_id = body.get("update_id")
-    # BIGINT dedup: update_id varsa DB'de tekilleştir (TelegramUpdate PK)
-    if isinstance(update_id, int):
-        # BIGINT cast — int overflow'u yok, ama DB BigInteger
+    rec_id = int(update_id) if isinstance(update_id, int) else None
+    # BIGINT durable inbox: PENDING kaydı (dedup + retry için)
+    if rec_id is not None:
         try:
             async with async_session_factory() as s:
-                # önce var mı bak
-                existing = await s.get(models.TelegramUpdate, int(update_id))
-                if existing is not None:
+                existing = await s.get(models.TelegramUpdate, rec_id)
+                if existing is not None and existing.status == "PROCESSED":
                     return {"ok": True, "dedup": True, "update_id": update_id}
-                # yoksa ekle
-                payload_hash = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()[:64]
-                s.add(models.TelegramUpdate(update_id=int(update_id), payload_hash=payload_hash))
-                await s.commit()
+                if existing is None:
+                    payload_hash = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()[:64]
+                    s.add(models.TelegramUpdate(update_id=rec_id, payload_hash=payload_hash, status="PENDING"))
+                    await s.commit()
         except Exception as e:
-            # constraint violation (race) → dedup say
             if "uq_tg_update_id" in str(e) or "UniqueViolation" in str(e) or "duplicate" in str(e).lower():
                 return {"ok": True, "dedup": True, "update_id": update_id}
-            # diğer DB hataları yutulmaz — ama webhook 500 olmasın, logla ve devam et
             log.warning("telegram dedup DB hata: %s", redact(str(e)))
 
-    # update'i TelegramService'e ilet (best effort, webhook hızlı dönmeli)
+    # gerçekten işle (singleton) — işlenmeden PROCESSED sayılmaz
+    from agent_core.telegram import get_service
+    tg = get_service()
     try:
-        from agent_core.telegram import TelegramService as _Tg
-        tg = _Tg()
-        # Application build gerekmeden de process edilebilir; handle_raw_update kullan
-        # Arka planda çalıştır — webhook'u bloklama
-        import asyncio as _asyncio
-        _asyncio.create_task(tg.handle_raw_update(body))
+        await tg.handle_raw_update(body)
     except Exception as e:
         log.warning("telegram handle hata: %s", redact(str(e)))
+        if rec_id is not None:
+            try:
+                async with async_session_factory() as s:
+                    r2 = await s.get(models.TelegramUpdate, rec_id)
+                    if r2 is not None:
+                        r2.status = "FAILED"
+                        r2.attempt_count = (r2.attempt_count or 0) + 1
+                        await s.commit()
+            except Exception:
+                pass
+        # 500 dön ki Telegram retry etsin
+        return JSONResponse({"ok": False, "error": "processing_failed"}, status_code=500)
+
+    # başarılı → PROCESSED
+    if rec_id is not None:
+        try:
+            async with async_session_factory() as s:
+                r2 = await s.get(models.TelegramUpdate, rec_id)
+                if r2 is not None:
+                    r2.status = "PROCESSED"
+                    r2.attempt_count = (r2.attempt_count or 0) + 1
+                    r2.processed_at = datetime.now(timezone.utc)
+                    await s.commit()
+        except Exception:
+            pass
 
     return {"ok": True, "update_id": update_id}
 
