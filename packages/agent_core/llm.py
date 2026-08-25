@@ -119,3 +119,44 @@ def build_provider(provider: str | None = None) -> LLMProvider:
             settings.LLM_BASE_URL, settings.LLM_MODEL, settings.LLM_API_KEY
         )
     return MockProvider()
+
+
+# ---------------------------------------------------------------------------
+# Embedding (memory semantic retrieval)
+# ---------------------------------------------------------------------------
+class EmbeddingProvider(abc.ABC):
+    @abc.abstractmethod
+    async def embed(self, text: str) -> list[float]:
+        ...
+
+
+class OpenAICompatibleEmbeddingProvider(EmbeddingProvider):
+    def __init__(self, base_url: str, model: str, api_key: str) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.api_key = api_key
+
+    async def embed(self, text: str) -> list[float]:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                f"{self.base_url}/embeddings",
+                json={"model": self.model, "input": text[:8000]},
+                headers={"Authorization": f"Bearer {self.api_key}"},
+            )
+            r.raise_for_status()
+            data = r.json()
+            vec = data["data"][0]["embedding"]
+            if not isinstance(vec, list) or not all(isinstance(x, (int, float)) for x in vec):
+                raise ValueError("embedding yanıtı liste değil")
+            return [float(x) for x in vec]
+
+
+def build_embedding_provider() -> EmbeddingProvider | None:
+    """Embedding provider — model embeddings desteklemiyorsa None (graceful)."""
+    model = settings.EMBEDDING_MODEL or settings.LLM_MODEL
+    if not model or not settings.LLM_BASE_URL:
+        return None
+    try:
+        return OpenAICompatibleEmbeddingProvider(settings.LLM_BASE_URL, model, settings.LLM_API_KEY)
+    except Exception:
+        return None
