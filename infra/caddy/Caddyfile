@@ -1,0 +1,35 @@
+# RAPTOR Gateway — Caddy
+# Yalnız host bind 127.0.0.1:<port> (docker-compose), tek origin altında API+UI.
+# Cloudflare Access JWT doğrulaması origin'de (raptor-api) yapılır; gateway'de de opsiyonel.
+
+# API geri proxy; SSE stream'e timeout/okuma kabul eder
+:80 {
+  encode gzip
+
+  @api {
+    path /api/* /health/* /webhooks/*
+  }
+  handle @api {
+    reverse_proxy raptor-api:8000
+  }
+
+  @sse {
+    path /events*
+  }
+  handle @sse {
+    flush_interval -1
+    reverse_proxy raptor-api:8000
+  }
+
+  # UI: raptor-web mount ettiği dist volume'i raptor-api tarafından sunuluyor
+  handle {
+    reverse_proxy raptor-api:8000
+  }
+
+  header {
+    -Server
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "no-referrer"
+  }
+}
