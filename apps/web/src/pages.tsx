@@ -63,7 +63,7 @@ export function Dashboard({ live, sseState, lastId, onOpen, onOpenRun }: any) {
   const { data: approvals, err: e2, loading: l2, reload: r2 } = useFetch<any[]>('/v1/approvals')
   const { data: health } = useFetch<any>('/health/live')
   const pending = approvals?.filter((a:any)=>a.status==='PENDING').length ?? 0
-  const running = runs?.filter((r:any)=>['RUNNING','QUEUED'].includes(r.status)).length ?? 0
+  const running = runs?.filter((r:any)=>['EXECUTING','QUEUED'].includes(r.status)).length ?? 0
   return (
     <div>
       <h1>📊 Dashboard</h1>
@@ -111,13 +111,48 @@ export function RunsPage({ onOpenDetail }: { onOpenDetail?:(id:string)=>void }) 
 }
 
 export function RunDetailPage({ runId, onBack }: { runId:string, onBack:()=>void }) {
+  const { data: run, reload: reloadRun } = useFetch<any>(`/v1/runs/${runId}`, [runId])
   const { data, err, loading, reload } = useFetch<any[]>(`/v1/runs/${runId}/events`, [runId])
   const [filter, setFilter] = useState('')
+  const [busy, setBusy] = useState('')
+  const [msg, setMsg] = useState('')
   const evs = !filter ? data : data?.filter((e:any)=> e.event_type.toLowerCase().includes(filter.toLowerCase()))
+  const active = run && ['EXECUTING','QUEUED'].includes(run.status)
+  const terminal = run && ['FAILED','COMPLETED','CANCELLED'].includes(run.status)
+  async function control(action: string) {
+    setBusy(action); setMsg('')
+    try { await api(`/v1/runs/${runId}/control`, { method:'POST', body: JSON.stringify({ action }) }); setMsg(`✓ ${action} gönderildi`); reloadRun() }
+    catch(e){ setMsg('⚠ '+errMsg(e)) } finally { setBusy('') }
+  }
+  async function retry() {
+    setBusy('retry'); setMsg('')
+    try { await api(`/v1/runs/${runId}/retry`, { method:'POST', body: '{}' }); setMsg('✓ tekrar kuyruğa alındı'); reloadRun() }
+    catch(e){ setMsg('⚠ '+errMsg(e)) } finally { setBusy('') }
+  }
   return (
     <div>
       <button onClick={onBack}>← Geri</button>
       <h2>Run: {runId.slice(0,8)} <span className="muted" style={{fontSize:12}}>{runId}</span></h2>
+      {run && <div className="card">
+        <div style={{display:'flex', gap:12, flexWrap:'wrap', alignItems:'center'}}>
+          <span className="pill">{run.status}</span>
+          <span className="muted">iter {run.iteration}</span>
+          <span className="muted">token {run.token_used ?? 0}</span>
+          <span className="muted">cost ${run.cost_used ?? 0}</span>
+          <span className="muted">worker {run.worker_id?.slice(0,8) || '—'}</span>
+          {run.control_request && <span className="warn">kontrol: {run.control_request}</span>}
+        </div>
+        {run.error && <div className="err">⚠ {run.error}</div>}
+        <div style={{display:'flex', gap:8, marginTop:8}}>
+          {active && <>
+            <button disabled={!!busy} onClick={()=>control('pause')}>{busy==='pause'?'...':'⏸ Durdur'}</button>
+            <button disabled={!!busy} onClick={()=>control('resume')}>{busy==='resume'?'...':'▶️ Sürdür'}</button>
+            <button disabled={!!busy} onClick={()=>control('stop')}>{busy==='stop'?'...':'⏹ Sonlandır'}</button>
+          </>}
+          {terminal && <button disabled={!!busy} onClick={retry}>{busy==='retry'?'...':'🔄 Tekrar çalıştır'}</button>}
+        </div>
+      </div>}
+      {msg && <p className={msg.startsWith('⚠')?'warn':'ok'}>{msg}</p>}
       <div style={{display:'flex', gap:8, marginBottom:10}}>
         <input placeholder="event tipi filtre" value={filter} onChange={e=>setFilter(e.target.value)} />
         <button onClick={reload}>↻ Yenile</button>
