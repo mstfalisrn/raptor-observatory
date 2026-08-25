@@ -444,40 +444,24 @@ async def events_stream(request: Request):
 
     async def gen():
         import asyncio as _a
-        cur = last_seq
-        # initial retry hint
+        cur = last_seq  # global_seq cursor (global monoton, run içi seq değil)
         yield "retry: 3000\n\n"
         try:
             while True:
                 async with async_session_factory() as s:
-                    # sadece cur'dan büyük seq'leri gönder (Last-Event-ID replay)
-                    q = select(models.RunEvent).order_by(models.RunEvent.seq.asc()).limit(20)
-                    if cur > 0:
-                        q = select(models.RunEvent).where(models.RunEvent.seq > cur).order_by(models.RunEvent.seq.asc()).limit(20)
-                    else:
-                        q = select(models.RunEvent).order_by(models.RunEvent.ts.desc()).limit(5)
-                        # desc geldiyse asc çevir ve cur güncelleme için sırala
-                        res0 = await s.execute(q)
-                        rows0 = list(res0.scalars().all())
-                        rows0.reverse()
-                        rows = rows0
-                        # gönder
-                        for e in rows:
-                            cur = max(cur, int(e.seq))
-                            payload = {"seq": e.seq, "event_type": e.event_type, "ts": e.ts.isoformat(), "run_id": str(e.run_id)}
-                            yield f"id: {e.seq}\ndata: {json.dumps(payload, default=str)}\n\n"
-                        # heartbeat / keepalive even if no rows
-                        if not rows:
-                            yield f": keepalive {datetime.now(timezone.utc).isoformat()}\n\n"
-                        await _a.sleep(3)
-                        continue
+                    q = (select(models.RunEvent)
+                         .where(models.RunEvent.global_seq > cur)
+                         .order_by(models.RunEvent.global_seq.asc())
+                         .limit(50))
                     res = await s.execute(q)
                     rows = list(res.scalars().all())
                     if rows:
                         for e in rows:
-                            cur = max(cur, int(e.seq))
-                            payload = {"seq": e.seq, "event_type": e.event_type, "ts": e.ts.isoformat(), "run_id": str(e.run_id)}
-                            yield f"id: {e.seq}\ndata: {json.dumps(payload, default=str)}\n\n"
+                            cur = max(cur, int(e.global_seq))
+                            payload = {"global_seq": e.global_seq, "seq": e.seq,
+                                       "event_type": e.event_type, "ts": e.ts.isoformat(),
+                                       "run_id": str(e.run_id)}
+                            yield f"id: {e.global_seq}\ndata: {json.dumps(payload, default=str)}\n\n"
                     else:
                         yield f": keepalive {datetime.now(timezone.utc).isoformat()}\n\n"
                 await _a.sleep(2)

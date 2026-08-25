@@ -16,10 +16,12 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
+    Identity,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column, relationship
@@ -157,7 +159,7 @@ class AgentProfile(_UUIDMixin, _TimestampMixin, Base):
 class Task(_UUIDMixin, _TimestampMixin, Base):
     __tablename__ = "tasks"
     __table_args__ = (Index("ix_tasks_idempotency_key", "idempotency_key", unique=True,
-                           postgresql_where=Text("idempotency_key IS NOT NULL")),)
+                           postgresql_where=text("idempotency_key IS NOT NULL")),)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     scope: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
@@ -202,6 +204,8 @@ class RunEvent(_UUIDMixin, Base):
         PGUUID(as_uuid=True), ForeignKey("runs.id"), nullable=False
     )
     seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # global SSE cursor — run içi seq'den bağımsız, monoton global event ID
+    global_seq: Mapped[int] = mapped_column(BigInteger, Identity(), nullable=False, index=True)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
@@ -375,7 +379,7 @@ class Report(_UUIDMixin, _TimestampMixin, Base):
 class PublicationAttempt(_UUIDMixin, _TimestampMixin, Base):
     __tablename__ = "publication_attempts"
     __table_args__ = (Index("ix_pub_idempotency_key", "idempotency_key", unique=True,
-                           postgresql_where=Text("idempotency_key <> ''")),)
+                           postgresql_where=text("idempotency_key <> ''")),)
     report_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("reports.id"), nullable=True
     )
