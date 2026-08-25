@@ -97,7 +97,7 @@ from observability.auth import (
     hash_password,
 )
 
-_PUBLIC_PATHS = {"/health/live", "/health/ready", "/api/v1/auth/login", "/api/v1/auth/status"}
+_PUBLIC_PATHS = {"/health/live", "/health/ready", "/api/health/live", "/api/health/ready", "/api/v1/auth/login", "/api/v1/auth/status"}
 
 
 @app.middleware("http")
@@ -133,6 +133,10 @@ class ApprovalDecision(BaseModel):
     approval_id: str
 
 
+class RunControl(BaseModel):
+    action: str  # pause | resume | stop
+
+
 def _tg_allowed() -> bool:
     return bool(settings.allowed_user_ids)
 
@@ -147,6 +151,18 @@ async def health_live():
 
 @app.get("/health/ready")
 async def health_ready():
+    async with async_session_factory() as s:
+        await s.execute(text("SELECT 1"))
+    return {"status": "ready", "db": True}
+
+
+@app.get("/api/health/live")
+async def api_health_live():
+    return {"status": "live", "time": datetime.now(timezone.utc).isoformat()}
+
+
+@app.get("/api/health/ready")
+async def api_health_ready():
     async with async_session_factory() as s:
         await s.execute(text("SELECT 1"))
     return {"status": "ready", "db": True}
@@ -283,6 +299,72 @@ async def run_events(run_id: str, user: dict = Depends(get_current_user)):
         )
         return [{"seq": e.seq, "event_type": e.event_type, "payload": e.payload, "ts": e.ts.isoformat()}
                 for e in res.scalars().all()]
+
+
+@app.get("/api/v1/runs/{run_id}")
+async def get_run(run_id: str, user: dict = Depends(get_current_user)):
+    try:
+        uid = uuid.UUID(run_id)
+    except ValueError:
+        raise HTTPException(400, "run_id geçersiz")
+    async with async_session_factory() as s:
+        run = await s.get(models.Run, uid)
+        if run is None:
+            raise HTTPException(404, "run bulunamadı")
+        return {"id": str(run.id), "task_id": str(run.task_id), "status": run.status,
+                "iteration": run.iteration, "token_used": run.token_used, "cost_used": run.cost_used,
+                "worker_id": run.worker_id, "control_request": run.control_request,
+                "error": run.error, "created_at": run.created_at.isoformat(),
+                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "completed_at": run.completed_at.isoformat() if run.completed_at else None}
+
+
+@app.post("/api/v1/runs/{run_id}/control")
+async def control_run(run_id: str, c: RunControl, user: dict = Depends(require_role("operator"))):
+    if c.action not in ("pause", "resume", "stop"):
+        raise HTTPException(400, "action pause|resume|stop olmalı")
+    try:
+        uid = uuid.UUID(run_id)
+    except ValueError:
+        raise HTTPException(400, "run_id geçersiz")
+    async with async_session_factory() as s:
+        run = await s.get(models.Run, uid)
+        if run is None:
+            raise HTTPException(404, "run bulunamadı")
+        if run.status not in (models.RunStatus.EXECUTING.value, models.RunStatus.QUEUED.value):
+            raise HTTPException(409, f"run terminal durumda ({run.status}), kontrol edilemez")
+        run.control_request = c.action if c.action != "resume" else None
+        await s.commit()
+        return {"ok": True, "run_id": str(run.id), "control_request": run.control_request}
+
+
+@app.post("/api/v1/runs/{run_id}/retry")
+async def retry_run(run_id: str, user: dict = Depends(require_role("operator"))):
+    try:
+        uid = uuid.UUID(run_id)
+    except ValueError:
+        raise HTTPException(400, "run_id geçersiz")
+    async with async_session_factory() as s:
+        run = await s.get(models.Run, uid)
+        if run is None:
+            raise HTTPException(404, "run bulunamadı")
+        if run.status not in (models.RunStatus.FAILED.value, models.RunStatus.COMPLETED.value,
+                              models.RunStatus.CANCELLED.value):
+            raise HTTPException(409, f"run terminal değil ({run.status}), retry edilemez")
+        run.status = models.RunStatus.QUEUED.value
+        run.control_request = None
+        run.retry_count = (run.retry_count or 0) + 1
+        run.worker_id = None
+        await s.commit()
+        # queue'ya tekrar bas
+        try:
+            from observability.queue import publish_to_stream
+            import redis as redis_lib, json as _json
+            r = redis_lib.from_url(settings.REDIS_URL)
+            publish_to_stream(r, {"run_id": str(run.id)})
+        except Exception:
+            pass
+        return {"ok": True, "run_id": str(run.id), "retry_count": run.retry_count}
 
 
 # ---------------------------------------------------------------------------
