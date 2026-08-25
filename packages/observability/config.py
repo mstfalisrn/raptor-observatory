@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     CLOUDFLARE_ACCESS_AUD: str = ""
     CLOUDFLARE_ACCESS_CERT_PEM_PATH: str = ""
 
+    # Local auth (CF Access kullanılmıyor)
+    ADMIN_EMAIL: str = "alisirin44@gmail.com"
+    ADMIN_PASSWORD_HASH: str = ""
+    SESSION_TTL_SECONDS: int = 12 * 3600
+    RATE_LIMIT_PER_MINUTE: int = 120
+    RATE_LIMIT_TASK_PER_MINUTE: int = 20
+    MAX_REQUEST_BODY_BYTES: int = 1_048_576
+
     # Telegram
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_ALLOWED_USER_IDS: str = ""

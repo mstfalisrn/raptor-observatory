@@ -121,6 +121,7 @@ class User(_UUIDMixin, _TimestampMixin, Base):
     display_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     role: Mapped[str] = mapped_column(String(40), nullable=False, default="admin")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     telegram_identities: Mapped[list["TelegramIdentity"]] = relationship(back_populates="user")
 
 
