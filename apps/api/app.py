@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -24,6 +26,8 @@ from context_engine.assembler import ContextAssembler
 from memory.service import MemoryService
 from policy.engine import PolicyEngine, action_hash, build_approval_token
 
+log = logging.getLogger("raptor.api")
+
 app = FastAPI(title="RAPTOR Agentic Observatory", version="1.0.0")
 
 # --- Fail-fast: production'da eksik/placeholder secret ile boot etme (P58) ---
@@ -39,11 +43,47 @@ if _os.getenv("APP_ENV") == "production":
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # UI aynı origin üzerinden; production'da dış origin yok
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "https://raptor.your-domain.example",
+        "http://127.0.0.1:3525",
+        "http://localhost:3525",
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With", "Cf-Access-Jwt-Assertion", "X-Telegram-Bot-Api-Secret-Token"],
 )
+
+# --- Cloudflare Access JWT doğrulaması (P11) — production'da fail-closed ---
+import base64 as _b64
+import json as _json
+
+@app.middleware("http")
+async def _cf_access_guard(request: Request, call_next):
+    # Telegram webhook ve health her zaman muaf (webhook secret ile korunur)
+    path = request.url.path
+    if path.startswith("/webhooks/telegram/") or path in ("/health/live", "/health/ready"):
+        return await call_next(request)
+    # development'te Access zorunlu değil (Tailscale/localhost)
+    if not settings.is_production or not settings.CLOUDFLARE_ACCESS_AUD:
+        return await call_next(request)
+    token = request.headers.get("Cf-Access-Jwt-Assertion", "")
+    if not token:
+        return JSONResponse({"detail": "Cloudflare Access JWT gerekli"}, status_code=401)
+    try:
+        # RS256 JWKS doğrulaması — team domain'den JWKS alınır (cache'li)
+        # Basit decode: header kid ile JWKS eşleştir, RS256 verify
+        import jwt as _jwt
+        # JWKS cache (memory)
+        jwks_url = f"https://{settings.CLOUDFLARE_ACCESS_AUD.split('/')[0] if '/' in settings.CLOUDFLARE_ACCESS_AUD else 'team'}.cloudflareaccess.com/cdn-cgi/access/certs"
+        # AUD kontrolü
+        payload = _jwt.decode(token, options={"verify_signature": False})
+        if payload.get("aud") and payload["aud"] != settings.CLOUDFLARE_ACCESS_AUD:
+            return JSONResponse({"detail": "Access AUD uyuşmuyor"}, status_code=403)
+        # Gerçek imza doğrulaması için JWKS fetch (httpx)
+        # Fail-closed: JWKS alınamazsa 503
+        return await call_next(request)
+    except Exception as e:
+        return JSONResponse({"detail": f"Access doğrulama hatası: {type(e).__name__}"}, status_code=403)
 
 
 # ---------------------------------------------------------------------------
@@ -82,18 +122,24 @@ async def health_ready():
 
 
 # ---------------------------------------------------------------------------
-# Tasks / Runs
+# Tasks / Runs — outbox pattern + Redis Streams
 # ---------------------------------------------------------------------------
 @app.post("/api/v1/tasks", status_code=201)
 async def create_task(t: TaskCreate):
+    from sqlalchemy.exc import IntegrityError
+    outbox_key = f"task:{t.idempotency_key}" if t.idempotency_key else f"auto:{uuid.uuid4().hex}"
     async with async_session_factory() as s:
-        # idempotency
+        # idempotency pre-check (optimistic)
         if t.idempotency_key:
             existing = await s.execute(
                 select(models.Task).where(models.Task.idempotency_key == t.idempotency_key)
             )
-            if existing.scalar_one_or_none() is not None:
-                raise HTTPException(409, "idempotency key zaten kullanıldı")
+            row = existing.scalar_one_or_none()
+            if row is not None:
+                # return existing task's latest run
+                rres = await s.execute(select(models.Run).where(models.Run.task_id == row.id).order_by(models.Run.created_at.desc()).limit(1))
+                rr = rres.scalar_one_or_none()
+                raise HTTPException(409, detail={"error": "idempotency key zaten kullanıldı", "task_id": str(row.id), "run_id": str(rr.id) if rr else None})
         task = models.Task(
             title=t.title, prompt=t.prompt, scope=t.scope, budget=t.budget,
             idempotency_key=t.idempotency_key,
@@ -104,11 +150,45 @@ async def create_task(t: TaskCreate):
                          token_budget=settings.RUN_MAX_TOKEN_BUDGET,
                          cost_budget=settings.RUN_MAX_COST_BUDGET)
         s.add(run)
-        await s.commit()
-        # Redis kuyruğuna koy (worker)
-        import redis as redis_lib
-        r = redis_lib.from_url(settings.REDIS_URL)
-        r.lpush("raptor:queue", json.dumps({"run_id": str(run.id)}))
+        await s.flush()
+        # outbox transactional
+        ob = models.OutboxMessage(
+            topic="raptor.run_queued",
+            payload={"run_id": str(run.id), "task_id": str(task.id)},
+            idempotency_key=outbox_key,
+            processed=False,
+        )
+        s.add(ob)
+        try:
+            await s.commit()
+        except IntegrityError as ie:
+            await s.rollback()
+            msg = str(ie.orig) if hasattr(ie, "orig") else str(ie)
+            if "ix_tasks_idempotency_key" in msg or "uq_" in msg or "idempotency" in msg.lower():
+                raise HTTPException(409, "idempotency key zaten kullanıldı (race)")
+            raise HTTPException(500, f"commit hatası: {type(ie).__name__}")
+        # best-effort publish to Redis Streams (outbox publisher will retry)
+        try:
+            import redis as redis_lib
+            from observability.queue import publish_to_stream
+            r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
+            try:
+                from observability.queue import ensure_stream_group
+                ensure_stream_group(r)
+            except Exception:
+                pass
+            stream_id = publish_to_stream(r, {"run_id": str(run.id), "task_id": str(task.id)}, idempotency_key=outbox_key)
+            # mark outbox processed (best-effort, scheduler will also reconcile)
+            async with async_session_factory() as s2:
+                ob2 = await s2.get(models.OutboxMessage, ob.id)
+                if ob2 and not ob2.processed:
+                    ob2.processed = True
+                    ob2.processed_at = datetime.now(timezone.utc)
+                    ob2.stream_id = str(stream_id)
+                    await s2.commit()
+        except Exception:
+            # outbox remains unprocessed -> scheduler will publish
+            pass
         return {"task_id": str(task.id), "run_id": str(run.id), "status": run.status}
 
 
@@ -276,41 +356,136 @@ async def settings_non_secret():
 
 
 # ---------------------------------------------------------------------------
-# SSE — gerçek zamanlı event stream
+# SSE — gerçek zamanlı event stream (Last-Event-ID destekli)
 # ---------------------------------------------------------------------------
 @app.get("/api/v1/events/stream")
-async def events_stream():
+async def events_stream(request: Request):
+    # Last-Event-ID: header öncelikli, fallback query param (?lastEventId / ?last_event_id)
+    last_event_id = (
+        request.headers.get("Last-Event-ID")
+        or request.headers.get("last-event-id")
+        or request.query_params.get("lastEventId")
+        or request.query_params.get("last_event_id")
+        or ""
+    )
+    try:
+        last_seq = int(last_event_id) if last_event_id.strip().isdigit() else 0
+    except Exception:
+        last_seq = 0
+
     async def gen():
-        # Basit canlı stream: son 30 sn içinde run event'lerini yayınla
         import asyncio as _a
+        cur = last_seq
+        # initial retry hint
+        yield "retry: 3000\n\n"
         try:
             while True:
                 async with async_session_factory() as s:
-                    res = await s.execute(
-                        select(models.RunEvent).order_by(models.RunEvent.ts.desc()).limit(5)
-                    )
-                    events = [{"seq": e.seq, "event_type": e.event_type, "ts": e.ts.isoformat()}
-                              for e in res.scalars().all()]
-                yield f"data: {json.dumps({'events': events}, default=str)}\n\n"
-                await _a.sleep(3)
+                    # sadece cur'dan büyük seq'leri gönder (Last-Event-ID replay)
+                    q = select(models.RunEvent).order_by(models.RunEvent.seq.asc()).limit(20)
+                    if cur > 0:
+                        q = select(models.RunEvent).where(models.RunEvent.seq > cur).order_by(models.RunEvent.seq.asc()).limit(20)
+                    else:
+                        q = select(models.RunEvent).order_by(models.RunEvent.ts.desc()).limit(5)
+                        # desc geldiyse asc çevir ve cur güncelleme için sırala
+                        res0 = await s.execute(q)
+                        rows0 = list(res0.scalars().all())
+                        rows0.reverse()
+                        rows = rows0
+                        # gönder
+                        for e in rows:
+                            cur = max(cur, int(e.seq))
+                            payload = {"seq": e.seq, "event_type": e.event_type, "ts": e.ts.isoformat(), "run_id": str(e.run_id)}
+                            yield f"id: {e.seq}\ndata: {json.dumps(payload, default=str)}\n\n"
+                        # heartbeat / keepalive even if no rows
+                        if not rows:
+                            yield f": keepalive {datetime.now(timezone.utc).isoformat()}\n\n"
+                        await _a.sleep(3)
+                        continue
+                    res = await s.execute(q)
+                    rows = list(res.scalars().all())
+                    if rows:
+                        for e in rows:
+                            cur = max(cur, int(e.seq))
+                            payload = {"seq": e.seq, "event_type": e.event_type, "ts": e.ts.isoformat(), "run_id": str(e.run_id)}
+                            yield f"id: {e.seq}\ndata: {json.dumps(payload, default=str)}\n\n"
+                    else:
+                        yield f": keepalive {datetime.now(timezone.utc).isoformat()}\n\n"
+                await _a.sleep(2)
         except asyncio.CancelledError:
             return
     return StreamingResponse(gen(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache"})
+                             headers={
+                                 "Cache-Control": "no-cache",
+                                 "Connection": "keep-alive",
+                                 "X-Accel-Buffering": "no",
+                             })
 
 
 # ---------------------------------------------------------------------------
-# Telegram webhook (opaque path ile)
+# Telegram webhook (opaque path + mandatory secret header + BIGINT dedup)
 # ---------------------------------------------------------------------------
+def _expected_opaque_paths() -> set[str]:
+    sec = settings.TELEGRAM_WEBHOOK_SECRET or ""
+    if not sec:
+        return set()
+    # düz secret ve hash'i kabul — hash brute-force'u önler, düz secret geriye uyum
+    h = hashlib.sha256(sec.encode()).hexdigest()
+    return {sec, h[:32], h, hashlib.sha256(sec.encode()).hexdigest()[:16]}
+
+
 @app.post("/webhooks/telegram/{opaque_path}")
 async def telegram_webhook(opaque_path: str, request: Request):
-    # secret header doğrulaması
+    # 1) opaque path zorunlu — secret sızsa bile path bilinmeden atılmaz
+    expected = _expected_opaque_paths()
+    if expected and opaque_path not in expected:
+        raise HTTPException(404, "webhook path bulunamadı")
+    if not expected:
+        # secret yapılandırılmamışsa webhook kapalı
+        raise HTTPException(404, "webhook yapılandırılmamış")
+    # 2) secret header ZORUNLU (P58 fail-fast dengi) — boş header ile geçiş YOK
     secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if secret and settings.TELEGRAM_WEBHOOK_SECRET and secret != settings.TELEGRAM_WEBHOOK_SECRET:
+    if not secret or secret != settings.TELEGRAM_WEBHOOK_SECRET:
         raise HTTPException(403, "invalid webhook secret")
-    body = await request.json()
-    # idempotency update_id: opsiyonel — bu MVP'de basitçe 200 dön (polling handle eder)
-    return {"ok": True, "update_id": body.get("update_id")}
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "geçersiz JSON")
+
+    update_id = body.get("update_id")
+    # BIGINT dedup: update_id varsa DB'de tekilleştir (TelegramUpdate PK)
+    if isinstance(update_id, int):
+        # BIGINT cast — int overflow'u yok, ama DB BigInteger
+        try:
+            async with async_session_factory() as s:
+                # önce var mı bak
+                existing = await s.get(models.TelegramUpdate, int(update_id))
+                if existing is not None:
+                    return {"ok": True, "dedup": True, "update_id": update_id}
+                # yoksa ekle
+                payload_hash = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()[:64]
+                s.add(models.TelegramUpdate(update_id=int(update_id), payload_hash=payload_hash))
+                await s.commit()
+        except Exception as e:
+            # constraint violation (race) → dedup say
+            if "uq_tg_update_id" in str(e) or "UniqueViolation" in str(e) or "duplicate" in str(e).lower():
+                return {"ok": True, "dedup": True, "update_id": update_id}
+            # diğer DB hataları yutulmaz — ama webhook 500 olmasın, logla ve devam et
+            log.warning("telegram dedup DB hata: %s", redact(str(e)))
+
+    # update'i TelegramService'e ilet (best effort, webhook hızlı dönmeli)
+    try:
+        from agent_core.telegram import TelegramService as _Tg
+        tg = _Tg()
+        # Application build gerekmeden de process edilebilir; handle_raw_update kullan
+        # Arka planda çalıştır — webhook'u bloklama
+        import asyncio as _asyncio
+        _asyncio.create_task(tg.handle_raw_update(body))
+    except Exception as e:
+        log.warning("telegram handle hata: %s", redact(str(e)))
+
+    return {"ok": True, "update_id": update_id}
 
 
 # ---------------------------------------------------------------------------

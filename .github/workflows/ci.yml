@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  pytest:
+    name: pytest (unit + security)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r packages/requirements-api.txt
+          pip install -r packages/requirements-worker.txt 2>/dev/null || true
+          pip install -r packages/requirements-scheduler.txt 2>/dev/null || true
+          # test extras
+          pip install pytest pytest-asyncio httpx 2>/dev/null || true
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+          if [ -f packages/requirements-dev.txt ]; then pip install -r packages/requirements-dev.txt; fi
+      - name: Run pytest
+        run: pytest -q
+
+  secret-scan:
+    name: secret-scan (fail-closed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run secret-scan.sh (fail-closed)
+        run: |
+          chmod +x ./scripts/secret-scan.sh
+          ./scripts/secret-scan.sh .
+
+  compose-config:
+    name: compose config validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker compose config
+        run: |
+          docker compose version
+          docker compose config --quiet
+          echo "✅ docker compose config OK"

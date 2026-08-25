@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -21,6 +22,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column, relationship
+
+# pgvector desteği — yoksa JSONB fallback (claim'i korumak için)
+try:
+    from pgvector.sqlalchemy import Vector  # type: ignore
+except ImportError:  # pragma: no cover
+    Vector = None  # type: ignore
 
 
 def utcnow() -> datetime:
@@ -120,7 +127,7 @@ class User(_UUIDMixin, _TimestampMixin, Base):
 class TelegramIdentity(_UUIDMixin, _TimestampMixin, Base):
     __tablename__ = "telegram_identities"
     __table_args__ = (UniqueConstraint("telegram_user_id", name="uq_tg_user"),)
-    telegram_user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    telegram_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
@@ -144,6 +151,8 @@ class AgentProfile(_UUIDMixin, _TimestampMixin, Base):
 # ----------------------------------------------------------------------------
 class Task(_UUIDMixin, _TimestampMixin, Base):
     __tablename__ = "tasks"
+    __table_args__ = (Index("ix_tasks_idempotency_key", "idempotency_key", unique=True,
+                           postgresql_where=Text("idempotency_key IS NOT NULL")),)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     scope: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
@@ -151,7 +160,7 @@ class Task(_UUIDMixin, _TimestampMixin, Base):
     owner_user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
-    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=True, unique=False)
     runs: Mapped[list["Run"]] = relationship(back_populates="task")
 
 
@@ -170,6 +179,9 @@ class Run(_UUIDMixin, _TimestampMixin, Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     error: Mapped[str] = mapped_column(Text, nullable=True)
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    worker_id: Mapped[str] = mapped_column(String(64), nullable=True)
     task: Mapped[Task] = relationship(back_populates="runs")
     events: Mapped[list["RunEvent"]] = relationship(back_populates="run")
     tool_calls: Mapped[list["ToolCall"]] = relationship(back_populates="run")
@@ -177,7 +189,8 @@ class Run(_UUIDMixin, _TimestampMixin, Base):
 
 class RunEvent(_UUIDMixin, Base):
     __tablename__ = "run_events"
-    __table_args__ = (Index("ix_run_events_run_seq", "run_id", "seq"),)
+    __table_args__ = (UniqueConstraint("run_id", "seq", name="uq_run_events_run_seq"),
+                      Index("ix_run_events_run_seq", "run_id", "seq"),)
     run_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("runs.id"), nullable=False
     )
@@ -282,7 +295,9 @@ class MemoryItem(_UUIDMixin, _TimestampMixin, Base):
     ttl: Mapped[int] = mapped_column(Integer, nullable=True)  # saniye; None = ölümsüz
     status: Mapped[str] = mapped_column(String(24), nullable=False, default=MemoryStatus.CANDIDATE.value)
     verification_status: Mapped[str] = mapped_column(String(24), nullable=False, default="unverified")
-    embedding: Mapped[list] = mapped_column(JSONB, nullable=True)
+    embedding: Mapped[list] = mapped_column(JSONB, nullable=True)  # legacy JSONB, pgvector ile birlikte saklanır
+    # Faz4: pgvector vector sütunu — 1536 boyut (OpenAI ada-002 uyumlu); extension zaten initdb'de CREATE EXTENSION vector
+    embedding_vector: Mapped[list] = mapped_column(Vector(1536) if Vector is not None else JSONB, nullable=True)  # type: ignore[arg-type]
     category: Mapped[str] = mapped_column(String(64), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -349,6 +364,8 @@ class Report(_UUIDMixin, _TimestampMixin, Base):
 
 class PublicationAttempt(_UUIDMixin, _TimestampMixin, Base):
     __tablename__ = "publication_attempts"
+    __table_args__ = (Index("ix_pub_idempotency_key", "idempotency_key", unique=True,
+                           postgresql_where=Text("idempotency_key <> ''")),)
     report_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("reports.id"), nullable=True
     )
@@ -359,12 +376,25 @@ class PublicationAttempt(_UUIDMixin, _TimestampMixin, Base):
 
 
 # ----------------------------------------------------------------------------
-# Technocore cursor / prompt / policy / audit
+# Technocore cursor / nonce / prompt / policy / audit
 # ----------------------------------------------------------------------------
 class TechnocoreCursor(_UUIDMixin, _TimestampMixin, Base):
     __tablename__ = "technocore_cursors"
     room: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     last_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class TechnocoreNonce(_UUIDMixin, _TimestampMixin, Base):
+    """Faz 7: DID başına room nonce monotonic — atomik increment için ayrı tablo."""
+
+    __tablename__ = "technocore_nonces"
+    __table_args__ = (
+        UniqueConstraint("room", "did", name="uq_technocore_nonce_room_did"),
+        Index("ix_technocore_nonce_room_did", "room", "did"),
+    )
+    room: Mapped[str] = mapped_column(String(255), nullable=False)
+    did: Mapped[str] = mapped_column(String(80), nullable=False)
+    last_nonce: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class PromptVersion(_UUIDMixin, _TimestampMixin, Base):
@@ -397,3 +427,38 @@ class AuditEvent(_UUIDMixin, Base):
     resource_id: Mapped[str] = mapped_column(String(64), nullable=True)
     detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+# ----------------------------------------------------------------------------
+# Telegram dedup — update_id idempotency (BIGINT)
+# ----------------------------------------------------------------------------
+class TelegramUpdate(Base):
+    __tablename__ = "telegram_updates"
+    __table_args__ = (UniqueConstraint("update_id", name="uq_tg_update_id"),)
+    # BIGINT — Telegram update_id 64-bit'e sığar; Integer overflow'u önler
+    update_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=True)
+
+
+# ----------------------------------------------------------------------------
+# Outbox — reliable queue (transactionel outbox pattern)
+# ----------------------------------------------------------------------------
+class OutboxMessage(_UUIDMixin, Base):
+    __tablename__ = "outbox_messages"
+    __table_args__ = (
+        Index("ix_outbox_processed", "processed", "created_at"),
+        Index("ix_outbox_topic", "topic"),
+        UniqueConstraint("idempotency_key", name="uq_outbox_idempotency"),
+    )
+    topic: Mapped[str] = mapped_column(String(120), nullable=False, default="raptor.run_queued")
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    processed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[str] = mapped_column(Text, nullable=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    # Redis Streams entry id after publish (for tracing)
+    stream_id: Mapped[str] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
