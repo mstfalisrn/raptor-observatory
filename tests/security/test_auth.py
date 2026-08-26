@@ -1,15 +1,14 @@
 # RAPTOR — AŞAMA 2 auth/RBAC testleri (local session, CF Access kullanılmıyor)
-import pytest
 import jwt as pyjwt
+import pytest
 
 from observability.auth import (
-    hash_password,
-    verify_password,
+    ROLE_ORDER,
     create_session_token,
     decode_session_token,
-    ROLE_ORDER,
+    hash_password,
+    verify_password,
 )
-from observability.config import settings
 
 
 class TestPasswordHash:
@@ -33,7 +32,6 @@ class TestSessionToken:
         assert dec["iss"] == "raptor-observatory"
 
     def test_expired_rejected(self):
-        import time
         # expires_seconds negatif -> hemen expire (exp geçmişte)
         tok = create_session_token("u-1", "viewer", expires_seconds=-10)
         with pytest.raises(pyjwt.ExpiredSignatureError):

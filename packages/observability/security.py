@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import re
+
 # ——— Statik kalıplar ———
 _PATTERNS: list[tuple[re.Pattern, str]] = [
     # Authorization / Bearer / api-key

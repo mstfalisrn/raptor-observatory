@@ -1,15 +1,13 @@
 # RAPTOR — ApprovalService (onay kaydı oluşturma + atomik karar + consume + replay koruması)
 from __future__ import annotations
 
-import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from observability import models
-from observability.config import settings
 from policy.engine import action_hash
 
 
@@ -41,7 +39,7 @@ class ApprovalService:
             payload=payload,
             status=models.ApprovalStatus.PENDING.value,
             run_id=uuid.UUID(run_id) if run_id else None,
-            expires_at=datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
+            expires_at=datetime.now(UTC) + timedelta(seconds=ttl_seconds),
         )
         self.s.add(a)
         await self.s.flush()
@@ -52,7 +50,7 @@ class ApprovalService:
         try:
             uid = uuid.UUID(approval_id)
         except ValueError:
-            raise ValueError("approval_id geçersiz")
+            raise ValueError("approval_id geçersiz") from None
         # SELECT ... FOR UPDATE — aynı anda ikinci kararı engeller
         res = await self.s.execute(
             select(models.Approval).where(models.Approval.id == uid).with_for_update()
@@ -62,7 +60,7 @@ class ApprovalService:
             raise ValueError("onay bulunamadı")
         if a.status != models.ApprovalStatus.PENDING.value:
             raise ValueError(f"zaten karara bağlanmış: {a.status}")
-        if a.expires_at and a.expires_at < datetime.now(timezone.utc):
+        if a.expires_at and a.expires_at < datetime.now(UTC):
             a.status = models.ApprovalStatus.EXPIRED.value
             raise ValueError("onay süresi dolmuş")
         if decision not in ("approve", "reject"):

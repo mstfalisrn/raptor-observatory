@@ -2,8 +2,7 @@
 import hashlib
 import hmac
 
-from policy.engine import action_hash, canonical_json, build_approval_token
-from observability.config import settings
+from policy.engine import action_hash, build_approval_token, canonical_json
 
 
 class TestActionHash:

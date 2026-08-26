@@ -1,8 +1,7 @@
 # RAPTOR — policy motoru + redaction birim testleri (workflow-agnostic)
-import pytest
 
-from policy.engine import PolicyEngine, TOOL_TO_ACTION, action_hash
 from observability.security import redact
+from policy.engine import PolicyEngine, action_hash
 
 
 class TestPolicy:
@@ -63,7 +62,7 @@ class TestRedaction:
 
     def test_runtime_env_idempotent(self):
         from observability.security import load_secrets_from_env
-        n1 = load_secrets_from_env({"LLM_API_KEY": "idempotent-key-1234567890-ABCDEF123456"})
+        load_secrets_from_env({"LLM_API_KEY": "idempotent-key-1234567890-ABCDEF123456"})
         n2 = load_secrets_from_env({"LLM_API_KEY": "idempotent-key-1234567890-ABCDEF123456"})
         assert n2 == 0  # ikinci ekleme yapmamalı
         out = redact("idempotent-key-1234567890-ABCDEF123456 leaked")

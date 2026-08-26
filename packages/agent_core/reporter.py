@@ -1,7 +1,7 @@
 # RAPTOR — Reporter (kısa insan özeti + makine-okunur sonuç paketi)
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 class Reporter:
@@ -27,7 +27,7 @@ class Reporter:
             "confidence": confidence,
             "reports": reports or [],
             "error": error,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
 
 

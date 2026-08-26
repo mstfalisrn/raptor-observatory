@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from observability.config import settings
 from observability.models import RunStatus
@@ -137,7 +137,7 @@ class RunCoordinator:
         self._add_usage(plan.get("_llm_usage") or {})
 
         # 2) context (prompt modele gönderilir — replan/karar için)
-        ordered, prompt = assembler.assemble()
+        _ordered, _prompt = assembler.assemble()
         self.emit("CONTEXT", {"segments": assembler.inspector_metadata()})
         await self._sink(event_sink, "CONTEXT", {"segments": assembler.inspector_metadata()})
 

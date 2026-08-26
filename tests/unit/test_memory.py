@@ -1,12 +1,11 @@
 # RAPTOR — AŞAMA 8 memory testleri (lifecycle, DLP, verified/active retrieval)
-import uuid
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from observability.models import Base, MemoryStatus
 from memory.service import MemoryService
+from observability.models import Base, MemoryStatus
 
 
 @pytest_asyncio.fixture

@@ -10,10 +10,10 @@ import hmac
 import os
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from observability.config import settings
@@ -36,7 +36,7 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, stored: str) -> bool:
     try:
-        algo, iters, salt_hex, dk_hex = stored.split("$")
+        _algo, iters, salt_hex, dk_hex = stored.split("$")
         dk = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt_hex), int(iters))
         return hmac.compare_digest(dk.hex(), dk_hex)
     except Exception:
@@ -47,7 +47,7 @@ def verify_password(password: str, stored: str) -> bool:
 # Session JWT
 # ---------------------------------------------------------------------------
 def create_session_token(user_id: str, role: str, expires_seconds: int = 12 * 3600) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": user_id,
         "role": role,
@@ -81,9 +81,9 @@ async def get_current_user(
     try:
         payload = decode_session_token(creds.credentials)
     except jwt.ExpiredSignatureError:
-        raise HTTPException(401, "session süresi doldu")
+        raise HTTPException(401, "session süresi doldu") from None
     except Exception:
-        raise HTTPException(401, "geçersiz session token")
+        raise HTTPException(401, "geçersiz session token") from None
     return {"user_id": payload.get("sub"), "role": payload.get("role", "viewer")}
 
 

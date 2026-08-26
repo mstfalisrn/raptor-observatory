@@ -3,11 +3,10 @@
 # Faz4: verified/active filtre, DLP (secret redact), pgvector hazırlığı, ttl/active yönetimi
 from __future__ import annotations
 
-import re
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, and_, or_
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from observability.models import MemoryItem, MemoryRelation, MemoryStatus
@@ -56,10 +55,10 @@ class MemoryService:
             ttl=ttl_seconds,
             status=MemoryStatus.CANDIDATE.value,
             verification_status="unverified",
-            observed_at=observed_at or datetime.now(timezone.utc),
+            observed_at=observed_at or datetime.now(UTC),
             category=category,
             expires_at=(
-                datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
+                datetime.now(UTC) + timedelta(seconds=ttl_seconds)
                 if ttl_seconds else None
             ),
             embedding=embedding,
@@ -150,12 +149,11 @@ class MemoryService:
             else:
                 stmt = stmt.where(MemoryItem.status.in_(list(RETRIEVAL_ALLOWED_STATUSES)))
                 stmt = stmt.where(MemoryItem.verification_status == VERIFIED_VALUE)
-        else:
-            if status:
-                stmt = stmt.where(MemoryItem.status == status)
+        elif status:
+            stmt = stmt.where(MemoryItem.status == status)
 
         if not allow_expired:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             stmt = stmt.where(or_(MemoryItem.expires_at.is_(None), MemoryItem.expires_at > now))
             # status EXPIRED olanları da dışla
             stmt = stmt.where(MemoryItem.status != MemoryStatus.EXPIRED.value)
@@ -180,7 +178,7 @@ class MemoryService:
             # ham SQL: SELECT * FROM memory_items ORDER BY embedding_vector <=> :vec LIMIT :limit
             # sadece verified/active filtresiyle
             from sqlalchemy import text as sql_text
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             # asyncpg vector tipi adaptasyonu pgvector'e bırakılır
             stmt = sql_text("""
                 SELECT id FROM memory_items
@@ -207,7 +205,7 @@ class MemoryService:
         allowed = {e.value for e in MemoryStatus}
         if status not in allowed:
             return []
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         stmt = select(MemoryItem).where(MemoryItem.status == status)
         # expired filtre (allow_expired=False davranışı)
         stmt = stmt.where(or_(MemoryItem.expires_at.is_(None), MemoryItem.expires_at > now))
@@ -217,7 +215,7 @@ class MemoryService:
 
     async def expire_sweep(self) -> int:
         """TTL dolmuş kayıtları EXPIRED yap — scheduler/worker tarafından periyodik çağrılır."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         stmt = select(MemoryItem).where(
             and_(
                 MemoryItem.expires_at.is_not(None),

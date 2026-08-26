@@ -6,7 +6,7 @@ import json
 
 import httpx
 
-from connectors.ssrf import validate_host, SSRFError
+from connectors.ssrf import validate_host
 
 _ALLOWED_CT = {"application/json", "application/vnd.github+json", "application/vnd.github.v3+json"}
 
@@ -27,7 +27,7 @@ class GithubRepoConnector:
             try:
                 async with self._client.stream("GET", url, headers=headers, params=params) as resp:
                     # rate-limit 429 / 403 handling
-                    if resp.status_code in (429, 403) and "retry-after" in resp.headers or "x-ratelimit-remaining" in resp.headers:
+                    if (resp.status_code in (429, 403) and "retry-after" in resp.headers) or "x-ratelimit-remaining" in resp.headers:
                         if resp.headers.get("x-ratelimit-remaining") == "0" or resp.status_code == 429:
                             retry_after = resp.headers.get("retry-after", "2")
                             try:

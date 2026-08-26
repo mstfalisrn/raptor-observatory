@@ -152,9 +152,9 @@ def _parse_retry_after(resp: httpx.Response) -> float:
     # ilk mantıklı sayıyı al, 0.1-60 arası clamp
     if body:
         # önce explicit "retry" / "wait" civarını dene
-        m = re.search(r"retry[^0-9]*(\d+(?:\.\d+)?)", body, re.I)
+        m = re.search(r"retry[^0-9]*(\d+(?:\.\d+)?)", body, re.IGNORECASE)
         if not m:
-            m = re.search(r"wait[^0-9]*(\d+(?:\.\d+)?)", body, re.I)
+            m = re.search(r"wait[^0-9]*(\d+(?:\.\d+)?)", body, re.IGNORECASE)
         if not m:
             m = _RETRY_BODY_RE.search(body)
         if m:
@@ -264,8 +264,8 @@ class TechnocoreConnector:
 
     def verify(self, did: str, room: str, nonce: str, text: str, sig: str) -> bool:
         """DID + canonical + sig doğrula (offline)."""
-        from nacl.signing import VerifyKey
         from nacl.exceptions import BadSignatureError
+        from nacl.signing import VerifyKey
 
         try:
             pub = _did_to_pubkey(did)
@@ -293,6 +293,7 @@ class TechnocoreConnector:
         session: SQLAlchemy AsyncSession
         """
         from sqlalchemy import select
+
         from observability.models import TechnocoreNonce
 
         did = self.did_public
@@ -325,6 +326,7 @@ class TechnocoreConnector:
     # --- Cursor DB persistence ---
     async def get_cursor(self, room: str, session) -> int:
         from sqlalchemy import select
+
         from observability.models import TechnocoreCursor
 
         result = await session.execute(select(TechnocoreCursor).where(TechnocoreCursor.room == room))
@@ -333,6 +335,7 @@ class TechnocoreConnector:
 
     async def set_cursor(self, room: str, seq: int, session) -> None:
         from sqlalchemy import select
+
         from observability.models import TechnocoreCursor
 
         if seq < 0:
@@ -342,9 +345,8 @@ class TechnocoreConnector:
         if row is None:
             row = TechnocoreCursor(room=room, last_seq=seq)
             session.add(row)
-        else:
-            if seq > row.last_seq:
-                row.last_seq = seq
+        elif seq > row.last_seq:
+            row.last_seq = seq
         await session.flush()
 
     async def advance_cursor_from_response(self, room: str, data: dict, session) -> int:
@@ -399,12 +401,12 @@ class TechnocoreConnector:
                 if attempt == self.max_retries:
                     raise TechnocoreError(f"okuma hatası: {type(e).__name__}") from e
                 # async backoff with jitter
-                await asyncio.sleep(0.2 * (2**attempt) + random.uniform(0, 0.15))
+                await asyncio.sleep(0.2 * (2**attempt) + random.uniform(0, 0.15))  # noqa: S311 (jitter)
                 continue
             if r.status_code == 429:
                 backoff = _parse_retry_after(r)
                 # jitter ekle, clamp
-                backoff = min(backoff + random.uniform(0, 0.25), 30.0)
+                backoff = min(backoff + random.uniform(0, 0.25), 30.0)  # noqa: S311 (jitter)
                 if attempt == self.max_retries:
                     raise TechnocoreError(f"429 limit — backoff {backoff:.2f}s")
                 await asyncio.sleep(backoff)
@@ -497,8 +499,8 @@ class TechnocoreConnector:
 
         # DID/sig/nonce pattern doğrulaması (göndermeden önce)
         assert _DID_RE.match(body["did"]), f"DID pattern hatası: {body['did']}"
-        assert _SIG_RE.match(body["sig"]), f"sig pattern hatası"
-        assert _NONCE_RE.match(body["nonce"]), f"nonce pattern hatası"
+        assert _SIG_RE.match(body["sig"]), "sig pattern hatası"
+        assert _NONCE_RE.match(body["nonce"]), "nonce pattern hatası"
 
         self._validate_base_host()
         for attempt in range(self.max_retries + 1):
@@ -511,18 +513,18 @@ class TechnocoreConnector:
             except Exception as e:
                 if attempt == self.max_retries:
                     raise TechnocoreError(f"write hatası: {type(e).__name__}") from e
-                await asyncio.sleep(0.2 * (2**attempt) + random.uniform(0, 0.15))
+                await asyncio.sleep(0.2 * (2**attempt) + random.uniform(0, 0.15))  # noqa: S311 (jitter)
                 continue
             if r.status_code == 429:
                 backoff = _parse_retry_after(r)
-                backoff = min(backoff + random.uniform(0, 0.25), 30.0)
+                backoff = min(backoff + random.uniform(0, 0.25), 30.0)  # noqa: S311 (jitter)
                 if attempt == self.max_retries:
                     raise TechnocoreError(f"429 write limit — backoff {backoff:.2f}s")
                 await asyncio.sleep(backoff)
                 continue
             if r.status_code >= 400:
                 # 403/400 body'yi hata mesajına ekle (imza/debug için değerli)
-                detail = r.text[:500] if r.text else ""
+                r.text[:500] if r.text else ""
                 r.raise_for_status()
             r.raise_for_status()
             # idempotency persistence (caller tarafında PublicationAttempt yazılır; burada sadece response döner)

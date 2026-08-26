@@ -1,7 +1,8 @@
 # RAPTOR — Tool executor (yalnız kayıtlı ve şemalı araçları kullanır; keyfi shell/docker yok)
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from connectors.github import GithubRepoConnector
 from connectors.http_json import HttpJsonConnector
@@ -72,7 +73,7 @@ def build_default_registry(
     # worker startup: mevcut key'i yükle (production'da otomatik üretme yok)
     try:
         tc.load_key(technocore_key_path)
-    except Exception as e:
+    except Exception:
         tc._signing_key = None
         tc._did_pub = None
     # connector'ı registry'ye attach et — worker/API technocore status için

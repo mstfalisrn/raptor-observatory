@@ -30,6 +30,6 @@ async def get_session():
 
 
 async def init_models():
-    from observability import models  # noqa: F401  (şema kaydı)
+    from observability import models
     async with engine.begin() as conn:
         await conn.run_sync(models.Base.metadata.create_all)

@@ -2,13 +2,9 @@
 # DID base58btc, canonical string, nonce monotonic, cursor DB, POST OpenAPI, 429 backoff
 from __future__ import annotations
 
-import asyncio
-import base64
 import json
 import re
 import tempfile
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -16,11 +12,11 @@ import pytest
 from connectors.technocore import (
     TechnocoreConnector,
     TechnocoreError,
-    canonical_string,
-    sweep_text,
-    _pubkey_to_did,
     _did_to_pubkey,
     _parse_retry_after,
+    _pubkey_to_did,
+    canonical_string,
+    sweep_text,
 )
 
 _DID_RE = re.compile(r"^did:key:z6Mk[1-9A-HJ-NP-Za-km-z]{44}$")
@@ -158,7 +154,7 @@ class TestNonceMonotonic:
         tc = TechnocoreConnector()
         n1 = tc.next_nonce()
         # aynı değeri tekrar verirsek monotonic +1 yapmalı
-        n2 = tc._global_nonce.ensure_greater(n1) if hasattr(tc, "_global_nonce") else None
+        tc._global_nonce.ensure_greater(n1) if hasattr(tc, "_global_nonce") else None
         # _global_nonce is module-level; test via tc.next_nonce internals
         from connectors.technocore import _global_nonce
 
@@ -168,7 +164,8 @@ class TestNonceMonotonic:
     @pytest.mark.asyncio
     async def test_nonce_db_atomic(self):
         """In-memory SQLite ile DB nonce atomik increment."""
-        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
         from observability.models import Base
 
         engine = create_async_engine("sqlite+aiosqlite:///:memory:")
@@ -201,7 +198,8 @@ class TestNonceMonotonic:
 
     @pytest.mark.asyncio
     async def test_nonce_db_requires_did(self):
-        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
         from observability.models import Base
 
         engine = create_async_engine("sqlite+aiosqlite:///:memory:")
@@ -221,7 +219,8 @@ class TestNonceMonotonic:
 class TestCursorDB:
     @pytest.mark.asyncio
     async def test_cursor_get_set(self):
-        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
         from observability.models import Base
 
         engine = create_async_engine("sqlite+aiosqlite:///:memory:")
@@ -248,7 +247,8 @@ class TestCursorDB:
 
     @pytest.mark.asyncio
     async def test_cursor_advance_from_response(self):
-        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
         from observability.models import Base
 
         engine = create_async_engine("sqlite+aiosqlite:///:memory:")
@@ -266,7 +266,8 @@ class TestCursorDB:
     @pytest.mark.asyncio
     async def test_read_room_updates_cursor(self):
         """Mock HTTP + DB session ile read_room cursor'u günceller."""
-        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
         from observability.models import Base
 
         engine = create_async_engine("sqlite+aiosqlite:///:memory:")
@@ -397,9 +398,9 @@ class TestBackoff429:
         resp = httpx.Response(429, text="Too many requests, retry in 2.5 seconds. bucket reads ...", request=req)
         assert _parse_retry_after(resp) == pytest.approx(2.5)
         # header fallback
-        resp2 = httpx.Response(429, headers={"Retry-After": "3"}, text="rate limited", request=req)
+        httpx.Response(429, headers={"Retry-After": "3"}, text="rate limited", request=req)
         # body has no number? but "rate limited" still has maybe no number -> header used? Actually body has no float match? Let's craft
-        resp2_no_body_num = httpx.Response(429, headers={"Retry-After": "3"}, text="no numbers here!", request=req)
+        httpx.Response(429, headers={"Retry-After": "3"}, text="no numbers here!", request=req)
         # "no numbers here!" has no digits? but we clamp — should parse header
         # Our impl searches body first, finds none? Actually _RETRY_BODY_RE would not match "no numbers here!" -> header
         # Let's patch body to empty numeric to test header path directly

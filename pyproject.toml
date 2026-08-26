@@ -1,0 +1,51 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["packages", "apps", "tests", "migrations"]
+extend-exclude = ["apps/web"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "S", "UP", "TRY", "RUF"]
+ignore = [
+    "E501",    # line-too-long: ruff format'ın işi (kod tabanı 120'yi aşan yorum/dokümantasyon barındırır)
+    "E402",    # module-import-not-at-top: döngüsel import önleme (try içi import)
+    "B008",    # FastAPI Depends() default arg — framework gereği
+    "BLE001",  # blind-except: agent resilience, kasıtlı (hata loglanır)
+    "S110",    # try-except-pass: resilience
+    "S112",    # try-except-continue
+    "S101",    # assert: prod doğrulama + testlerde kullanılır
+    "RUF001",  # Türkçe string literal'lardaki ı/İ (API mesajları, hata mesajları)
+    "RUF002",  # Türkçe docstring'lerdeki ı/İ
+    "RUF003",  # Türkçe yorumlardaki ı/İ karakterleri (kod tabanı Türkçe)
+    "S104",    # bind-all-interfaces: yalnız container içi uvicorn (host portu kapalı)
+    "TRY002",  # raise-vanilla-class
+    "TRY003",  # raise-vanilla-args: HTTPException(detail="...") standart
+    "TRY300",  # try-consider-else
+    "TRY301",  # raise-within-try
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "B017", "PLR2004", "S108", "S105", "S311"]
+"migrations/*" = ["E501", "F401", "I001"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+pythonpath = ["packages"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["packages"]
+omit = ["*/migrations/*"]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "migrations", "apps/web"]

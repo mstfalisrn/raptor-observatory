@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
@@ -15,15 +15,16 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
-    Index,
     Identity,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column, relationship
 
 # Portable JSON: SQLite test'te JSON, PostgreSQL production'da JSONB (test+prod uyumu)
@@ -37,7 +38,7 @@ except ImportError:  # pragma: no cover
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Base(DeclarativeBase):
@@ -65,7 +66,7 @@ class _TimestampMixin:
 # ----------------------------------------------------------------------------
 # Enums
 # ----------------------------------------------------------------------------
-class RunStatus(str, enum.Enum):
+class RunStatus(enum.StrEnum):
     QUEUED = "QUEUED"
     CONTEXT_BUILDING = "CONTEXT_BUILDING"
     PLANNING = "PLANNING"
@@ -80,7 +81,7 @@ class RunStatus(str, enum.Enum):
     PAUSED = "PAUSED"
 
 
-class MemoryStatus(str, enum.Enum):
+class MemoryStatus(enum.StrEnum):
     CANDIDATE = "CANDIDATE"
     APPROVED = "APPROVED"
     AUTO_APPROVED = "AUTO_APPROVED"
@@ -91,7 +92,7 @@ class MemoryStatus(str, enum.Enum):
     DELETED = "DELETED"
 
 
-class ApprovalStatus(str, enum.Enum):
+class ApprovalStatus(enum.StrEnum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
@@ -99,7 +100,7 @@ class ApprovalStatus(str, enum.Enum):
     CONSUMED = "CONSUMED"
 
 
-class ActionClass(str, enum.Enum):
+class ActionClass(enum.StrEnum):
     READ_ONLY = "READ_ONLY"
     SAFE_WRITE = "SAFE_WRITE"
     PUBLIC_WRITE = "PUBLIC_WRITE"
@@ -107,14 +108,14 @@ class ActionClass(str, enum.Enum):
     DESTRUCTIVE = "DESTRUCTIVE"
 
 
-class SourceType(str, enum.Enum):
+class SourceType(enum.StrEnum):
     TECHNOCORE_ROOM = "technocore_room"
     GITHUB_REPO = "github_repo"
     HTTP_JSON = "http_json"
     INTERNAL_HEALTH = "internal_health"
 
 
-class UNTRUSTED(str, enum.Enum):
+class UNTRUSTED(enum.StrEnum):
     DATA = "UNTRUSTED_DATA"
 
 
@@ -128,7 +129,7 @@ class User(_UUIDMixin, _TimestampMixin, Base):
     role: Mapped[str] = mapped_column(String(40), nullable=False, default="admin")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False, default="")
-    telegram_identities: Mapped[list["TelegramIdentity"]] = relationship(back_populates="user")
+    telegram_identities: Mapped[list[TelegramIdentity]] = relationship(back_populates="user")
 
 
 class TelegramIdentity(_UUIDMixin, _TimestampMixin, Base):
@@ -168,7 +169,7 @@ class Task(_UUIDMixin, _TimestampMixin, Base):
         PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=True, unique=False)
-    runs: Mapped[list["Run"]] = relationship(back_populates="task")
+    runs: Mapped[list[Run]] = relationship(back_populates="task")
 
 
 class Run(_UUIDMixin, _TimestampMixin, Base):
@@ -192,8 +193,8 @@ class Run(_UUIDMixin, _TimestampMixin, Base):
     control_request: Mapped[str | None] = mapped_column(String(16), nullable=True)  # "pause" | "stop" | None
     retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     task: Mapped[Task] = relationship(back_populates="runs")
-    events: Mapped[list["RunEvent"]] = relationship(back_populates="run")
-    tool_calls: Mapped[list["ToolCall"]] = relationship(back_populates="run")
+    events: Mapped[list[RunEvent]] = relationship(back_populates="run")
+    tool_calls: Mapped[list[ToolCall]] = relationship(back_populates="run")
 
 
 class RunEvent(_UUIDMixin, Base):
@@ -272,7 +273,7 @@ class ContextSnapshot(_UUIDMixin, _TimestampMixin, Base):
         PGUUID(as_uuid=True), ForeignKey("runs.id"), nullable=False
     )
     total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    context_segments: Mapped[list["ContextSegment"]] = relationship(back_populates="snapshot")
+    context_segments: Mapped[list[ContextSegment]] = relationship(back_populates="snapshot")
 
 
 class ContextSegment(_UUIDMixin, Base):
