@@ -11,7 +11,7 @@ Bu dosya mimari ve ürün kararlarını, gerekçeleriyle birlikte tutar (append-
 ## D2 — Quartz/Celery yerine Redis listesi
 - **Karar:** Job queue Redis list (`raptor:queue`); worker bloş poll eder.
 - **Gerekçe:** Bağımlılık az, istemci-sürücülü, yeterli. Üretimde RQ/arq'ya geçilebilir.
-- **Not:** Faz 3'te sabitlendi; soyut arayüz üzerinden değiştirilebilir.
+- **Not:** Soyut arayüz üzerinden değiştirilebilir.
 
 ## D3 — `runs.plan_id`'de FK döngüsü kırıldı
 - **Karar:** `runs.plan_id` düz UUID kolonu; `plans.run_id -> runs` tek yönlü FK.

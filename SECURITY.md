@@ -37,7 +37,7 @@
 ## Onay akışı (public yayın)
 Technocore'a yazma yalnız kullanıcı `PUBLIC-POST-APPROVED` dediğinde, DID imzalı olarak.
 
-## Sızma testleri (Faz 3-8'de doğrulandı)
+## Sızma testleri (doğrulandı)
 - SSRF birim testleri (loopback/rfc1918/metadata/redirect)
 - Policy: public write/privileged = approval; destructive = deny
 - Redaction birim testleri (Bearer/TG token/JWT)

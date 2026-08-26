@@ -1,5 +1,9 @@
 # RAPTOR Agentic Observatory
 
+[![CI](https://github.com/mstfalisrn/raptor-observatory/actions/workflows/ci.yml/badge.svg)](https://github.com/mstfalisrn/raptor-observatory/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/mstfalisrn/raptor-observatory/releases)
+[![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
+
 Hermes'ten bağımsız çalışan, Telegram + Web UI üzerinden yönlendirilen, izlenebilir
 agent runtime altyapısı. Gözlem (Technocore + açık kaynak) odaklı; bağlam denetlenebilir,
 her eylem politikadan, hafıza kontrollü, çıktı kanıtlanabilir.
@@ -27,10 +31,11 @@ Web UI / Cloudflare -/                            |              +-> ContextAsse
 | `raptor-api` | FastAPI + SSE + webhook + UI static | iç |
 | `raptor-worker` | run yürütme (Redis queue) | iç |
 | `raptor-scheduler` | periyodik/takip | iç |
+| `raptor-migrate` | one-shot Alembic migration | iç |
 | `raptor-postgres` | PostgreSQL 16 + pgvector | yok (internal) |
 | `raptor-redis` | kuyruk/koordinasyon | yok (internal) |
 
-Tüm container'lar non-root, read-only rootfs, cap_drop ALL. Host thin tek bind `127.0.0.1:3525`.
+Tüm container'lar non-root, read-only rootfs, cap_drop ALL. Host'ta tek bind `127.0.0.1:3525`.
 
 ## Hızlı başlangıç
 
@@ -59,13 +64,25 @@ systemctl status raptor-observatory          # stack (boot'ta auto-start)
 ./scripts/backup-restore.sh restore <dump>   # ayrı test DB'sine geri yükle
 ```
 
-## Faz durumu
+## Durum
 
-- ✅ Faz 0-6: keşif, scaffold, DB(22 tablo), agent core, kuyruk+worker, Telegram altyapısı,
-     Web UI, production stack + systemd + SSE (uçtan uca doğrulandı)
-- ✅ Faz 7: DID keypair + protokol hash + imza doğrulaması (public yayın gate'sinde)
-- ✅ Faz 8: 23/23 test, secret scan, backup/restore, non-root/read-only/port güvenliği
-- ⏳ Faz 7 public kayıt: `PUBLIC-POST-APPROVED` bekler
-- ⏳ Canlı Telegram: gerçek bot token ve LLM key gerekir
+Production-ready (AŞAMA 0–13 tamamlandı, canlıda):
 
-Daha fazla: [ARCHITECTURE.md](ARCHITECTURE.md) · [SECURITY.md](SECURITY.md) · [OPERATIONS.md](OPERATIONS.md) · [DECISIONS.md](DECISIONS.md)
+- ✅ **AŞAMA 0–13** — keşif → scaffold → agent core → kuyruk/worker → Telegram durable inbox →
+  atomik claim + DLQ → Technocore DID → embedding/hafıza → SSE global cursor → Web UI →
+  migration servisi → CI kapıları → production deploy (uçtan uca doğrulandı)
+- ✅ **Production canlı** — `raptor.mustafasirin.me` (Cloudflare Tunnel), Telegram
+  `@raptoragarnaccio_bot`, Technocore oda `d-raptor`
+- ✅ **Kalite kapıları** — 185 test, coverage ≥%70, ruff 0, bandit 0 Medium/High, secret-scan temiz
+- ✅ **Güvenlik** — local auth (JWT + PBKDF2 + RBAC), rate limit, SSRF allowlist, non-root/read-only
+
+## Sürümler (Versioning)
+
+[SemVer](https://semver.org/) kullanılır; sürüm tek kaynaktan (`packages/observability/__init__.py`
+`__version__`) okunur.
+
+- Git tag: `vMAJOR.MINOR.PATCH` (örn. `v1.0.0`)
+- Her sürüm [CHANGELOG.md](CHANGELOG.md)'de kayıtlıdır
+- Sürüm çıkarmak: `gh release create v1.0.0 --generate-notes`
+
+Daha fazla: [ARCHITECTURE.md](ARCHITECTURE.md) · [SECURITY.md](SECURITY.md) · [OPERATIONS.md](OPERATIONS.md) · [DECISIONS.md](DECISIONS.md) · [CHANGELOG.md](CHANGELOG.md)

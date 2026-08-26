@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, text
 
 from memory.service import MemoryService
-from observability import models
+from observability import __version__, models
 from observability.config import settings
 from observability.db import async_session_factory
 from observability.security import redact
@@ -57,7 +57,7 @@ async def _lifespan(_app: FastAPI):
         await _tg.shutdown()
 
 
-app = FastAPI(title="RAPTOR Agentic Observatory", version="1.0.0", lifespan=_lifespan)
+app = FastAPI(title="RAPTOR Agentic Observatory", version=__version__, lifespan=_lifespan)
 
 # --- Fail-fast: production'da eksik/placeholder secret ile boot etme (P58) ---
 import os as _os
