@@ -45,7 +45,7 @@
 - CF Access YOK → Tailscale + local session auth (admin alisirin44@gmail.com, roller admin/operator/viewer)
 - LLM opencode-go + deepseek-v4-pro, embedding "aynısı" (AŞAMA 8'de doğrulanacak)
 - Telegram @raptoragarnaccio_bot, DM-only, kullanıcı ID @userinfobot'tan beklemede
-- Technocore mevcut key, oda d-raptor-observatory, 5dk okuma, public onay zorunlu
+- Technocore mevcut key, oda d-raptor, 5dk okuma, public onay zorunlu
 - Kaynak: yalnız raptor-observatory, allowlist technocore.chat+api.github.com
 - 15dk run, 200K/$5, 30dk kontrol, backup 7 gün
 
