@@ -68,7 +68,7 @@ class Settings(BaseSettings):
 
     # Technocore
     TECHNOCORE_BASE_URL: str = "https://technocore.chat"
-    TECHNOCORE_ROOM_CLAIM: str = "dm-topic-observatory"
+    TECHNOCORE_ROOM_CLAIM: str = "dm-topic"
     TECHNOCORE_ED25519_KEY_PATH: str = ""
 
     # API host/port (0.0.0.0 container İÇİ bind; host'ta 127.0.0.1'e Docker port mapping ile kısıtlanır)

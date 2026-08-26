@@ -99,7 +99,7 @@ def build_default_registry(
     )
     reg.register(
         "technocore_read",
-        lambda room="dm-topic-observatory", since=0: tc.read_room(room, since),
+        lambda room="dm-topic", since=0: tc.read_room(room, since),
         {"name": "technocore_read", "description": "Technocore room/event okur (UNTRUSTED)",
          "parameters": {"type": "object", "properties": {"room": {"type": "string"}, "since": {"type": "integer"}}}},
     )

@@ -105,7 +105,7 @@ class Planner:
         else:  # observe
             actions = [
                 {"action_id": "action_1", "tool": "technocore_read",
-                 "arguments": {"room": "dm-topic-observatory", "since": 0},
+                 "arguments": {"room": "dm-topic", "since": 0},
                  "reason": "oda mesajlarını oku", "expected_evidence": ["oda mesajları"],
                  "action_class": "READ_ONLY"},
                 {"action_id": "action_2", "tool": "github_repo_read",
