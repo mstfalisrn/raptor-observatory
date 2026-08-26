@@ -310,7 +310,7 @@ class MemoryItem(_UUIDMixin, _TimestampMixin, Base):
     embedding: Mapped[list] = mapped_column(JSONType, nullable=True)  # legacy JSONB, pgvector ile birlikte saklanır
     # Faz4: pgvector vector sütunu — 1536 boyut (OpenAI ada-002 uyumlu); extension zaten initdb'de CREATE EXTENSION vector
     embedding_vector: Mapped[list] = mapped_column(
-        (Vector(1536).with_variant(JSONType, "sqlite") if Vector is not None else JSONType),
+        (Vector(1536) if Vector is not None else JSONType),
         nullable=True,
     )  # type: ignore[arg-type]
     category: Mapped[str] = mapped_column(String(64), nullable=True)
