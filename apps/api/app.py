@@ -105,8 +105,10 @@ async def _guard(request: Request, call_next):
     cl = request.headers.get("content-length", "")
     if cl.isdigit() and int(cl) > settings.MAX_REQUEST_BODY_BYTES:
         return JSONResponse({"detail": "request body çok büyük"}, status_code=413)
-    # Global rate limit (IP bazlı)
-    ip = request.client.host if request.client else "unknown"
+    # Global rate limit — gerçek istemci IP'si (Cloudflare Tunnel arkasında request.client.host=127.0.0.1 olur)
+    cf_ip = request.headers.get("CF-Connecting-IP", "").strip()
+    xff = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    ip = cf_ip or xff or (request.client.host if request.client else "unknown")
     if not await rate_limiter.check(f"rl:global:{ip}", settings.RATE_LIMIT_PER_MINUTE, 60):
         return JSONResponse({"detail": "rate limit aşıldı"}, status_code=429)
     return await call_next(request)

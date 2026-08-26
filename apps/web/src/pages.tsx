@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { api, errMsg } from './api'
+import { api, errMsg, setToken } from './api'
 
 // ---------- helpers ----------
 function useFetch<T>(path: string, deps: any[] = []) {
@@ -23,6 +23,35 @@ function useFetch<T>(path: string, deps: any[] = []) {
 function Loading(){ return <div className="muted">yükleniyor…</div> }
 function Err({msg, onRetry}:{msg:string, onRetry?:()=>void}){ return <div className="card err"><span className="warn">⚠ {msg}</span> {onRetry && <button onClick={onRetry}>Yeniden dene</button>}</div>}
 function Empty({msg}:{msg:string}){ return <p className="muted">{msg}</p> }
+
+// ---------- Login ----------
+export function LoginPage({ onLogin }: { onLogin:(u:{email:string, role:string}) => void }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  async function submit() {
+    if (!email.trim() || !password) { setErr('email ve parola gerekli'); return }
+    setBusy(true); setErr('')
+    try {
+      const r = await api<any>('/v1/auth/login', { method:'POST', body: JSON.stringify({ email, password }) })
+      setToken(r.token)
+      onLogin({ email: r.email, role: r.role })
+    } catch(e){ setErr(errMsg(e)) } finally { setBusy(false) }
+  }
+  return (
+    <div className="card" style={{ maxWidth: 400, margin: '80px auto' }}>
+      <h1 style={{ marginTop: 0 }}>🐦 RAPTOR</h1>
+      <p className="muted">Yerel kimlik doğrulama — oturum aç.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <input placeholder="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username" />
+        <input placeholder="parola" type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" onKeyDown={e=> e.key==='Enter' && submit()} />
+        <button onClick={submit} disabled={busy || !email.trim() || !password}>{busy ? 'giriş…' : 'Giriş'}</button>
+      </div>
+      {err && <div className="warn" style={{ marginTop: 10 }}>⚠ {err}</div>}
+    </div>
+  )
+}
 
 // ---------- Command Center ----------
 export function CommandCenter({ onCreated, compact }: { onCreated?:(runId:string)=>void, compact?:boolean }) {

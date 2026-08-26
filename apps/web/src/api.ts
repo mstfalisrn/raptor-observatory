@@ -1,12 +1,30 @@
-// RAPTOR web — API client. localStorage'e auth token YAZILMAZ. Last-Event-ID ok.
+// RAPTOR web — API client. localStorage'e auth token YAZILMAZ (sessionStorage kullanılır).
+// Last-Event-ID localStorage'da saklanabilir (secret değil).
 const API = (import.meta.env.VITE_API_BASE ?? '/api') as string
 const SSE_URL = (import.meta.env.VITE_SSE_BASE ?? '/api/v1/events/stream') as string
 
+// ---- session token (sessionStorage; localStorage'a auth token YAZILMAZ) ----
+const TOKEN_KEY = 'raptor:session'
+
+export function getToken(): string {
+  try { return sessionStorage.getItem(TOKEN_KEY) || '' } catch { return '' }
+}
+export function setToken(t: string): void {
+  try { t ? sessionStorage.setItem(TOKEN_KEY, t) : sessionStorage.removeItem(TOKEN_KEY) } catch {}
+}
+
+let _onUnauthorized: (() => void) | null = null
+export function setOnUnauthorized(fn: (() => void) | null): void { _onUnauthorized = fn }
+
 export async function api<T = any>(path: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(opts?.headers || {}) },
-    ...opts,
-  })
+  const token = getToken()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...((opts?.headers as Record<string, string> | undefined) || {}),
+  }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await fetch(`${API}${path}`, { ...opts, headers })
+  if (res.status === 401) _onUnauthorized?.()
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`${res.status}: ${body.slice(0, 240)}`)
@@ -45,13 +63,11 @@ export function openSSE(
     const url = lastId ? `${SSE_URL}${SSE_URL.includes('?') ? '&' : '?'}lastEventId=${encodeURIComponent(lastId)}` : SSE_URL
     onState?.('connecting')
     try {
-      const res = await fetch(url, {
-        headers: {
-          'Accept': 'text/event-stream',
-          ...(lastId ? { 'Last-Event-ID': lastId } : {}),
-        },
-        signal: abort.signal,
-      })
+      const token = getToken()
+      const headers: Record<string, string> = { 'Accept': 'text/event-stream' }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      if (lastId) headers['Last-Event-ID'] = lastId
+      const res = await fetch(url, { headers, signal: abort.signal })
       if (!res.ok || !res.body) throw new Error(`SSE ${res.status}`)
       onState?.('open')
       retryMs = 1000
@@ -89,8 +105,6 @@ export function openSSE(
               try { onEvent(JSON.parse(dataToSend), idToSend) } catch { onEvent({ raw: dataToSend }, idToSend) }
             }
           } else {
-            // no data frame — keep curId for next data frame? reset comment frames
-            // keep curId/data as is if needed, but clear comment-only frames
             if (frame.trim().startsWith(':')) { curId=''; curData='' }
           }
         }
