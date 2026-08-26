@@ -1,14 +1,13 @@
 # RAPTOR — secret-scan fixture testleri (fail-closed doğrulama)
 import subprocess
 import tempfile
-import os
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SCAN = REPO / "scripts" / "secret-scan.sh"
 
 def run_scan(tmpdir: Path) -> tuple[int, str]:
-    r = subprocess.run([str(SCAN), str(tmpdir)], capture_output=True, text=True, timeout=10)
+    r = subprocess.run([str(SCAN), str(tmpdir)], capture_output=True, text=True, timeout=10)  # noqa: S603 (sabit yol, untrusted input yok)
     return r.returncode, r.stdout + r.stderr
 
 def test_clean_passes():
@@ -64,7 +63,7 @@ def test_sk_pattern_fails():
     with tempfile.TemporaryDirectory() as td:
         p = Path(td)
         (p / "app.py").write_text('key="sk-proj-abcdefgh1234567890ABCDEFghijklmnopqrst"\n')
-        code, out = run_scan(p)
+        _code, _out = run_scan(p)
         # sk- pattern requires sk-xxx-xxx so this may or may not match; LLM_API_KEY assignment should also trigger
         # Use LLM_API_KEY assignment form for reliable detection
         (p / "app2.py").write_text('LLM_API_KEY=sk-proj-abcdefgh1234567890ABCDEFGH123456\n')

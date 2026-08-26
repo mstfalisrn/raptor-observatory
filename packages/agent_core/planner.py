@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -78,8 +77,7 @@ class Planner:
                     # code-fence temizle
                     if text.startswith("```"):
                         text = text.strip("`")
-                        if text.startswith("json"):
-                            text = text[4:]
+                        text = text.removeprefix("json")
                     try:
                         parsed = json.loads(text)
                         plan = TaskPlan(**parsed)  # Pydantic doğrulama

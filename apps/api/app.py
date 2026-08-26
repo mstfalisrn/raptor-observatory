@@ -7,24 +7,19 @@ import hashlib
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from fastapi import Depends, FastAPI, HTTPException, Response, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy import select, text
 
+from memory.service import MemoryService
+from observability import models
 from observability.config import settings
 from observability.db import async_session_factory
-from observability import models
 from observability.security import redact
-from sqlalchemy import text, select
-
-from agent_core.coordinator import RunCoordinator, RunBudget
-from agent_core.llm import LLMMessage
-from context_engine.assembler import ContextAssembler
-from memory.service import MemoryService
-from policy.engine import PolicyEngine, action_hash, build_approval_token
 
 log = logging.getLogger("raptor.api")
 
@@ -66,6 +61,7 @@ app = FastAPI(title="RAPTOR Agentic Observatory", version="1.0.0", lifespan=_lif
 
 # --- Fail-fast: production'da eksik/placeholder secret ile boot etme (P58) ---
 import os as _os
+
 if _os.getenv("APP_ENV") == "production":
     _missing = []
     for _k in ("JWT_SECRET", "SESSION_ENCRYPTION_MASTER_KEY", "TELEGRAM_WEBHOOK_SECRET"):
@@ -89,12 +85,11 @@ app.add_middleware(
 
 # --- Local auth (CF Access kullanılmıyor) + rate limit + body size ---
 from observability.auth import (
-    get_current_user,
-    require_role,
-    rate_limiter,
     create_session_token,
+    get_current_user,
+    rate_limiter,
+    require_role,
     verify_password,
-    hash_password,
 )
 
 _PUBLIC_PATHS = {"/health/live", "/health/ready", "/api/health/live", "/api/health/ready", "/api/v1/auth/login", "/api/v1/auth/status"}
@@ -146,7 +141,7 @@ def _tg_allowed() -> bool:
 # ---------------------------------------------------------------------------
 @app.get("/health/live")
 async def health_live():
-    return {"status": "live", "time": datetime.now(timezone.utc).isoformat()}
+    return {"status": "live", "time": datetime.now(UTC).isoformat()}
 
 
 @app.get("/health/ready")
@@ -158,7 +153,7 @@ async def health_ready():
 
 @app.get("/api/health/live")
 async def api_health_live():
-    return {"status": "live", "time": datetime.now(timezone.utc).isoformat()}
+    return {"status": "live", "time": datetime.now(UTC).isoformat()}
 
 
 @app.get("/api/health/ready")
@@ -249,11 +244,12 @@ async def create_task(t: TaskCreate, user: dict = Depends(require_role("operator
             await s.rollback()
             msg = str(ie.orig) if hasattr(ie, "orig") else str(ie)
             if "ix_tasks_idempotency_key" in msg or "uq_" in msg or "idempotency" in msg.lower():
-                raise HTTPException(409, "idempotency key zaten kullanıldı (race)")
-            raise HTTPException(500, f"commit hatası: {type(ie).__name__}")
+                raise HTTPException(409, "idempotency key zaten kullanıldı (race)") from ie
+            raise HTTPException(500, f"commit hatası: {type(ie).__name__}") from ie
         # best-effort publish to Redis Streams (outbox publisher will retry)
         try:
             import redis as redis_lib
+
             from observability.queue import publish_to_stream
             r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
             try:
@@ -267,7 +263,7 @@ async def create_task(t: TaskCreate, user: dict = Depends(require_role("operator
                 ob2 = await s2.get(models.OutboxMessage, ob.id)
                 if ob2 and not ob2.processed:
                     ob2.processed = True
-                    ob2.processed_at = datetime.now(timezone.utc)
+                    ob2.processed_at = datetime.now(UTC)
                     ob2.stream_id = str(stream_id)
                     await s2.commit()
         except Exception:
@@ -292,7 +288,7 @@ async def run_events(run_id: str, user: dict = Depends(get_current_user)):
     try:
         uid = uuid.UUID(run_id)
     except ValueError:
-        raise HTTPException(400, "run_id geçersiz")
+        raise HTTPException(400, "run_id geçersiz") from None
     async with async_session_factory() as s:
         res = await s.execute(
             select(models.RunEvent).where(models.RunEvent.run_id == uid).order_by(models.RunEvent.seq)
@@ -306,7 +302,7 @@ async def get_run(run_id: str, user: dict = Depends(get_current_user)):
     try:
         uid = uuid.UUID(run_id)
     except ValueError:
-        raise HTTPException(400, "run_id geçersiz")
+        raise HTTPException(400, "run_id geçersiz") from None
     async with async_session_factory() as s:
         run = await s.get(models.Run, uid)
         if run is None:
@@ -326,7 +322,7 @@ async def control_run(run_id: str, c: RunControl, user: dict = Depends(require_r
     try:
         uid = uuid.UUID(run_id)
     except ValueError:
-        raise HTTPException(400, "run_id geçersiz")
+        raise HTTPException(400, "run_id geçersiz") from None
     async with async_session_factory() as s:
         run = await s.get(models.Run, uid)
         if run is None:
@@ -343,7 +339,7 @@ async def retry_run(run_id: str, user: dict = Depends(require_role("operator")))
     try:
         uid = uuid.UUID(run_id)
     except ValueError:
-        raise HTTPException(400, "run_id geçersiz")
+        raise HTTPException(400, "run_id geçersiz") from None
     async with async_session_factory() as s:
         run = await s.get(models.Run, uid)
         if run is None:
@@ -358,8 +354,10 @@ async def retry_run(run_id: str, user: dict = Depends(require_role("operator")))
         await s.commit()
         # queue'ya tekrar bas
         try:
+
+            import redis as redis_lib
+
             from observability.queue import publish_to_stream
-            import redis as redis_lib, json as _json
             r = redis_lib.from_url(settings.REDIS_URL)
             publish_to_stream(r, {"run_id": str(run.id)})
         except Exception:
@@ -397,12 +395,12 @@ async def decide_approval(approval_id: str, d: ApprovalDecision, user: dict = De
     except ValueError as e:
         msg = str(e)
         if "süresi dolmuş" in msg or "EXPIRED" in msg:
-            raise HTTPException(410, msg)
+            raise HTTPException(410, msg) from None
         if "bulunamadı" in msg:
-            raise HTTPException(404, msg)
+            raise HTTPException(404, msg) from None
         if "zaten" in msg:
-            raise HTTPException(409, msg)
-        raise HTTPException(400, msg)
+            raise HTTPException(409, msg) from None
+        raise HTTPException(400, msg) from None
 
 
 # ---------------------------------------------------------------------------
@@ -444,7 +442,7 @@ async def decide_memory(memory_id: str, d: dict, user: dict = Depends(require_ro
     try:
         uid = uuid.UUID(memory_id)
     except ValueError:
-        raise HTTPException(400, "memory id geçersiz")
+        raise HTTPException(400, "memory id geçersiz") from None
     action = d.get("decision")  # approve | reject | activate | supersede
     async with async_session_factory() as s:
         msvc = MemoryService(s)
@@ -545,7 +543,7 @@ async def events_stream(request: Request):
                                        "run_id": str(e.run_id)}
                             yield f"id: {e.global_seq}\ndata: {json.dumps(payload, default=str)}\n\n"
                     else:
-                        yield f": keepalive {datetime.now(timezone.utc).isoformat()}\n\n"
+                        yield f": keepalive {datetime.now(UTC).isoformat()}\n\n"
                 await _a.sleep(2)
         except asyncio.CancelledError:
             return
@@ -586,7 +584,7 @@ async def telegram_webhook(opaque_path: str, request: Request):
     try:
         body = await request.json()
     except Exception:
-        raise HTTPException(400, "geçersiz JSON")
+        raise HTTPException(400, "geçersiz JSON") from None
 
     update_id = body.get("update_id")
     rec_id = int(update_id) if isinstance(update_id, int) else None
@@ -634,7 +632,7 @@ async def telegram_webhook(opaque_path: str, request: Request):
                 if r2 is not None:
                     r2.status = "PROCESSED"
                     r2.attempt_count = (r2.attempt_count or 0) + 1
-                    r2.processed_at = datetime.now(timezone.utc)
+                    r2.processed_at = datetime.now(UTC)
                     await s.commit()
         except Exception:
             pass
@@ -674,8 +672,9 @@ async def root():
 
 @app.get("/assets/{path:path}")
 async def assets(path: str):
-    from fastapi.responses import FileResponse
     import os as _os
+
+    from fastapi.responses import FileResponse
     for base in ("apps/web/dist", "/srv/raptor/apps/web/dist"):
         p = f"{base}/assets/{path}"
         if _os.path.exists(p):

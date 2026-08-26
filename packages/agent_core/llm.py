@@ -5,7 +5,6 @@ from __future__ import annotations
 import abc
 import json
 from dataclasses import dataclass, field
-from typing import Any
 
 import httpx
 

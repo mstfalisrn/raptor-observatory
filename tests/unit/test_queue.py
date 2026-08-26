@@ -1,14 +1,13 @@
 # RAPTOR — AŞAMA 6 queue testleri (DLQ, stream publish, group)
-import json
 
 from observability.queue import (
-    STREAM,
     DLQ_STREAM,
     GROUP,
-    publish_to_stream,
-    publish_to_dlq,
-    ensure_stream_group,
+    STREAM,
     ack,
+    ensure_stream_group,
+    publish_to_dlq,
+    publish_to_stream,
 )
 
 
@@ -39,7 +38,7 @@ class _FakeRedis:
 class TestPublishToStream:
     def test_adds_data_field(self):
         r = _FakeRedis()
-        eid = publish_to_stream(r, {"run_id": "abc"}, idempotency_key="k1")
+        publish_to_stream(r, {"run_id": "abc"}, idempotency_key="k1")
         assert r.streams[STREAM][0][1]["data"] == '{"run_id": "abc"}'
         assert r.streams[STREAM][0][1]["idempotency_key"] == "k1"
 

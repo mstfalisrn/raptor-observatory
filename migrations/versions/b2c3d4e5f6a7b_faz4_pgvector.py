@@ -7,14 +7,15 @@ Create Date: 2026-08-25
 Faz4: pgvector vector sütunu ekle — iddia kaldırma yerine gerçekleştirme.
 memory_items.embedding_vector Vector(1536) eklenir; pgvector extension zaten initdb'de var.
 """
-from typing import Sequence, Union
+from typing import Union
+from collections.abc import Sequence
 from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'b2c3d4e5f6a7b'
-down_revision: Union[str, None] = 'a1b2c3d4e5f6'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = 'a1b2c3d4e5f6'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

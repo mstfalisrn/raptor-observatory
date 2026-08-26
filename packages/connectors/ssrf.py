@@ -7,7 +7,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 import time
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin, urlparse
 
 _BLOCKED_NETWORKS = [
     "127.0.0.0/8",

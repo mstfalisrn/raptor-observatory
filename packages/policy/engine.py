@@ -6,10 +6,9 @@ import dataclasses
 import hashlib
 import hmac
 import json
-import time
 
 from observability.config import settings
-from observability.models import ActionClass, ApprovalStatus
+from observability.models import ActionClass
 
 
 @dataclasses.dataclass

@@ -1,7 +1,6 @@
 # RAPTOR Agentic Observatory — merkezi yapılandırma
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -25,10 +24,10 @@ class Settings(BaseSettings):
     )
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # Güvenlik
-    JWT_SECRET: str = "dev-only-change-me"
+    # Güvenlik (dev-only placeholder; production'da app.env ile override edilir)
+    JWT_SECRET: str = "dev-only-change-me"  # noqa: S105
     SESSION_ENCRYPTION_MASTER_KEY: str = "dev-only-32-byte-master-key-0000000000"
-    TELEGRAM_WEBHOOK_SECRET: str = "dev-webhook-secret"
+    TELEGRAM_WEBHOOK_SECRET: str = "dev-webhook-secret"  # noqa: S105
     CLOUDFLARE_ACCESS_AUD: str = ""
     CLOUDFLARE_ACCESS_CERT_PEM_PATH: str = ""
 
@@ -72,8 +71,8 @@ class Settings(BaseSettings):
     TECHNOCORE_ROOM_CLAIM: str = "d-raptor-observatory"
     TECHNOCORE_ED25519_KEY_PATH: str = ""
 
-    # API host/port
-    API_HOST: str = "0.0.0.0"
+    # API host/port (0.0.0.0 container İÇİ bind; host'ta 127.0.0.1'e Docker port mapping ile kısıtlanır)
+    API_HOST: str = "0.0.0.0"  # nosec B104
     API_PORT: int = 8000
     WORKER_PORT: int = 8001
     SCHEDULER_PORT: int = 8002

@@ -10,11 +10,11 @@ import uuid
 
 import httpx
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, CallbackQueryHandler, CommandHandler, CallbackContext
+from telegram.ext import Application, CallbackContext, CallbackQueryHandler, CommandHandler
 
+from observability import models
 from observability.config import settings
 from observability.db import async_session_factory
-from observability import models
 from observability.security import redact
 
 log = logging.getLogger("raptor.telegram")
@@ -116,7 +116,7 @@ class TelegramService:
                 return bot
         except Exception as e:
             msg = redact(str(e))
-            log.error("Telegram getMe HATA: %s", msg)
+            log.exception("Telegram getMe HATA: %s", msg)
             if settings.is_production:
                 raise RuntimeError(f"Telegram token doğrulaması başarısız: {msg}") from e
             return None
@@ -150,7 +150,7 @@ class TelegramService:
         from observability.config import get_settings
         s = get_settings()
         async with async_session_factory() as sess:
-            from sqlalchemy import select, func
+            from sqlalchemy import func, select
             runs_cnt = (await sess.execute(select(func.count()).select_from(models.Run))).scalar() or 0
             appr_cnt = (await sess.execute(select(func.count()).select_from(models.Approval).where(models.Approval.status == models.ApprovalStatus.PENDING.value))).scalar() or 0
         await update.effective_message.reply_text(
@@ -219,8 +219,9 @@ class TelegramService:
             run_id = str(run.id)
         # Redis Streams (outbox/stream — LPUSH değil)
         try:
-            from observability.queue import publish_to_stream
             import redis as redis_lib
+
+            from observability.queue import publish_to_stream
             r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
             publish_to_stream(r, {"run_id": run_id}, idempotency_key=f"task:{run_id}")
         except Exception:
@@ -252,8 +253,9 @@ class TelegramService:
             await s.commit()
             run_id = str(run.id)
         try:
-            from observability.queue import publish_to_stream
             import redis as redis_lib
+
+            from observability.queue import publish_to_stream
             r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
             publish_to_stream(r, {"run_id": run_id}, idempotency_key=f"task:{run_id}")
         except Exception:
@@ -308,8 +310,9 @@ class TelegramService:
                         run.control_request = None
                         # outbox / stream
                         try:
-                            from observability.queue import publish_to_stream
                             import redis as redis_lib
+
+                            from observability.queue import publish_to_stream
                             r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
                             publish_to_stream(r, {"run_id": str(run.id)}, idempotency_key=f"approve:{a.id}")
                         except Exception:
@@ -388,8 +391,9 @@ class TelegramService:
             await s.commit()
             run_id = str(run.id)
         try:
-            from observability.queue import publish_to_stream
             import redis as redis_lib
+
+            from observability.queue import publish_to_stream
             r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
             publish_to_stream(r, {"run_id": run_id}, idempotency_key=f"resume:{run_id}")
         except Exception:

@@ -1,7 +1,7 @@
 # RAPTOR — SSRF birim testleri
 import pytest
 
-from connectors.ssrf import validate_host, validate_url, SSRFError
+from connectors.ssrf import SSRFError, validate_host, validate_url
 
 
 class TestSSRF:

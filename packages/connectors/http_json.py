@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import json
-from urllib.parse import urlparse
 
 import httpx
 
-from connectors.ssrf import validate_url, resolve_redirect_url, SSRFError
+from connectors.ssrf import resolve_redirect_url, validate_url
 
 _ALLOWED_CONTENT_TYPES = {"application/json", "application/vnd.api+json", "application/ld+json"}
 

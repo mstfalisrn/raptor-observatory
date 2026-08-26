@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import FastAPI
 from sqlalchemy import select
 
+from observability import models
 from observability.config import settings
 from observability.db import async_session_factory
-from observability import models
 
 app = FastAPI(title="RAPTOR Scheduler", version="1.0.0")
 
@@ -45,14 +43,14 @@ class SchedulerLoop:
                 if m.attempts > 10:
                     continue
                 try:
-                    from observability.queue import publish_to_stream, ensure_stream_group
+                    from observability.queue import ensure_stream_group, publish_to_stream
                     try:
                         ensure_stream_group(self.redis)
                     except Exception:
                         pass
                     stream_id = publish_to_stream(self.redis, m.payload, idempotency_key=m.idempotency_key)
                     m.processed = True
-                    m.processed_at = datetime.now(timezone.utc)
+                    m.processed_at = datetime.now(UTC)
                     m.stream_id = str(stream_id)
                     m.attempts += 1
                     published += 1
@@ -66,7 +64,7 @@ class SchedulerLoop:
     async def recover_stuck_runs(self) -> int:
         """Stuck-run recovery: EXECUTING runs with heartbeat/lease expired -> FAILED + requeue."""
         recovered = 0
-        cutoff = datetime.now(timezone.utc) - self._stuck_threshold
+        cutoff = datetime.now(UTC) - self._stuck_threshold
         async with async_session_factory() as s:
             # also consider lease_expires_at
             res = await s.execute(
@@ -77,15 +75,15 @@ class SchedulerLoop:
             runs = list(res.scalars().all())
             for r in runs:
                 heartbeat = r.heartbeat_at or r.updated_at
-                lease_expired = r.lease_expires_at and r.lease_expires_at < datetime.now(timezone.utc)
+                lease_expired = r.lease_expires_at and r.lease_expires_at < datetime.now(UTC)
                 stuck = (heartbeat and heartbeat < cutoff) or lease_expired
                 if not stuck:
                     continue
                 # mark failed and emit event, then requeue via outbox if retry budget remains
                 r.status = models.RunStatus.FAILED.value
                 r.error = "stuck_run_recovered"
-                r.finished_at = datetime.now(timezone.utc)
-                r.heartbeat_at = datetime.now(timezone.utc)
+                r.finished_at = datetime.now(UTC)
+                r.heartbeat_at = datetime.now(UTC)
                 seq_max = 0
                 try:
                     # get max seq for run
@@ -137,26 +135,26 @@ class SchedulerLoop:
 
     async def check_sources(self) -> int:
         """Gerçek kaynak işleri: etkin kaynaklar için gözlem oluştur, task/run yarat."""
-        published = await self.publish_outbox()
-        recovered = await self.recover_stuck_runs()
+        await self.publish_outbox()
+        await self.recover_stuck_runs()
         async with async_session_factory() as s:
             res = await s.execute(select(models.Source).where(models.Source.is_enabled.is_(True)))
             sources = list(res.scalars().all())
             for src in sources:
                 # backoff check
-                if src.backoff_until and src.backoff_until > datetime.now(timezone.utc):
+                if src.backoff_until and src.backoff_until > datetime.now(UTC):
                     continue
                 # for each enabled source, optionally create a surveillance task if no recent run
                 # MVP: create a Task+Run+Outbox per source once per scheduler tick if last_accessed_at stale (>1h)
-                stale = not src.last_accessed_at or (datetime.now(timezone.utc) - src.last_accessed_at) > timedelta(hours=1)
+                stale = not src.last_accessed_at or (datetime.now(UTC) - src.last_accessed_at) > timedelta(hours=1)
                 if stale:
                     try:
                         # idempotent per source per hour
-                        idem = f"source:{src.id}:{datetime.now(timezone.utc).strftime('%Y-%m-%d-%H')}"
+                        idem = f"source:{src.id}:{datetime.now(UTC).strftime('%Y-%m-%d-%H')}"
                         # check existing task with same idempotency
                         ex = await s.execute(select(models.Task).where(models.Task.idempotency_key == idem))
                         if ex.scalar_one_or_none() is not None:
-                            src.last_accessed_at = datetime.now(timezone.utc)
+                            src.last_accessed_at = datetime.now(UTC)
                             continue
                         task = models.Task(
                             title=f"Kaynak gözetimi: {src.name}",
@@ -180,7 +178,7 @@ class SchedulerLoop:
                         )
                         s.add(ob)
                         s.add(models.RunEvent(run_id=run.id, seq=0, event_type="QUEUED", payload={"source_id": str(src.id)}))
-                        src.last_accessed_at = datetime.now(timezone.utc)
+                        src.last_accessed_at = datetime.now(UTC)
                     except Exception:
                         await s.rollback()
                         continue
@@ -194,13 +192,16 @@ class SchedulerLoop:
     async def run(self) -> None:
         while True:
             try:
-                n = await self.check_sources()
+                await self.check_sources()
             except Exception:
                 pass
             await asyncio.sleep(self.interval)
 
 
+_BG_TASKS: list = []
+
+
 @app.on_event("startup")
 async def _start():
     loop = SchedulerLoop(interval_seconds=60)
-    asyncio.create_task(loop.run())
+    _BG_TASKS.append(asyncio.create_task(loop.run()))

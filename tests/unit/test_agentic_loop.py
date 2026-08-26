@@ -4,13 +4,13 @@ import json
 
 import pytest
 
-from agent_core.coordinator import RunCoordinator, RunBudget
-from agent_core.executor import ToolRegistry, ToolExecutor
-from agent_core.llm import LLMMessage, LLMResult, LLMProvider, MockProvider
+from agent_core.coordinator import RunBudget, RunCoordinator
+from agent_core.executor import ToolExecutor, ToolRegistry
+from agent_core.llm import LLMProvider, LLMResult, MockProvider
 from agent_core.planner import Planner
 from agent_core.verifier import DefaultVerifier
 from context_engine.assembler import ContextAssembler
-from policy.engine import PolicyEngine, PolicyDecision
+from policy.engine import PolicyDecision
 
 
 class _JSONProvider(LLMProvider):
@@ -57,7 +57,7 @@ class TestPlanner:
         assert "http_json_read" in tools_args and "url" in tools_args["http_json_read"]
 
     def test_unknown_tool_rejected(self):
-        from agent_core.planner import TaskPlan, PlanAction
+        from agent_core.planner import PlanAction
         with pytest.raises(Exception):
             PlanAction(action_id="action_1", tool="totally_unknown_tool", arguments={})
 

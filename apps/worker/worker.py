@@ -8,23 +8,22 @@ import os
 import uuid
 
 from fastapi import FastAPI
-from sqlalchemy import select, text
+from sqlalchemy import text
 
-from observability.config import settings
-from observability.db import async_session_factory
-from observability import models
-from observability.queue import ensure_stream_group, read_group, ack, claim_pending, STREAM, GROUP
-
-from agent_core.coordinator import RunCoordinator, RunBudget
+from agent_core.coordinator import RunBudget, RunCoordinator
+from agent_core.executor import ToolExecutor, build_default_registry
 from agent_core.llm import build_provider
 from agent_core.planner import Planner
-from agent_core.executor import ToolExecutor, build_default_registry
 from agent_core.verifier import DefaultVerifier
 from context_engine.assembler import ContextAssembler
+from observability import models
+from observability.config import settings
+from observability.db import async_session_factory
+from observability.queue import ack, claim_pending, ensure_stream_group, read_group
 from policy.engine import PolicyEngine
 
 app = FastAPI(title="RAPTOR Worker", version="1.0.0")
-_worker: "WorkerLoop | None" = None
+_worker: WorkerLoop | None = None
 
 
 @app.get("/health/live")
@@ -106,7 +105,7 @@ class WorkerLoop:
                 return True
             # lease acquisition: ATOMİK claim (yalnız QUEUED veya lease'i dolmuş EXECUTING)
             import datetime as _dt
-            now = _dt.datetime.now(_dt.timezone.utc)
+            now = _dt.datetime.now(_dt.UTC)
             lease = now + _dt.timedelta(milliseconds=self._lease_ms)
             res = await s.execute(
                 text("""
@@ -206,7 +205,7 @@ class WorkerLoop:
                 while not hb_stop.is_set():
                     try:
                         async with async_session_factory() as s_hb:
-                            hb_now = _dt.datetime.now(_dt.timezone.utc)
+                            hb_now = _dt.datetime.now(_dt.UTC)
                             await s_hb.execute(
                                 text("UPDATE runs SET heartbeat_at=:now, lease_expires_at=:lease WHERE id=:id AND worker_id=:w"),
                                 {"now": hb_now, "lease": hb_now + _dt.timedelta(milliseconds=self._lease_ms),
@@ -217,12 +216,12 @@ class WorkerLoop:
                         pass
                     try:
                         await asyncio.wait_for(hb_stop.wait(), timeout=self._heartbeat_interval_s)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         pass
 
             hb_task = asyncio.create_task(_heartbeat_loop())
             try:
-                status, executed, events = await coordinator.run(executor, self.planner,
+                status, _executed, events = await coordinator.run(executor, self.planner,
                                                                  assembler, self.policy,
                                                                  self.provider, self.verifier,
                                                                  event_sink=_sink,
@@ -242,10 +241,10 @@ class WorkerLoop:
             run2.iteration = coordinator.iteration
             run2.token_used = coordinator.tokens_used
             run2.cost_used = coordinator.cost_used
-            run2.finished_at = _dt.datetime.now(_dt.timezone.utc) if status in (models.RunStatus.COMPLETED.value, models.RunStatus.FAILED.value, models.RunStatus.CANCELLED.value) else run2.finished_at
+            run2.finished_at = _dt.datetime.now(_dt.UTC) if status in (models.RunStatus.COMPLETED.value, models.RunStatus.FAILED.value, models.RunStatus.CANCELLED.value) else run2.finished_at
             if status == models.RunStatus.FAILED.value:
                 run2.error = run2.error or "worker_yurutme_hatasi"
-            run2.heartbeat_at = _dt.datetime.now(_dt.timezone.utc)
+            run2.heartbeat_at = _dt.datetime.now(_dt.UTC)
             # event kaydı — unique (run_id,seq) ile idempotent insert
             for ev in events:
                 s.add(models.RunEvent(run_id=run2.id, seq=ev["seq"], event_type=ev["event_type"], payload=ev.get("payload", {})))
@@ -338,8 +337,11 @@ def rum_budget(run) -> int:
         return settings.RUN_MAX_TOKEN_BUDGET
 
 
+_BG_TASKS: list = []
+
+
 @app.on_event("startup")
 async def _start():
     global _worker
     _worker = WorkerLoop()
-    asyncio.create_task(_worker.run())
+    _BG_TASKS.append(asyncio.create_task(_worker.run()))
