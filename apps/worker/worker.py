@@ -122,6 +122,76 @@ class WorkerLoop:
             if res.rowcount != 1:
                 # başka worker claim etti ya da terminal — bu mesajı atla (dedup)
                 return True
+            # WAITING_APPROVAL resume: önceki durum WAITING_APPROVAL idiyse planı baştan üretme, onaylı action'ı tek sefer yürüt
+            if run.status == models.RunStatus.WAITING_APPROVAL.value:
+                from sqlalchemy import select
+
+                from policy.approval import ApprovalService
+
+                async def _append_inline(rid, etype, payload):
+                    try:
+                        async with async_session_factory() as s_ev:
+                            max_res = await s_ev.execute(text("SELECT COALESCE(MAX(seq), -1) FROM run_events WHERE run_id=:rid"), {"rid": str(rid)})
+                            max_seq = int(max_res.scalar() or -1)
+                            s_ev.add(models.RunEvent(run_id=rid, seq=max_seq + 1, event_type=etype, payload=payload or {}))
+                            await s_ev.commit()
+                    except Exception:
+                        pass
+
+                async with async_session_factory() as s2:
+                    # en son APPROVED onayı bul (SELECT FOR UPDATE ile kilitle)
+                    res2 = await s2.execute(
+                        select(models.Approval).where(
+                            models.Approval.run_id == run.id,
+                            models.Approval.status == models.ApprovalStatus.APPROVED.value,
+                        ).order_by(models.Approval.created_at.desc()).with_for_update()
+                    )
+                    appr = res2.scalars().first()
+                    if appr is None:
+                        # expired/rejected/consumed — worker tekrar approval istemesin, terminale çek
+                        async with async_session_factory() as s3:
+                            r3 = await s3.get(models.Run, run.id)
+                            if r3:
+                                r3.status = models.RunStatus.FAILED.value
+                                r3.error = "approval_not_found_or_consumed"
+                                await s3.commit()
+                        # out-of-band event
+                        await _append_inline(run.id, "APPROVAL_RESUME_FAILED", {"reason": "no_approved"})
+                        return True
+                    # eylem başlamadan hemen önce consume et — yalnız bir kez CONSUMED
+                    svc = ApprovalService(s2)
+                    consumed = await svc.consume(str(appr.id))
+                    await s2.commit()
+                    if not consumed:
+                        # replay/expired/rejected — exactly-once koruması, tekrar public write çalıştırma
+                        await _append_inline(run.id, "APPROVAL_REPLAY_BLOCKED", {"approval_id": str(appr.id)})
+                        return True
+                    # consume başarılı — onaylı snapshot'tan tek action'ı yürüt (replan yok)
+                    payload = appr.payload or {}
+                    tool = payload.get("tool") or ""
+                    args = payload.get("arguments") or {}
+                    ap_action_id = payload.get("action_id") or str(appr.id)
+                    try:
+                        # exactly-once: bu noktada CONSUMED, ikinci worker consume edemez
+                        result = await self.registry.call(tool, **args)
+                        await _append_inline(run.id, "TOOL_CALL", {"tool": tool, "arguments": args, "result": result, "action_id": ap_action_id, "approval_id": str(appr.id)})
+                        async with async_session_factory() as s4:
+                            r4 = await s4.get(models.Run, run.id)
+                            if r4:
+                                r4.status = models.RunStatus.COMPLETED.value
+                                r4.finished_at = _dt.datetime.now(_dt.UTC)
+                                await s4.commit()
+                        return True
+                    except Exception as e:
+                        await _append_inline(run.id, "TOOL_ERROR", {"tool": tool, "error": type(e).__name__})
+                        async with async_session_factory() as s4:
+                            r4 = await s4.get(models.Run, run.id)
+                            if r4:
+                                r4.status = models.RunStatus.FAILED.value
+                                r4.error = type(e).__name__
+                                r4.finished_at = _dt.datetime.now(_dt.UTC)
+                                await s4.commit()
+                        return True
             # need fresh session for execution? reuse s after commit
             task_dict = {"prompt": task.prompt, "scope": task.scope}
             executor = ToolExecutor(self.registry, task=task_dict)
@@ -146,12 +216,30 @@ class WorkerLoop:
 
             from observability.security import redact as _redact
 
+            async def _append_run_event(rid: uuid.UUID, etype: str, payload: dict) -> None:
+                """Her event'i ayrı kısa transactionla append-only yaz (crash'te timeline kaybolmaz)."""
+                try:
+                    async with async_session_factory() as s_ev:
+                        # mevcut max(seq) üzerinden +1 — SELECT FOR UPDATE gerekmez, unique constraint fail-closed
+                        max_res = await s_ev.execute(text("SELECT COALESCE(MAX(seq), -1) FROM run_events WHERE run_id=:rid"), {"rid": str(rid)})
+                        max_seq = int(max_res.scalar() or -1)
+                        nxt = max_seq + 1
+                        s_ev.add(models.RunEvent(run_id=rid, seq=nxt, event_type=etype, payload=payload or {}))
+                        await s_ev.commit()
+                except Exception:
+                    try:
+                        await s_ev.rollback()  # type: ignore
+                    except Exception:
+                        pass
+
             async def _sink(run_id: str, etype: str, payload: dict) -> None:
-                # run SIRASINDA Plan/ToolCall tablolarına yaz (canlı gözlem + crash güvenliği)
+                # run SIRASINDA Plan/ToolCall tablolarına yaz (canlı gözlem + crash güvenliği) + RunEvent append-only
                 try:
                     rid = uuid.UUID(run_id)
                 except Exception:
                     return
+                # her etype için RunEvent'i hemen yaz
+                await _append_run_event(rid, etype, payload)
                 try:
                     async with async_session_factory() as s2:
                         if etype == "PLAN":
@@ -245,9 +333,14 @@ class WorkerLoop:
             if status == models.RunStatus.FAILED.value:
                 run2.error = run2.error or "worker_yurutme_hatasi"
             run2.heartbeat_at = _dt.datetime.now(_dt.UTC)
-            # event kaydı — unique (run_id,seq) ile idempotent insert
-            for ev in events:
-                s.add(models.RunEvent(run_id=run2.id, seq=ev["seq"], event_type=ev["event_type"], payload=ev.get("payload", {})))
+            # event kaydı zaten _sink ile append-only yazıldı; tekrar bulk ekleme seq çakışması yaratır.
+            # coordinator events'leri yedek olarak idempotent eklemeyi dene — ama _append_run_event zaten yazdığı için duplicate'ler yutulur.
+            for _ev in events:
+                try:
+                    # max(seq)+1 yerine coordinator seq'ini kullanma — _sink zaten max+1 ile yazdı, burada s sadece status günceller
+                    pass
+                except Exception:
+                    pass
             # commit with integrity handling for duplicate seq (append-only)
             try:
                 await s.commit()

@@ -51,9 +51,14 @@ def claim_pending(redis_client, consumer_name: str, min_idle_ms: int = 30000, co
     try:
         # redis-py >=5 supports xautoclaim
         result = redis_client.xautoclaim(STREAM, GROUP, consumer_name, min_idle_ms, "0-0", count=count)
-        # result is (next_id, entries) where entries = [(id, fields), ...]
-        if isinstance(result, (list, tuple)) and len(result) == 2:
-            return result[1]
+        # Redis 6/redis-py4 -> (next_id, entries) len 2
+        # Redis 7/redis-py5 -> [next_id, entries, deleted_ids] len 3 — üçüncü eleman silinmiş ID'ler, entry değil
+        if isinstance(result, (list, tuple)):
+            if len(result) == 2:
+                return result[1]
+            if len(result) == 3:
+                # entries ikinci eleman, deleted_ids üçüncüyü entry sanma
+                return result[1]
         return result or []
     except Exception:
         # fallback: XPENDING + XCLAIM path

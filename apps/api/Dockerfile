@@ -6,7 +6,7 @@ WORKDIR /web
 COPY apps/web/package.json apps/web/package-lock.json /web/
 RUN npm ci --no-audit --no-fund
 COPY apps/web/ /web/
-ENV VITE_API_BASE=/api VITE_SSE_BASE=/events
+ENV VITE_API_BASE=/api VITE_SSE_BASE=/api/v1/events/stream
 RUN npm run build
 
 # Aşama 2: Python API + UI statik (python:3.12-slim pinned)

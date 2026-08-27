@@ -314,7 +314,9 @@ async def get_run(run_id: str, user: dict = Depends(get_current_user)):
                 "worker_id": run.worker_id, "control_request": run.control_request,
                 "error": run.error, "created_at": run.created_at.isoformat(),
                 "started_at": run.started_at.isoformat() if run.started_at else None,
-                "completed_at": run.completed_at.isoformat() if run.completed_at else None}
+                "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+                # geriye uyum için deprecated alias
+                "completed_at": run.finished_at.isoformat() if run.finished_at else None}
 
 
 @app.post("/api/v1/runs/{run_id}/control")
@@ -349,22 +351,37 @@ async def retry_run(run_id: str, user: dict = Depends(require_role("operator")))
         if run.status not in (models.RunStatus.FAILED.value, models.RunStatus.COMPLETED.value,
                               models.RunStatus.CANCELLED.value):
             raise HTTPException(409, f"run terminal değil ({run.status}), retry edilemez")
-        run.status = models.RunStatus.QUEUED.value
-        run.control_request = None
-        run.retry_count = (run.retry_count or 0) + 1
-        run.worker_id = None
-        await s.commit()
-        # queue'ya tekrar bas
+        # Retry aynı Run'ı reuse edip seq çakıştırmasın: aynı Task altında YENİ Run
+        new_run = models.Run(
+            task_id=run.task_id,
+            status=models.RunStatus.QUEUED.value,
+            retry_count=(run.retry_count or 0) + 1,
+            token_budget=run.token_budget,
+            cost_budget=run.cost_budget,
+        )
+        s.add(new_run)
+        await s.flush()
+        # outbox ile atomik enqueue (idempotent)
         try:
-
+            out = models.OutboxMessage(
+                topic="raptor.run_queued",
+                payload={"run_id": str(new_run.id), "source_run_id": str(run.id)},
+                idempotency_key=f"retry:{run.id}:{new_run.id}",
+            )
+            s.add(out)
+        except Exception:
+            pass
+        await s.commit()
+        # best-effort doğrudan stream'e de bas (outbox publisher yoksa)
+        try:
             import redis as redis_lib
 
             from observability.queue import publish_to_stream
             r = redis_lib.from_url(settings.REDIS_URL)
-            publish_to_stream(r, {"run_id": str(run.id)})
+            publish_to_stream(r, {"run_id": str(new_run.id)}, idempotency_key=f"retry:{run.id}:{new_run.id}")
         except Exception:
             pass
-        return {"ok": True, "run_id": str(run.id), "retry_count": run.retry_count}
+        return {"ok": True, "run_id": str(new_run.id), "source_run_id": str(run.id), "retry_count": new_run.retry_count}
 
 
 # ---------------------------------------------------------------------------
@@ -392,7 +409,36 @@ async def decide_approval(approval_id: str, d: ApprovalDecision, user: dict = De
         async with async_session_factory() as s:
             svc = ApprovalService(s)
             a = await svc.decide(approval_id, d.decision, user.get("user_id"))
+            # atomik: approve ise run resume outbox ile enqueue, reject ise run'ı terminale çek
+            if d.decision == "approve" and a.run_id:
+                # idempotent enqueue — aynı approval_id ikinci kez approve edilemez (decide zaten 409), fakat outbox da unique
+                try:
+                    s.add(models.OutboxMessage(
+                        topic="raptor.run_queued",
+                        payload={"run_id": str(a.run_id), "approval_id": str(a.id)},
+                        idempotency_key=f"approve:{a.id}",
+                    ))
+                except Exception:
+                    pass
+            elif d.decision == "reject" and a.run_id:
+                try:
+                    r = await s.get(models.Run, a.run_id)
+                    if r and r.status == models.RunStatus.WAITING_APPROVAL.value:
+                        r.status = models.RunStatus.FAILED.value
+                        r.error = "approval_rejected"
+                except Exception:
+                    pass
             await s.commit()
+            # best-effort doğrudan stream'e de bas (outbox publisher yoksa düşmez)
+            if d.decision == "approve" and a.run_id:
+                try:
+                    import redis as redis_lib
+
+                    from observability.queue import publish_to_stream
+                    rr = redis_lib.from_url(settings.REDIS_URL)
+                    publish_to_stream(rr, {"run_id": str(a.run_id), "approval_id": str(a.id)}, idempotency_key=f"approve:{a.id}")
+                except Exception:
+                    pass
             return {"id": str(a.id), "status": a.status, "decision": a.decision}
     except ValueError as e:
         msg = str(e)
