@@ -287,41 +287,39 @@ class TelegramService:
 
     async def _decide_approval(self, approval_id: str, decision: str, user_id: int) -> tuple[bool, str]:
         try:
-            uid = uuid.UUID(approval_id)
+            uuid.UUID(approval_id)
         except ValueError:
             return False, "approval_id geçersiz"
-        async with async_session_factory() as s:
-            a = await s.get(models.Approval, uid)
-            if a is None:
-                return False, "onay kaydı yok"
-            if a.status != models.ApprovalStatus.PENDING.value:
-                return False, f"zaten karara bağlanmış: {a.status}"
-            a.status = (models.ApprovalStatus.APPROVED if decision == "approve" else models.ApprovalStatus.REJECTED).value
-            a.decision = decision
-            # BIGINT user_id -> uuid mapping yok; audit'e string olarak yaz
-            # decided_by_user_id nullable UUID — telegram user'ı için boş bırak, actor audit'e yazılır
-            await s.flush()
-            # run'ı uyandır (WAITING_APPROVAL -> QUEUED tekrar kuyruk)
-            if a.run_id:
-                run = await s.get(models.Run, a.run_id)
-                if run and run.status == models.RunStatus.WAITING_APPROVAL.value:
-                    if decision == "approve":
-                        run.status = models.RunStatus.QUEUED.value
-                        run.control_request = None
-                        # outbox / stream
+        from policy.approval import ApprovalService
+        try:
+            async with async_session_factory() as s:
+                # Telegram + Web aynı transaction-safe continuation service'i kullansın
+                svc = ApprovalService(s)
+                # telegram user_id BIGINT — decided_by_user_id UUID nullable, boş bırak
+                # ApprovalService decide_with_continuation karar, run transition ve outbox atomik yapar
+                # ama telegram user için decided_by boş: ilk decide dene, sonra özel handling
+                # Bu yüzden svc'nin decided_by parametresini boş geç, audit log'a telegram user yazılır
+                try:
+                    _ = await svc.decide_with_continuation(approval_id, decision, "")
+                except ValueError as e:
+                    msg = str(e)
+                    if "süresi dolmuş" in msg or "EXPIRED" in msg:
                         try:
-                            import redis as redis_lib
-
-                            from observability.queue import publish_to_stream
-                            r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
-                            publish_to_stream(r, {"run_id": str(run.id)}, idempotency_key=f"approve:{a.id}")
+                            await s.commit()
                         except Exception:
-                            pass
-                    else:
-                        run.status = models.RunStatus.FAILED.value
-                        run.error = "approval rejected via Telegram"
-            await s.commit()
-        return True, decision
+                            await s.rollback()
+                        return False, msg
+                    if "zaten" in msg:
+                        return False, msg
+                    if "bulunamadı" in msg:
+                        return False, "onay kaydı yok"
+                    return False, msg
+                await s.commit()
+            return True, decision
+        except ValueError as e:
+            return False, str(e)
+        except Exception as e:
+            return False, f"hata: {type(e).__name__}"
 
     async def cmd_approve(self, update: Update, context: CallbackContext) -> None:
         if not await self._require(update, context):

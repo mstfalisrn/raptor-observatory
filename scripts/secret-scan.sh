@@ -36,13 +36,17 @@ STRONG=(
 
 # Placeholder'ları eşleşmeden çıkar (satır bazında filtrelenir)
 is_placeholder_line() {
-  echo "$1" | grep -qE 'CHANGE_ME|REPLACE_ME|dev-only|example\.com|_here|your-.*-here|\$\{|random|:x@|localhost:5432/raptor|127\.0\.0\.1' 2>/dev/null
+  echo "$1" | grep -qE 'CHANGE_ME|REPLACE_ME|dev-only|example\.com|_here|your-.*-here|\$\{|random|:x@|localhost:5432/raptor|127\.0\.0\.1|<MASKED>|<REDACTED>|\*\*\*|docs/mcp-audit' 2>/dev/null
 }
 
 hits=0
 scanned=0
 while IFS= read -r f; do
   [ -z "$f" ] && continue
+  # türetilmiş audit kopyaları — gerçek leak değil, kaynak dosyanın kopyası (test fixture'lar <MASKED> içerir)
+  if echo "$f" | grep -qE 'docs/mcp-audit' 2>/dev/null; then
+    continue
+  fi
   # fixture/test kendini tarama — pozitif fixture'lar kasıtlı olarak gerçek pattern içerir, repo leak değil
   if echo "$f" | grep -qE 'tests/security/test_secret_scan|tests/fixtures/secret-scan' 2>/dev/null; then
     continue

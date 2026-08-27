@@ -25,7 +25,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "B017", "PLR2004", "S108", "S105", "S311"]
+"tests/*" = ["S101", "B017", "PLR2004", "S108", "S105", "S311", "S106"]
 "migrations/*" = ["E501", "F401", "I001"]
 
 [tool.pytest.ini_options]

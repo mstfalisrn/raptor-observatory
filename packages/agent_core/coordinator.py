@@ -102,10 +102,7 @@ class RunCoordinator:
     # --- ana döngü ---
     async def _sink(self, event_sink, etype: str, payload: dict) -> None:
         if event_sink is not None:
-            try:
-                await event_sink(self.run_id, etype, payload)
-            except Exception:
-                pass
+            await event_sink(self.run_id, etype, payload)
 
     def _add_usage(self, usage: dict) -> None:
         if not usage:

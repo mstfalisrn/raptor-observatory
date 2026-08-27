@@ -1,14 +1,15 @@
 # RAPTOR — Worker
-# Redis Streams consumer group + ACK/lease, outbox uyumlu
+# Redis Streams consumer group + ACK/lease, outbox uyumlu + P0-R2 continuation + safe RunEvent
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import uuid
 
 from fastapi import FastAPI
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from agent_core.coordinator import RunBudget, RunCoordinator
 from agent_core.executor import ToolExecutor, build_default_registry
@@ -19,8 +20,11 @@ from context_engine.assembler import ContextAssembler
 from observability import models
 from observability.config import settings
 from observability.db import async_session_factory
+from observability.events import CriticalEventPersistenceError, append_run_event_safe
 from observability.queue import ack, claim_pending, ensure_stream_group, read_group
 from policy.engine import PolicyEngine
+
+log = logging.getLogger("raptor.worker")
 
 app = FastAPI(title="RAPTOR Worker", version="1.0.0")
 _worker: WorkerLoop | None = None
@@ -29,6 +33,10 @@ _worker: WorkerLoop | None = None
 @app.get("/health/live")
 async def health_live():
     return {"status": "live"}
+
+
+# backward compat alias for tests that patch worker._append_run_event_safe
+_append_run_event_safe = append_run_event_safe
 
 
 class WorkerLoop:
@@ -80,9 +88,8 @@ class WorkerLoop:
             except Exception:
                 pass
             return True
-        # fallback for old rpop style: if payload came as legacy list entry without data field
+        # Critical path: only ACK on successful _process_run return; on exception, do NOT ACK so pending reclaims it
         ok = await self._process_run(run_id)
-        # always ACK after processing attempt (at-least-once semantics; failure handled via run status)
         try:
             ack(self.redis, entry_id)
         except Exception:
@@ -116,82 +123,25 @@ class WorkerLoop:
                         OR (status='EXECUTING' AND (lease_expires_at IS NULL OR lease_expires_at < :now))
                     )
                 """),
-                {"w": self.consumer_name, "now": now, "lease": lease, "id": str(uuid.UUID(run_id))}
+                {"w": self.consumer_name, "now": now, "lease": lease, "id": str(uuid.UUID(run_id))},
             )
             await s.commit()
             if res.rowcount != 1:
                 # başka worker claim etti ya da terminal — bu mesajı atla (dedup)
+                # WAITING_APPROVAL durumunda approve transition QUEUED yapmadan önce gelen mesaj ise
+                # outbox/redis'e yeniden kuyruğa alınmış olmalı; burada skip etmek doğru değil
+                # fakat rowcount 0 ise run status QUEUED değil — muhtemelen WAITING_APPROVAL henüz approve edilmedi
+                # bu durumda claim yok sayılır ve sonraki outbox poll'u QUEUED mesajını getirecek
                 return True
-            # WAITING_APPROVAL resume: önceki durum WAITING_APPROVAL idiyse planı baştan üretme, onaylı action'ı tek sefer yürüt
-            if run.status == models.RunStatus.WAITING_APPROVAL.value:
-                from sqlalchemy import select
 
-                from policy.approval import ApprovalService
+            # ---- P0-R2: continuation check — QUEUED run'ın APPROVED onayı var mı? ----
+            # Bu run approve ile QUEUED'a dönmüş bir continuation olabilir; varsa replan yapmadan
+            # Approval.payload snapshot'ındaki tam action_id/tool/arguments'i yürüt.
+            # Idempotent execution kaydı (approval_id unique) ile consume-sonra-crash güvenliği sağlanır.
+            continuation_handled = await self._try_continuation(uuid.UUID(run_id))
+            if continuation_handled:
+                return True
 
-                async def _append_inline(rid, etype, payload):
-                    try:
-                        async with async_session_factory() as s_ev:
-                            max_res = await s_ev.execute(text("SELECT COALESCE(MAX(seq), -1) FROM run_events WHERE run_id=:rid"), {"rid": str(rid)})
-                            max_seq = int(max_res.scalar() or -1)
-                            s_ev.add(models.RunEvent(run_id=rid, seq=max_seq + 1, event_type=etype, payload=payload or {}))
-                            await s_ev.commit()
-                    except Exception:
-                        pass
-
-                async with async_session_factory() as s2:
-                    # en son APPROVED onayı bul (SELECT FOR UPDATE ile kilitle)
-                    res2 = await s2.execute(
-                        select(models.Approval).where(
-                            models.Approval.run_id == run.id,
-                            models.Approval.status == models.ApprovalStatus.APPROVED.value,
-                        ).order_by(models.Approval.created_at.desc()).with_for_update()
-                    )
-                    appr = res2.scalars().first()
-                    if appr is None:
-                        # expired/rejected/consumed — worker tekrar approval istemesin, terminale çek
-                        async with async_session_factory() as s3:
-                            r3 = await s3.get(models.Run, run.id)
-                            if r3:
-                                r3.status = models.RunStatus.FAILED.value
-                                r3.error = "approval_not_found_or_consumed"
-                                await s3.commit()
-                        # out-of-band event
-                        await _append_inline(run.id, "APPROVAL_RESUME_FAILED", {"reason": "no_approved"})
-                        return True
-                    # eylem başlamadan hemen önce consume et — yalnız bir kez CONSUMED
-                    svc = ApprovalService(s2)
-                    consumed = await svc.consume(str(appr.id))
-                    await s2.commit()
-                    if not consumed:
-                        # replay/expired/rejected — exactly-once koruması, tekrar public write çalıştırma
-                        await _append_inline(run.id, "APPROVAL_REPLAY_BLOCKED", {"approval_id": str(appr.id)})
-                        return True
-                    # consume başarılı — onaylı snapshot'tan tek action'ı yürüt (replan yok)
-                    payload = appr.payload or {}
-                    tool = payload.get("tool") or ""
-                    args = payload.get("arguments") or {}
-                    ap_action_id = payload.get("action_id") or str(appr.id)
-                    try:
-                        # exactly-once: bu noktada CONSUMED, ikinci worker consume edemez
-                        result = await self.registry.call(tool, **args)
-                        await _append_inline(run.id, "TOOL_CALL", {"tool": tool, "arguments": args, "result": result, "action_id": ap_action_id, "approval_id": str(appr.id)})
-                        async with async_session_factory() as s4:
-                            r4 = await s4.get(models.Run, run.id)
-                            if r4:
-                                r4.status = models.RunStatus.COMPLETED.value
-                                r4.finished_at = _dt.datetime.now(_dt.UTC)
-                                await s4.commit()
-                        return True
-                    except Exception as e:
-                        await _append_inline(run.id, "TOOL_ERROR", {"tool": tool, "error": type(e).__name__})
-                        async with async_session_factory() as s4:
-                            r4 = await s4.get(models.Run, run.id)
-                            if r4:
-                                r4.status = models.RunStatus.FAILED.value
-                                r4.error = type(e).__name__
-                                r4.finished_at = _dt.datetime.now(_dt.UTC)
-                                await s4.commit()
-                        return True
             # need fresh session for execution? reuse s after commit
             task_dict = {"prompt": task.prompt, "scope": task.scope}
             executor = ToolExecutor(self.registry, task=task_dict)
@@ -216,30 +166,19 @@ class WorkerLoop:
 
             from observability.security import redact as _redact
 
-            async def _append_run_event(rid: uuid.UUID, etype: str, payload: dict) -> None:
-                """Her event'i ayrı kısa transactionla append-only yaz (crash'te timeline kaybolmaz)."""
-                try:
-                    async with async_session_factory() as s_ev:
-                        # mevcut max(seq) üzerinden +1 — SELECT FOR UPDATE gerekmez, unique constraint fail-closed
-                        max_res = await s_ev.execute(text("SELECT COALESCE(MAX(seq), -1) FROM run_events WHERE run_id=:rid"), {"rid": str(rid)})
-                        max_seq = int(max_res.scalar() or -1)
-                        nxt = max_seq + 1
-                        s_ev.add(models.RunEvent(run_id=rid, seq=nxt, event_type=etype, payload=payload or {}))
-                        await s_ev.commit()
-                except Exception:
-                    try:
-                        await s_ev.rollback()  # type: ignore
-                    except Exception:
-                        pass
-
             async def _sink(run_id: str, etype: str, payload: dict) -> None:
                 # run SIRASINDA Plan/ToolCall tablolarına yaz (canlı gözlem + crash güvenliği) + RunEvent append-only
                 try:
                     rid = uuid.UUID(run_id)
                 except Exception:
                     return
-                # her etype için RunEvent'i hemen yaz
-                await _append_run_event(rid, etype, payload)
+                # her etype için RunEvent'i hemen yaz — safe seq; kritikse hata yutulmaz (typed exception)
+                try:
+                    await _append_run_event_safe(rid, etype, payload)
+                except Exception as e:
+                    log.warning("event sink append failed %s %s: %s", rid, etype, type(e).__name__)
+                    if etype in ("TOOL_CALL", "PLAN", "AWAITING_APPROVAL", "FATAL", "WORKER_ERROR"):
+                        raise CriticalEventPersistenceError(f"{etype} event append failed") from e
                 try:
                     async with async_session_factory() as s2:
                         if etype == "PLAN":
@@ -267,8 +206,10 @@ class WorkerLoop:
                                 impact_summary=f"tool {payload.get('tool','')} onay bekliyor",
                             )
                         await s2.commit()
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning("event sink DB hata %s: %s", etype, type(e).__name__)
+                    if etype in ("PLAN", "TOOL_CALL", "AWAITING_APPROVAL"):
+                        raise CriticalEventPersistenceError(f"critical secondary persistence failure {etype}") from e
 
             async def _pause_check() -> bool:
                 try:
@@ -309,15 +250,24 @@ class WorkerLoop:
 
             hb_task = asyncio.create_task(_heartbeat_loop())
             try:
-                status, _executed, events = await coordinator.run(executor, self.planner,
+                status, _executed, _events = await coordinator.run(executor, self.planner,
                                                                  assembler, self.policy,
                                                                  self.provider, self.verifier,
                                                                  event_sink=_sink,
                                                                  pause_check=_pause_check,
                                                                  stop_check=_stop_check)
-            except Exception as exc:
+            except Exception as e:
+                from observability.security import redact as _redact2
+                if isinstance(e, CriticalEventPersistenceError):
+                    raise
+                try:
+                    await _append_run_event_safe(uuid.UUID(run_id), "FATAL", {"error": type(e).__name__, "detail": _redact2(str(e))[:500]})
+                except Exception as e2:
+                    log.warning("FATAL event append failed %s: %s", run_id, type(e2).__name__)
+                    # do not swallow: propagate so job not ACKed as success; re-raise to mark FAILED visibly
+                    raise
                 status = models.RunStatus.FAILED.value
-                events = [{"event_type": "FATAL", "payload": {"error": type(exc).__name__}, "seq": 0}]
+                # error will be set below
             finally:
                 hb_stop.set()
                 hb_task.cancel()
@@ -333,42 +283,172 @@ class WorkerLoop:
             if status == models.RunStatus.FAILED.value:
                 run2.error = run2.error or "worker_yurutme_hatasi"
             run2.heartbeat_at = _dt.datetime.now(_dt.UTC)
-            # event kaydı zaten _sink ile append-only yazıldı; tekrar bulk ekleme seq çakışması yaratır.
-            # coordinator events'leri yedek olarak idempotent eklemeyi dene — ama _append_run_event zaten yazdığı için duplicate'ler yutulur.
-            for _ev in events:
-                try:
-                    # max(seq)+1 yerine coordinator seq'ini kullanma — _sink zaten max+1 ile yazdı, burada s sadece status günceller
-                    pass
-                except Exception:
-                    pass
-            # commit with integrity handling for duplicate seq (append-only)
             try:
                 await s.commit()
             except Exception as e:
                 await s.rollback()
-                # if duplicate seq constraint, re-fetch and skip duplicates
-                if "uq_run_events_run_seq" in str(e) or "UniqueViolation" in str(type(e).__name__):
-                    # fallback: insert one-by-one ignoring duplicates
-                    for ev in events:
-                        try:
-                            async with async_session_factory() as s2:
-                                s2.add(models.RunEvent(run_id=run2.id, seq=ev["seq"], event_type=ev["event_type"], payload=ev.get("payload", {})))
-                                await s2.commit()
-                        except Exception:
-                            try:
-                                await s2.rollback()
-                            except Exception:
-                                pass
-                    # finally update run status if not yet
-                    async with async_session_factory() as s3:
-                        r3 = await s3.get(models.Run, uuid.UUID(run_id))
-                        if r3 and r3.status != status:
-                            r3.status = status
-                            r3.iteration = coordinator.iteration
-                            await s3.commit()
-                else:
-                    raise
+                log.warning("run commit hatası %s: %s", run_id, type(e).__name__)
+                raise
         return True
+
+    async def _try_continuation(self, run_id: uuid.UUID) -> bool:
+        """QUEUED->EXECUTING claim sonrası, bu run'ın APPROVED onayı varsa payload snapshot'ı ile yürüt.
+
+        Returns True if continuation was handled (caller should return), False to proceed normal coordinator.
+        """
+        import datetime as _dt
+        # find APPROVED approval for this run (most recent)
+        async with async_session_factory() as s2:
+            res = await s2.execute(
+                select(models.Approval).where(
+                    models.Approval.run_id == run_id,
+                    models.Approval.status == models.ApprovalStatus.APPROVED.value,
+                ).order_by(models.Approval.created_at.desc()).with_for_update()
+            )
+            appr = res.scalars().first()
+            # also check for crash-after-consume: APPROVED might have been consumed but execution PENDING
+            # FAIL-CLOSED: don't auto-retry public write without replay-safe idempotency -> AMBIGUOUS
+            if appr is None:
+                res2 = await s2.execute(
+                    select(models.Approval).where(
+                        models.Approval.run_id == run_id,
+                        models.Approval.status == models.ApprovalStatus.CONSUMED.value,
+                    ).order_by(models.Approval.created_at.desc()).with_for_update()
+                )
+                appr2 = res2.scalars().first()
+                if appr2 is not None:
+                    ex_res = await s2.execute(
+                        select(models.ActionExecution).where(models.ActionExecution.approval_id == appr2.id)
+                    )
+                    ex = ex_res.scalar_one_or_none()
+                    if ex is not None and ex.status == "PENDING":
+                        # fail-closed: duplicate external effect would be unsafe — never re-execute
+                        ex.status = "AMBIGUOUS"
+                        await s2.flush()
+                        await _append_run_event_safe(run_id, "APPROVAL_AMBIGUOUS", {"approval_id": str(appr2.id), "reason": "pending_after_crash_fail_closed"})
+                        run_row = await s2.get(models.Run, run_id, with_for_update=True)  # type: ignore[call-arg]
+                        if run_row is None:
+                            res_r = await s2.execute(select(models.Run).where(models.Run.id == run_id).with_for_update())
+                            run_row = res_r.scalar_one_or_none()
+                        if run_row is not None and run_row.status == models.RunStatus.EXECUTING.value:
+                            run_row.status = models.RunStatus.FAILED.value
+                            run_row.error = "needs_reconciliation"
+                            run_row.finished_at = _dt.datetime.now(_dt.UTC)
+                        await s2.commit()
+                        return True
+                    elif ex is not None and ex.status == "SUCCEEDED":
+                        # already executed successfully — ensure run terminal COMPLETED, do not replan
+                        run_row = await s2.get(models.Run, run_id, with_for_update=True)  # type: ignore[call-arg]
+                        if run_row is None:
+                            res_r = await s2.execute(select(models.Run).where(models.Run.id == run_id).with_for_update())
+                            run_row = res_r.scalar_one_or_none()
+                        if run_row is not None and run_row.status == models.RunStatus.EXECUTING.value:
+                            run_row.status = models.RunStatus.COMPLETED.value
+                            run_row.finished_at = _dt.datetime.now(_dt.UTC)
+                        await s2.commit()
+                        await _append_run_event_safe(run_id, "APPROVAL_REPLAY_BLOCKED", {"approval_id": str(appr2.id), "reason": "already_succeeded"})
+                        return True
+                    elif ex is not None and ex.status in ("FAILED", "AMBIGUOUS"):
+                        run_row = await s2.get(models.Run, run_id, with_for_update=True)  # type: ignore[call-arg]
+                        if run_row is None:
+                            res_r = await s2.execute(select(models.Run).where(models.Run.id == run_id).with_for_update())
+                            run_row = res_r.scalar_one_or_none()
+                        if run_row is not None and run_row.status == models.RunStatus.EXECUTING.value:
+                            run_row.status = models.RunStatus.FAILED.value
+                            run_row.error = "needs_reconciliation"
+                            run_row.finished_at = _dt.datetime.now(_dt.UTC)
+                        await s2.commit()
+                        await _append_run_event_safe(run_id, "APPROVAL_REPLAY_BLOCKED", {"approval_id": str(appr2.id), "reason": ex.status.lower()})
+                        return True
+                    else:
+                        # CONSUMED but no execution or unknown state — fail closed
+                        if ex is None:
+                            ex_new = models.ActionExecution(approval_id=appr2.id, run_id=run_id, action_id=str(appr2.id), tool="", status="AMBIGUOUS", result={"reason": "consumed_without_execution"})
+                            s2.add(ex_new)
+                            await s2.flush()
+                        run_row = await s2.get(models.Run, run_id, with_for_update=True)  # type: ignore[call-arg]
+                        if run_row is None:
+                            res_r = await s2.execute(select(models.Run).where(models.Run.id == run_id).with_for_update())
+                            run_row = res_r.scalar_one_or_none()
+                        if run_row is not None and run_row.status == models.RunStatus.EXECUTING.value:
+                            run_row.status = models.RunStatus.FAILED.value
+                            run_row.error = "needs_reconciliation"
+                            run_row.finished_at = _dt.datetime.now(_dt.UTC)
+                        await s2.commit()
+                        await _append_run_event_safe(run_id, "APPROVAL_AMBIGUOUS", {"approval_id": str(appr2.id), "reason": "consumed_no_execution"})
+                        return True
+                else:
+                    return False
+
+            # found APPROVED — consume atomically + record
+            from policy.approval import ApprovalService
+            svc = ApprovalService(s2)
+            if appr.status == models.ApprovalStatus.APPROVED.value:
+                consumed, appr_locked, ex = await svc.consume_and_record(str(appr.id), str(run_id))
+                await s2.commit()
+                if not consumed:
+                    await _append_run_event_safe(run_id, "APPROVAL_REPLAY_BLOCKED", {"approval_id": str(appr.id)})
+                    return True
+                payload = appr_locked.payload if appr_locked and appr_locked.payload else appr.payload
+                payload = payload or {}
+            else:
+                # should not happen: CONSUMED path already handled fail-closed above
+                return True
+
+            tool = payload.get("tool") or ""
+            args = payload.get("arguments") or {}
+            ap_action_id = payload.get("action_id") or str(appr.id)
+            # Replay guard: if already SUCCEEDED, handled above; do not inject idempotency_key
+            # because TechnocoreConnector does not use idempotency_key remotely and nonce is per-call.
+            # PENDING/IN_FLIGHT must never be replayed (fail-closed already).
+
+            # (removed redundant replay guard — CONSUMED+SUCCEEDED already handled fail-closed above; no swallow)
+
+            try:
+                result = await self.registry.call(tool, **dict(args))
+                await _append_run_event_safe(run_id, "TOOL_CALL", {"tool": tool, "arguments": args, "result": result, "action_id": ap_action_id, "approval_id": str(appr.id)})
+                # single atomic finalization: ToolCall + ActionExecution SUCCEEDED + Run COMPLETED
+                async with async_session_factory() as s_final:
+                    from observability.security import redact as _redact  # type: ignore
+                    s_final.add(models.ToolCall(
+                        run_id=run_id, tool_name=tool,
+                        input_summary=json.dumps(args, default=str)[:500],
+                        input_redacted=_redact(json.dumps(args, default=str))[:500],
+                        result_summary=json.dumps(result, default=str)[:500],
+                        action_class="PUBLIC_WRITE", policy_decision="APPROVED",
+                    ))
+                    # ActionExecution SUCCEEDED
+                    ex_res2 = await s_final.execute(select(models.ActionExecution).where(models.ActionExecution.approval_id == appr.id))
+                    ex2 = ex_res2.scalar_one_or_none()
+                    if ex2 is not None:
+                        ex2.status = "SUCCEEDED"
+                        ex2.result = {"result": result}
+                    r_final = await s_final.get(models.Run, run_id)
+                    if r_final:
+                        r_final.status = models.RunStatus.COMPLETED.value
+                        r_final.finished_at = _dt.datetime.now(_dt.UTC)
+                    await s_final.commit()
+                return True
+            except Exception as e:
+                log.warning("continuation tool error %s: %s", tool, type(e).__name__)
+                await _append_run_event_safe(run_id, "TOOL_ERROR", {"tool": tool, "error": type(e).__name__, "approval_id": str(appr.id)})
+                # PUBLIC_WRITE timeout/exception does not prove remote did NOT happen -> AMBIGUOUS
+                # for safety, treat continuation failure as AMBIGUOUS/needs_reconciliation
+                async with async_session_factory() as s_final:
+                    ex_res2 = await s_final.execute(select(models.ActionExecution).where(models.ActionExecution.approval_id == appr.id))
+                    ex2 = ex_res2.scalar_one_or_none()
+                    if ex2 is not None:
+                        from observability.security import redact as _redact3  # type: ignore
+                        ex2.status = "AMBIGUOUS"
+                        ex2.result = {"error": type(e).__name__, "detail": _redact3(str(e))[:500]}
+                    r_final = await s_final.get(models.Run, run_id)
+                    if r_final:
+                        r_final.status = models.RunStatus.FAILED.value
+                        r_final.error = "needs_reconciliation"
+                        r_final.finished_at = _dt.datetime.now(_dt.UTC)
+                    await s_final.commit()
+                return True
+        return False
 
     async def _fallback_legacy_queue(self) -> bool:
         """Consume legacy list raptor:queue for backward compatibility during rollout."""
@@ -438,3 +518,4 @@ async def _start():
     global _worker
     _worker = WorkerLoop()
     _BG_TASKS.append(asyncio.create_task(_worker.run()))
+

@@ -181,7 +181,15 @@ async def login(req: LoginRequest):
         if u is None or not u.is_active or not u.password_hash or not verify_password(req.password, u.password_hash):
             raise HTTPException(401, "geçersiz email veya parola")
         token = create_session_token(str(u.id), u.role, settings.SESSION_TTL_SECONDS)
-        return {"token": token, "role": u.role, "email": u.username, "display_name": u.display_name}
+        resp = JSONResponse({"token": token, "role": u.role, "email": u.username, "display_name": u.display_name})
+        return resp
+
+
+@app.post("/api/v1/auth/logout")
+async def logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie("raptor_session", path="/")
+    return resp
 
 
 @app.get("/api/v1/auth/status")
@@ -248,29 +256,7 @@ async def create_task(t: TaskCreate, user: dict = Depends(require_role("operator
             if "ix_tasks_idempotency_key" in msg or "uq_" in msg or "idempotency" in msg.lower():
                 raise HTTPException(409, "idempotency key zaten kullanıldı (race)") from ie
             raise HTTPException(500, f"commit hatası: {type(ie).__name__}") from ie
-        # best-effort publish to Redis Streams (outbox publisher will retry)
-        try:
-            import redis as redis_lib
-
-            from observability.queue import publish_to_stream
-            r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
-            try:
-                from observability.queue import ensure_stream_group
-                ensure_stream_group(r)
-            except Exception:
-                pass
-            stream_id = publish_to_stream(r, {"run_id": str(run.id), "task_id": str(task.id)}, idempotency_key=outbox_key)
-            # mark outbox processed (best-effort, scheduler will also reconcile)
-            async with async_session_factory() as s2:
-                ob2 = await s2.get(models.OutboxMessage, ob.id)
-                if ob2 and not ob2.processed:
-                    ob2.processed = True
-                    ob2.processed_at = datetime.now(UTC)
-                    ob2.stream_id = str(stream_id)
-                    await s2.commit()
-        except Exception:
-            # outbox remains unprocessed -> scheduler will publish
-            pass
+        # outbox is sole reliable publish path; scheduler/reconciler publishes to Redis
         return {"task_id": str(task.id), "run_id": str(run.id), "status": run.status}
 
 
@@ -339,11 +325,14 @@ async def control_run(run_id: str, c: RunControl, user: dict = Depends(require_r
 
 
 @app.post("/api/v1/runs/{run_id}/retry")
-async def retry_run(run_id: str, user: dict = Depends(require_role("operator"))):
+async def retry_run(request: Request, run_id: str, user: dict = Depends(require_role("operator"))):
     try:
         uid = uuid.UUID(run_id)
     except ValueError:
         raise HTTPException(400, "run_id geçersiz") from None
+    raw_key = request.headers.get("Idempotency-Key") or request.headers.get("idempotency-key") or request.query_params.get("idempotency_key") or ""
+    client_key = raw_key.strip()[:128] if raw_key else "default"
+    from sqlalchemy.exc import IntegrityError
     async with async_session_factory() as s:
         run = await s.get(models.Run, uid)
         if run is None:
@@ -351,36 +340,46 @@ async def retry_run(run_id: str, user: dict = Depends(require_role("operator")))
         if run.status not in (models.RunStatus.FAILED.value, models.RunStatus.COMPLETED.value,
                               models.RunStatus.CANCELLED.value):
             raise HTTPException(409, f"run terminal değil ({run.status}), retry edilemez")
-        # Retry aynı Run'ı reuse edip seq çakıştırmasın: aynı Task altında YENİ Run
+        # composite idempotency: aynı (source_run_id, key) -> aynı retry
+        existing = await s.execute(
+            select(models.Run).where(models.Run.source_run_id == uid, models.Run.retry_idempotency_key == client_key).limit(1)
+        )
+        er = existing.scalar_one_or_none()
+        if er is not None:
+            return {"ok": True, "run_id": str(er.id), "source_run_id": str(run.id), "retry_count": er.retry_count, "dedup": True}
+        idem_key = f"retry:{run.id}:{client_key}"
         new_run = models.Run(
             task_id=run.task_id,
+            source_run_id=uid,
+            retry_idempotency_key=client_key,
             status=models.RunStatus.QUEUED.value,
             retry_count=(run.retry_count or 0) + 1,
             token_budget=run.token_budget,
             cost_budget=run.cost_budget,
         )
         s.add(new_run)
+        # flush to get id; outbox add must be inside same transaction and commit together
         await s.flush()
-        # outbox ile atomik enqueue (idempotent)
+        out = models.OutboxMessage(
+            topic="raptor.run_queued",
+            payload={"run_id": str(new_run.id), "source_run_id": str(run.id)},
+            idempotency_key=idem_key,
+        )
+        s.add(out)
         try:
-            out = models.OutboxMessage(
-                topic="raptor.run_queued",
-                payload={"run_id": str(new_run.id), "source_run_id": str(run.id)},
-                idempotency_key=f"retry:{run.id}:{new_run.id}",
-            )
-            s.add(out)
-        except Exception:
-            pass
-        await s.commit()
-        # best-effort doğrudan stream'e de bas (outbox publisher yoksa)
-        try:
-            import redis as redis_lib
-
-            from observability.queue import publish_to_stream
-            r = redis_lib.from_url(settings.REDIS_URL)
-            publish_to_stream(r, {"run_id": str(new_run.id)}, idempotency_key=f"retry:{run.id}:{new_run.id}")
-        except Exception:
-            pass
+            await s.commit()
+        except IntegrityError as ie:
+            await s.rollback()
+            # No error-string matching: re-query exact (source_run_id, client_key) under race.
+            async with async_session_factory() as s2:
+                res2 = await s2.execute(
+                    select(models.Run).where(models.Run.source_run_id == uid, models.Run.retry_idempotency_key == client_key).limit(1)
+                )
+                er2 = res2.scalar_one_or_none()
+                if er2 is not None:
+                    return {"ok": True, "run_id": str(er2.id), "source_run_id": str(run.id), "retry_count": er2.retry_count, "dedup": True}
+            # if no matching run, this IntegrityError is not a retry dedup — raise safe 500 with original cause
+            raise HTTPException(500, "retry commit hatası") from ie
         return {"ok": True, "run_id": str(new_run.id), "source_run_id": str(run.id), "retry_count": new_run.retry_count}
 
 
@@ -401,54 +400,30 @@ async def list_approvals(limit: int = 20, user: dict = Depends(get_current_user)
 
 @app.post("/api/v1/approvals/{approval_id}/decision")
 async def decide_approval(approval_id: str, d: ApprovalDecision, user: dict = Depends(require_role("operator"))):
-    # path approval_id ile body approval_id aynı olmalı
     if d.approval_id != approval_id:
         raise HTTPException(400, "path approval_id ile body approval_id uyuşmuyor")
     from policy.approval import ApprovalService
-    try:
-        async with async_session_factory() as s:
-            svc = ApprovalService(s)
-            a = await svc.decide(approval_id, d.decision, user.get("user_id"))
-            # atomik: approve ise run resume outbox ile enqueue, reject ise run'ı terminale çek
-            if d.decision == "approve" and a.run_id:
-                # idempotent enqueue — aynı approval_id ikinci kez approve edilemez (decide zaten 409), fakat outbox da unique
-                try:
-                    s.add(models.OutboxMessage(
-                        topic="raptor.run_queued",
-                        payload={"run_id": str(a.run_id), "approval_id": str(a.id)},
-                        idempotency_key=f"approve:{a.id}",
-                    ))
-                except Exception:
-                    pass
-            elif d.decision == "reject" and a.run_id:
-                try:
-                    r = await s.get(models.Run, a.run_id)
-                    if r and r.status == models.RunStatus.WAITING_APPROVAL.value:
-                        r.status = models.RunStatus.FAILED.value
-                        r.error = "approval_rejected"
-                except Exception:
-                    pass
+    async with async_session_factory() as s:
+        svc = ApprovalService(s)
+        try:
+            a = await svc.decide_with_continuation(approval_id, d.decision, user.get("user_id"))
             await s.commit()
-            # best-effort doğrudan stream'e de bas (outbox publisher yoksa düşmez)
-            if d.decision == "approve" and a.run_id:
-                try:
-                    import redis as redis_lib
-
-                    from observability.queue import publish_to_stream
-                    rr = redis_lib.from_url(settings.REDIS_URL)
-                    publish_to_stream(rr, {"run_id": str(a.run_id), "approval_id": str(a.id)}, idempotency_key=f"approve:{a.id}")
-                except Exception:
-                    pass
             return {"id": str(a.id), "status": a.status, "decision": a.decision}
-    except ValueError as e:
-        msg = str(e)
-        if "süresi dolmuş" in msg or "EXPIRED" in msg:
-            raise HTTPException(410, msg) from None
-        if "bulunamadı" in msg:
-            raise HTTPException(404, msg) from None
-        if "zaten" in msg:
-            raise HTTPException(409, msg) from None
-        raise HTTPException(400, msg) from None
+        except ValueError as e:
+            msg = str(e)
+            if "süresi dolmuş" in msg or "EXPIRED" in msg:
+                # expiry was flushed inside service; persist it even though we raise 410
+                try:
+                    await s.commit()
+                except Exception:
+                    await s.rollback()
+                raise HTTPException(410, msg) from None
+            await s.rollback()
+            if "bulunamadı" in msg:
+                raise HTTPException(404, msg) from None
+            if "zaten" in msg:
+                raise HTTPException(409, msg) from None
+            raise HTTPException(400, msg) from None
 
 
 # ---------------------------------------------------------------------------
@@ -553,22 +528,47 @@ async def settings_non_secret(user: dict = Depends(get_current_user)):
 
 
 # ---------------------------------------------------------------------------
-# SSE — gerçek zamanlı event stream (Last-Event-ID destekli)
+# SSE — gerçek zamanlı event stream (Last-Event-ID destekli) — auth zorunlu
+# Finite helper for testing (no infinite loop)
 # ---------------------------------------------------------------------------
+def _parse_sse_cursor(request: Request) -> int:
+    """Header Last-Event-ID wins over query ?lastEventId / ?last_event_id."""
+    header_raw = request.headers.get("Last-Event-ID") or request.headers.get("last-event-id") or ""
+    if header_raw.strip().isdigit():
+        return int(header_raw.strip())
+    q = request.query_params.get("lastEventId") or request.query_params.get("last_event_id") or ""
+    if q.strip().isdigit():
+        return int(q.strip())
+    return 0
+
+
+async def _fetch_sse_events(after_seq: int, limit: int = 50) -> list:
+    async with async_session_factory() as s:
+        q = (select(models.RunEvent)
+             .where(models.RunEvent.global_seq > after_seq)
+             .order_by(models.RunEvent.global_seq.asc())
+             .limit(limit))
+        res = await s.execute(q)
+        return list(res.scalars().all())
+
+
 @app.get("/api/v1/events/stream")
 async def events_stream(request: Request):
-    # Last-Event-ID: header öncelikli, fallback query param (?lastEventId / ?last_event_id)
-    last_event_id = (
-        request.headers.get("Last-Event-ID")
-        or request.headers.get("last-event-id")
-        or request.query_params.get("lastEventId")
-        or request.query_params.get("last_event_id")
-        or ""
-    )
+    # auth: Bearer-only (query ?token removed, cookie fallback removed — prevents URL/log leakage; web fetch sends Authorization)
+    from observability.auth import decode_session_token
+    token = None
+    auth_h = request.headers.get("Authorization", "")
+    if auth_h.startswith("Bearer "):
+        token = auth_h[7:].strip()
+    if not token:
+        raise HTTPException(401, "kimlik doğrulama gerekli")
     try:
-        last_seq = int(last_event_id) if last_event_id.strip().isdigit() else 0
+        payload = decode_session_token(token)
+        user = {"user_id": payload.get("sub"), "role": payload.get("role", "viewer")}
     except Exception:
-        last_seq = 0
+        raise HTTPException(401, "geçersiz session token") from None
+    _ = user  # auth passed
+    last_seq = _parse_sse_cursor(request)
 
     async def gen():
         import asyncio as _a
@@ -576,22 +576,16 @@ async def events_stream(request: Request):
         yield "retry: 3000\n\n"
         try:
             while True:
-                async with async_session_factory() as s:
-                    q = (select(models.RunEvent)
-                         .where(models.RunEvent.global_seq > cur)
-                         .order_by(models.RunEvent.global_seq.asc())
-                         .limit(50))
-                    res = await s.execute(q)
-                    rows = list(res.scalars().all())
-                    if rows:
-                        for e in rows:
-                            cur = max(cur, int(e.global_seq))
-                            payload = {"global_seq": e.global_seq, "seq": e.seq,
-                                       "event_type": e.event_type, "ts": e.ts.isoformat(),
-                                       "run_id": str(e.run_id)}
-                            yield f"id: {e.global_seq}\ndata: {json.dumps(payload, default=str)}\n\n"
-                    else:
-                        yield f": keepalive {datetime.now(UTC).isoformat()}\n\n"
+                rows = await _fetch_sse_events(cur, limit=50)
+                if rows:
+                    for e in rows:
+                        cur = max(cur, int(e.global_seq))
+                        payload = {"global_seq": e.global_seq, "seq": e.seq,
+                                   "event_type": e.event_type, "ts": e.ts.isoformat(),
+                                   "run_id": str(e.run_id)}
+                        yield f"id: {e.global_seq}\ndata: {json.dumps(payload, default=str)}\n\n"
+                else:
+                    yield f": keepalive {datetime.now(UTC).isoformat()}\n\n"
                 await _a.sleep(2)
         except asyncio.CancelledError:
             return

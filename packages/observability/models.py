@@ -174,9 +174,19 @@ class Task(_UUIDMixin, _TimestampMixin, Base):
 
 class Run(_UUIDMixin, _TimestampMixin, Base):
     __tablename__ = "runs"
+    __table_args__ = (
+        Index("ix_runs_source_run_id", "source_run_id"),
+        # composite idempotency: aynı (source_run_id, key) -> aynı retry; farklı key -> yeni retry
+        UniqueConstraint("source_run_id", "retry_idempotency_key", name="uq_runs_source_retry_key"),
+        Index("ix_runs_source_retry", "source_run_id", "retry_idempotency_key"),
+    )
     task_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tasks.id"), nullable=False
     )
+    source_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("runs.id"), nullable=True
+    )
+    retry_idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=RunStatus.QUEUED.value)
     plan_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=True)  # plans FK döngüsü önlenir; plans.run_id -> runs FK tutar
     iteration: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -193,6 +203,8 @@ class Run(_UUIDMixin, _TimestampMixin, Base):
     control_request: Mapped[str | None] = mapped_column(String(16), nullable=True)  # "pause" | "stop" | None
     retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     task: Mapped[Task] = relationship(back_populates="runs")
+    source_run: Mapped[Run | None] = relationship(remote_side="Run.id", back_populates="retries")
+    retries: Mapped[list[Run]] = relationship(back_populates="source_run")
     events: Mapped[list[RunEvent]] = relationship(back_populates="run")
     tool_calls: Mapped[list[ToolCall]] = relationship(back_populates="run")
 
@@ -200,13 +212,15 @@ class Run(_UUIDMixin, _TimestampMixin, Base):
 class RunEvent(_UUIDMixin, Base):
     __tablename__ = "run_events"
     __table_args__ = (UniqueConstraint("run_id", "seq", name="uq_run_events_run_seq"),
-                      Index("ix_run_events_run_seq", "run_id", "seq"),)
+                      Index("ix_run_events_run_seq", "run_id", "seq"),
+                      UniqueConstraint("global_seq", name="uq_run_events_global_seq"),)
     run_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("runs.id"), nullable=False
     )
     seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # global SSE cursor — run içi seq'den bağımsız, monoton global event ID
-    global_seq: Mapped[int] = mapped_column(BigInteger, Identity(), nullable=False, index=True)
+    # PG'de Identity (BY DEFAULT), SQLite'ta manuel MAX+1 ile üretilir
+    global_seq: Mapped[int] = mapped_column(BigInteger, Identity(start=1), nullable=False)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
@@ -456,6 +470,31 @@ class TelegramUpdate(Base):
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="PENDING", nullable=False)  # PENDING|PROCESSING|PROCESSED|FAILED
     attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+# ----------------------------------------------------------------------------
+# Action execution — approval/action tabanlı idempotent execution kaydı
+# consume-sonra-crash ile eylem kaybolmasın; aynı approval/action ikinci kez çalıştırılmaz
+# ----------------------------------------------------------------------------
+class ActionExecution(_UUIDMixin, _TimestampMixin, Base):
+    __tablename__ = "action_executions"
+    __table_args__ = (
+        UniqueConstraint("approval_id", name="uq_action_exec_approval"),
+        Index("ix_action_exec_run", "run_id"),
+        Index("ix_action_exec_approval", "approval_id"),
+    )
+    approval_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("approvals.id"), nullable=False
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("runs.id"), nullable=False
+    )
+    action_id: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    tool: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="PENDING")  # PENDING|SUCCEEDED|FAILED|AMBIGUOUS
+    result: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
+    approval: Mapped[Approval] = relationship()
+    run: Mapped[Run] = relationship()
 
 
 # ----------------------------------------------------------------------------

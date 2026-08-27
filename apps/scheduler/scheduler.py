@@ -11,6 +11,7 @@ from sqlalchemy import select
 from observability import models
 from observability.config import settings
 from observability.db import async_session_factory
+from observability.events import append_run_event_in_session
 
 app = FastAPI(title="RAPTOR Scheduler", version="1.0.0")
 
@@ -66,49 +67,38 @@ class SchedulerLoop:
         recovered = 0
         cutoff = datetime.now(UTC) - self._stuck_threshold
         async with async_session_factory() as s:
-            # also consider lease_expires_at
-            res = await s.execute(
-                select(models.Run).where(
-                    models.Run.status == models.RunStatus.EXECUTING.value,
+            async with s.begin():
+                res = await s.execute(
+                    select(models.Run).where(
+                        models.Run.status == models.RunStatus.EXECUTING.value,
+                    )
                 )
-            )
-            runs = list(res.scalars().all())
-            for r in runs:
-                heartbeat = r.heartbeat_at or r.updated_at
-                lease_expired = r.lease_expires_at and r.lease_expires_at < datetime.now(UTC)
-                stuck = (heartbeat and heartbeat < cutoff) or lease_expired
-                if not stuck:
-                    continue
-                # mark failed and emit event, then requeue via outbox if retry budget remains
-                r.status = models.RunStatus.FAILED.value
-                r.error = "stuck_run_recovered"
-                r.finished_at = datetime.now(UTC)
-                r.heartbeat_at = datetime.now(UTC)
-                seq_max = 0
-                try:
-                    # get max seq for run
-                    from sqlalchemy import func
-                    q = await s.execute(select(func.max(models.RunEvent.seq)).where(models.RunEvent.run_id == r.id))
-                    seq_max = int(q.scalar() or 0)
-                except Exception:
-                    seq_max = 0
-                s.add(models.RunEvent(run_id=r.id, seq=seq_max + 1, event_type="STUCK_RECOVERED", payload={"reason": "lease_expired", "worker_id": r.worker_id}))
-                # retry_count artır + DLQ/requeue kararı
-                retry = (r.retry_count or 0) + 1
-                r.retry_count = retry
-                if retry > 3:
-                    # max retry aşıldı → DLQ
-                    try:
-                        from observability.queue import publish_to_dlq
-                        publish_to_dlq(self.redis, {"run_id": str(r.id), "task_id": str(r.task_id), "retry_of": str(r.id)},
-                                       reason="max_retries_exceeded")
-                        s.add(models.RunEvent(run_id=r.id, seq=seq_max + 2, event_type="DLQ", payload={"retry_count": retry}))
-                    except Exception:
-                        pass
-                else:
-                    # exponential backoff ile requeue
-                    backoff_sec = 30 * (2 ** (retry - 1))  # 30s, 60s, 120s
-                    try:
+                runs = list(res.scalars().all())
+                for r in runs:
+                    heartbeat = r.heartbeat_at or r.updated_at
+                    lease_expired = r.lease_expires_at and r.lease_expires_at < datetime.now(UTC)
+                    stuck = (heartbeat and heartbeat < cutoff) or lease_expired
+                    if not stuck:
+                        continue
+                    r.status = models.RunStatus.FAILED.value
+                    r.error = "stuck_run_recovered"
+                    r.finished_at = datetime.now(UTC)
+                    r.heartbeat_at = datetime.now(UTC)
+                    await append_run_event_in_session(s, r.id, "STUCK_RECOVERED", {"reason": "lease_expired", "worker_id": r.worker_id})
+                    retry = (r.retry_count or 0) + 1
+                    r.retry_count = retry
+                    if retry > 3:
+                        try:
+                            from observability.queue import publish_to_dlq
+                            publish_to_dlq(self.redis, {"run_id": str(r.id), "task_id": str(r.task_id), "retry_of": str(r.id)},
+                                           reason="max_retries_exceeded")
+                        except Exception as e:
+                            import logging as _log
+
+                            _log.getLogger("raptor.scheduler").warning("DLQ publish failed %s", type(e).__name__)
+                        await append_run_event_in_session(s, r.id, "DLQ", {"retry_count": retry})
+                    else:
+                        backoff_sec = 30 * (2 ** (retry - 1))
                         new_run = models.Run(
                             task_id=r.task_id,
                             status=models.RunStatus.QUEUED.value,
@@ -125,12 +115,8 @@ class SchedulerLoop:
                             processed=False,
                         )
                         s.add(ob)
-                        s.add(models.RunEvent(run_id=new_run.id, seq=0, event_type="RETRY_QUEUED", payload={"from_run": str(r.id), "backoff_sec": backoff_sec}))
-                    except Exception:
-                        pass
-                recovered += 1
-            if recovered:
-                await s.commit()
+                        await append_run_event_in_session(s, new_run.id, "RETRY_QUEUED", {"from_run": str(r.id), "backoff_sec": backoff_sec})
+                    recovered += 1
         return recovered
 
     async def check_sources(self) -> int:
@@ -138,20 +124,15 @@ class SchedulerLoop:
         await self.publish_outbox()
         await self.recover_stuck_runs()
         async with async_session_factory() as s:
-            res = await s.execute(select(models.Source).where(models.Source.is_enabled.is_(True)))
-            sources = list(res.scalars().all())
-            for src in sources:
-                # backoff check
-                if src.backoff_until and src.backoff_until > datetime.now(UTC):
-                    continue
-                # for each enabled source, optionally create a surveillance task if no recent run
-                # MVP: create a Task+Run+Outbox per source once per scheduler tick if last_accessed_at stale (>1h)
-                stale = not src.last_accessed_at or (datetime.now(UTC) - src.last_accessed_at) > timedelta(hours=1)
-                if stale:
-                    try:
-                        # idempotent per source per hour
+            async with s.begin():
+                res = await s.execute(select(models.Source).where(models.Source.is_enabled.is_(True)))
+                sources = list(res.scalars().all())
+                for src in sources:
+                    if src.backoff_until and src.backoff_until > datetime.now(UTC):
+                        continue
+                    stale = not src.last_accessed_at or (datetime.now(UTC) - src.last_accessed_at) > timedelta(hours=1)
+                    if stale:
                         idem = f"source:{src.id}:{datetime.now(UTC).strftime('%Y-%m-%d-%H')}"
-                        # check existing task with same idempotency
                         ex = await s.execute(select(models.Task).where(models.Task.idempotency_key == idem))
                         if ex.scalar_one_or_none() is not None:
                             src.last_accessed_at = datetime.now(UTC)
@@ -177,24 +158,19 @@ class SchedulerLoop:
                             processed=False,
                         )
                         s.add(ob)
-                        s.add(models.RunEvent(run_id=run.id, seq=0, event_type="QUEUED", payload={"source_id": str(src.id)}))
+                        await append_run_event_in_session(s, run.id, "QUEUED", {"source_id": str(src.id)})
                         src.last_accessed_at = datetime.now(UTC)
-                    except Exception:
-                        await s.rollback()
-                        continue
-            if sources:
-                try:
-                    await s.commit()
-                except Exception:
-                    await s.rollback()
-        return len(sources)
+                # commit via context manager
+            return len(sources)
 
     async def run(self) -> None:
         while True:
             try:
                 await self.check_sources()
-            except Exception:
-                pass
+            except Exception as e:
+                import logging as _log2
+
+                _log2.getLogger("raptor.scheduler").warning("scheduler loop failed %s", type(e).__name__)
             await asyncio.sleep(self.interval)
 
 

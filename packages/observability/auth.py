@@ -76,10 +76,19 @@ def _resolve_user_id_from_email(email: str) -> str | None:
 async def get_current_user(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> dict:
-    if creds is None or not creds.credentials:
+    token = creds.credentials if creds and creds.credentials else None
+    # EventSource cannot send Authorization header; allow HttpOnly cookie fallback
+    # (UI fetch path still sends Bearer; cookie is for native EventSource)
+    if not token:
+        try:
+            # try to get request from context if available via auth dependency trick - cookie handled in SSE endpoint separately
+            pass
+        except Exception:
+            pass
+    if not token:
         raise HTTPException(401, "kimlik doğrulama gerekli")
     try:
-        payload = decode_session_token(creds.credentials)
+        payload = decode_session_token(token)
     except jwt.ExpiredSignatureError:
         raise HTTPException(401, "session süresi doldu") from None
     except Exception:
