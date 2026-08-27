@@ -77,14 +77,14 @@ async def get_current_user(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> dict:
     token = creds.credentials if creds and creds.credentials else None
-    # EventSource cannot send Authorization header; allow HttpOnly cookie fallback
-    # (UI fetch path still sends Bearer; cookie is for native EventSource)
+    # SSE manual auth: Bearer-only; EventSource native header kısıtı nedeniyle
+    # /api/v1/events/stream endpoint'i Authorization header'ı manuel çözer (decode_session_token).
+    # Cookie fallback BİLEREK yok — query ?token ve cookie leakage/URL log riskini
+    # önlemek için kaldırıldı; web fetch Authorization gönderir. Bu dependency
+    # için cookie fallback denemesi YAPILMAZ.
     if not token:
-        try:
-            # try to get request from context if available via auth dependency trick - cookie handled in SSE endpoint separately
-            pass
-        except Exception:
-            pass
+        # cookie fallback YOK — SSE Bearer-only; burası genel dependency, SSE için ayrı manuel çözme var
+        pass
     if not token:
         raise HTTPException(401, "kimlik doğrulama gerekli")
     try:

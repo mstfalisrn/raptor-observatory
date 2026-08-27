@@ -281,7 +281,7 @@ async def run_events(run_id: str, user: dict = Depends(get_current_user)):
         res = await s.execute(
             select(models.RunEvent).where(models.RunEvent.run_id == uid).order_by(models.RunEvent.seq)
         )
-        return [{"seq": e.seq, "event_type": e.event_type, "payload": e.payload, "ts": e.ts.isoformat()}
+        return [{"seq": e.seq, "global_seq": e.global_seq, "event_type": e.event_type, "payload": e.payload, "ts": e.ts.isoformat()}
                 for e in res.scalars().all()]
 
 
@@ -486,7 +486,8 @@ async def decide_memory(memory_id: str, d: dict, user: dict = Depends(require_ro
 # Sources / Reports / Technocore
 # ---------------------------------------------------------------------------
 @app.get("/api/v1/sources")
-async def list_sources():
+async def list_sources(user: dict = Depends(get_current_user)):
+    _ = user
     async with async_session_factory() as s:
         res = await s.execute(select(models.Source).order_by(models.Source.name))
         return [{"id": str(x.id), "name": x.name, "source_type": x.source_type,
@@ -495,7 +496,8 @@ async def list_sources():
 
 
 @app.get("/api/v1/reports")
-async def list_reports(limit: int = 20):
+async def list_reports(limit: int = 20, user: dict = Depends(get_current_user)):
+    _ = user
     async with async_session_factory() as s:
         res = await s.execute(select(models.Report).order_by(models.Report.created_at.desc()).limit(limit))
         return [{"id": str(r.id), "report_type": r.report_type, "subject": r.subject,
@@ -504,7 +506,8 @@ async def list_reports(limit: int = 20):
 
 
 @app.get("/api/v1/technocore")
-async def technocore_status():
+async def technocore_status(user: dict = Depends(get_current_user)):
+    _ = user
     return {"base_url": settings.TECHNOCORE_BASE_URL,
             "room_claim": settings.TECHNOCORE_ROOM_CLAIM, "registered": False}
 

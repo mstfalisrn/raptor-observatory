@@ -295,12 +295,22 @@ class TelegramService:
             async with async_session_factory() as s:
                 # Telegram + Web aynı transaction-safe continuation service'i kullansın
                 svc = ApprovalService(s)
-                # telegram user_id BIGINT — decided_by_user_id UUID nullable, boş bırak
-                # ApprovalService decide_with_continuation karar, run transition ve outbox atomik yapar
-                # ama telegram user için decided_by boş: ilk decide dene, sonra özel handling
-                # Bu yüzden svc'nin decided_by parametresini boş geç, audit log'a telegram user yazılır
+                # telegram_user_id → TelegramIdentity → user_id map (anonim "" yerine)
+                resolved_user_id = ""
                 try:
-                    _ = await svc.decide_with_continuation(approval_id, decision, "")
+                    from sqlalchemy import select as _select
+                    _res = await s.execute(
+                        _select(models.TelegramIdentity).where(
+                            models.TelegramIdentity.telegram_user_id == int(user_id)
+                        ).limit(1)
+                    )
+                    _ident = _res.scalar_one_or_none()
+                    if _ident is not None and _ident.user_id is not None:
+                        resolved_user_id = str(_ident.user_id)
+                except Exception:
+                    resolved_user_id = ""
+                try:
+                    _ = await svc.decide_with_continuation(approval_id, decision, resolved_user_id)
                 except ValueError as e:
                     msg = str(e)
                     if "süresi dolmuş" in msg or "EXPIRED" in msg:

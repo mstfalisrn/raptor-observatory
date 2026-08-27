@@ -3,23 +3,24 @@ import { api, openSSE, getToken, setToken, setOnUnauthorized } from './api'
 import type { SSEState } from './api'
 import {
   Dashboard, RunsPage, RunDetailPage, ApprovalsPage, ContextPage, MemoryPage,
-  SourcesPage, TechnocorePage, TelegramPage, SettingsPage, AuditPage, CommandCenter, LoginPage
+  SourcesPage, TechnocorePage, TelegramPage, SettingsPage, AuditPage, ReportsPage, CommandCenter, LoginPage
 } from './pages'
 
-type PageKey = 'dashboard'|'runs'|'run-detail'|'approvals'|'context'|'memory'|'sources'|'technocore'|'telegram'|'settings'|'audit'
+type PageKey = 'dashboard'|'runs'|'run-detail'|'approvals'|'context'|'memory'|'sources'|'technocore'|'telegram'|'settings'|'audit'|'reports'
 type NavKey = Exclude<PageKey,'run-detail'>
 
 const NAV: [NavKey, string][] = [
   ['dashboard','📊 Dashboard'], ['runs','▶️ Runs'], ['approvals','🕐 Approvals'],
   ['context','🧩 Context'], ['memory','🧠 Memory'], ['sources','📡 Sources'],
   ['technocore','🛰️ Technocore'], ['telegram','✈️ Telegram'], ['settings','⚙️ Settings'],
+  ['reports','📄 Reports'],
   ['audit','📜 Audit'],
 ]
 
 export default function App() {
   const [tab, setTab] = useState<NavKey>('dashboard')
   const [runId, setRunId] = useState<string>('')
-  const [live, setLive] = useState<any>(null)
+  const [live, setLive] = useState<Record<string,unknown> | null>(null)
   const [sseState, setSseState] = useState<SSEState>('connecting')
   const [lastId, setLastId] = useState('')
   const [toast, setToast] = useState('')
@@ -33,7 +34,7 @@ export default function App() {
   useEffect(() => {
     setOnUnauthorized(() => { setToken(''); setSession(null) })
     if (!getToken()) { setAuthLoading(false); return }
-    api<any>('/v1/auth/me')
+    api<{username:string, role:string}>('/v1/auth/me')
       .then(u => setSession({ email: u.username, role: u.role }))
       .catch(() => { setToken(''); setSession(null) })
       .finally(() => setAuthLoading(false))
@@ -43,7 +44,7 @@ export default function App() {
   useEffect(() => {
     if (!session) return
     const stop = openSSE((e, id) => {
-      setLive(e)
+      setLive(e as Record<string,unknown>)
       if (id) setLastId(id)
     }, (s) => setSseState(s))
     return stop
@@ -82,7 +83,7 @@ export default function App() {
         {(tab==='dashboard') && (
           <CommandCenter onCreated={(id: string)=>{ setRunId(id); setToast(`Run oluşturuldu: ${id.slice(0,8)}`); setTab('runs') }} />
         )}
-        {tab==='dashboard' && <Dashboard live={live} sseState={sseState} lastId={lastId} onOpen={(k:any)=>setTab(k)} onOpenRun={(id: string)=>{ setRunId(id); setTab('runs')}} />}
+        {tab==='dashboard' && <Dashboard live={live} sseState={sseState} lastId={lastId} onOpen={(k:string)=>setTab(k as NavKey)} onOpenRun={(id: string)=>{ setRunId(id); setTab('runs')}} />}
 
         {tab==='runs' && (
           runId ? <RunsWithDetail runId={runId} onBack={()=>setRunId('')} onOpenDetail={(id)=>setRunId(id)} />
@@ -95,6 +96,7 @@ export default function App() {
         {tab==='technocore' && <TechnocorePage />}
         {tab==='telegram' && <TelegramPage />}
         {tab==='settings' && <SettingsPage />}
+        {tab==='reports' && <ReportsPage />}
         {tab==='audit' && <AuditPage />}
 
         {/* compact command bar on non-dashboard pages */}
@@ -107,7 +109,6 @@ export default function App() {
     </div>
   )
 }
-
 function SSEStateLabel(s: SSEState){ return s==='open'?'bağlı': s==='connecting'?'bağlanıyor': s==='error'?'hata/yeniden deneme':'kapalı' }
 
 function RunsWithDetail({ runId, onBack, onOpenDetail }: { runId:string, onBack:()=>void, onOpenDetail:(id:string)=>void }) {
