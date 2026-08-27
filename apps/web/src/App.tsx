@@ -80,9 +80,9 @@ export default function App() {
         {toast && <div className="toast ok" onClick={()=>setToast('')}>{toast}</div>}
         {/* Command Center always visible on dashboard + as top bar */}
         {(tab==='dashboard') && (
-          <CommandCenter onCreated={(id)=>{ setRunId(id); setToast(`Run oluşturuldu: ${id.slice(0,8)}`); setTab('runs') }} />
+          <CommandCenter onCreated={(id: string)=>{ setRunId(id); setToast(`Run oluşturuldu: ${id.slice(0,8)}`); setTab('runs') }} />
         )}
-        {tab==='dashboard' && <Dashboard live={live} sseState={sseState} lastId={lastId} onOpen={(k:any)=>setTab(k)} onOpenRun={(id)=>{ setRunId(id); setTab('runs')}} />}
+        {tab==='dashboard' && <Dashboard live={live} sseState={sseState} lastId={lastId} onOpen={(k:any)=>setTab(k)} onOpenRun={(id: string)=>{ setRunId(id); setTab('runs')}} />}
 
         {tab==='runs' && (
           runId ? <RunsWithDetail runId={runId} onBack={()=>setRunId('')} onOpenDetail={(id)=>setRunId(id)} />
