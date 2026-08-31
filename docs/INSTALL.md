@@ -35,7 +35,9 @@ git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-obse
 # 2) Run the wizard — it walks you through each step:
 ./scripts/setup.sh
 # Step 1/4 — Admin account: prompts for ADMIN_EMAIL and ADMIN_PASSWORD (hidden)
-# Step 2/4 — LLM Provider: 1) Mock (free, no key) 2) OpenAI 3) OpenRouter 4) Ollama
+# Step 2/4 — LLM Provider: 1) Mock (free, no key) 2) OpenAI 3) OpenRouter (aggregator)
+# 4) DeepSeek 5) xAI Grok 6) Gemini 7) Alibaba Qwen 8) MiniMax 9) Kimi
+# 10) Fireworks 11) HuggingFace 12) Ollama 13) LM Studio 14) vLLM/SGLang 15) Custom
 #            -> prompts for API key / base URL / model based on your choice
 # Step 3/4 — Telegram (optional): prompts for bot token + allowed user IDs (leave empty to skip)
 # Step 4/4 — Security secrets: auto-generates JWT/DB/webhook secrets if still CHANGE_ME
@@ -119,12 +121,17 @@ You can also verify from the UI: log in and open **Settings -> LLM Test**.
 |---|---|---|---|---|
 | **Mock (free, no key)** | `mock` | `https://api.openai.com/v1` | `gpt-4o-mini` | `CHANGE_ME` (ignored) |
 | **OpenAI** | `openai_compatible` | `https://api.openai.com/v1` | `gpt-4o-mini` | `sk-...` |
-| **OpenRouter** | `openai_compatible` | `https://openrouter.ai/api/v1` | `openai/gpt-4o-mini` | `sk-or-...` |
-| **Ollama (local)** | `openai_compatible` | `http://host.docker.internal:11434/v1` | `llama3.1` | `ollama` or `CHANGE_ME` |
+| **OpenRouter** | `openai_compatible` | `https://openrouter.ai/api/v1` | `anthropic/claude-3.5-sonnet` | `sk-or-...` |
+| **DeepSeek** | `openai_compatible` | `https://api.deepseek.com/v1` | `deepseek-chat` | `sk-...` |
+| **xAI Grok** | `openai_compatible` | `https://api.x.ai/v1` | `grok-3-mini` | `xai-...` |
+| **Google Gemini** | `openai_compatible` | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-2.0-flash` | `AIza...` |
+| **Alibaba Qwen** | `openai_compatible` | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | `qwen-plus` | `sk-...` |
+| **Ollama (local)** | `openai_compatible` | `http://host.docker.internal:11434/v1` | `llama3.1` | `ollama` |
+| **LM Studio (local)** | `openai_compatible` | `http://host.docker.internal:1234/v1` | `local-model` | `lm-studio` |
+| **vLLM / Self-hosted** | `openai_compatible` | `http://host.docker.internal:8000/v1` | `your-model` | `CHANGE_ME` |
 
 `LLM_PROVIDER=mock` runs the full agentic loop with deterministic fixtures and requires no API key. Ideal for local development and CI.
-
-Full matrix and examples: [CONFIGURATION.md](CONFIGURATION.md).
+Wizard also offers **MiniMax**, **Kimi/Moonshot**, **Fireworks AI**, **Hugging Face** and **Custom** URL presets — full 40+ Hermes mapping: [CONFIGURATION.md](CONFIGURATION.md).
 
 ## Environment Variables
 

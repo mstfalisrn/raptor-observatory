@@ -94,8 +94,10 @@ git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-obse
 
 # 2) Run the wizard — walks you through Admin -> LLM -> Telegram -> Security
 ./scripts/setup.sh
-# The wizard: asks for Admin email/password, lets you pick LLM (Mock/OpenAI/OpenRouter/Ollama
-# and prompts for the matching API key/URL/model), asks for Telegram token (optional),
+# The wizard: asks for Admin email/password, lets you pick LLM from 14 presets
+# (Mock / OpenAI / OpenRouter / DeepSeek / Grok / Gemini / Alibaba Qwen /
+#  MiniMax / Kimi / Fireworks / HuggingFace / Ollama / LM Studio / vLLM or Custom)
+# and prompts for the matching API key/URL/model, asks for Telegram token (optional),
 # auto-generates JWT/DB secrets if still CHANGE_ME, shows a masked summary, then starts the stack.
 # -> http://localhost:3525
 
@@ -135,14 +137,31 @@ Full reference: [docs/CONFIGURATION.md](./docs/CONFIGURATION.md)
 
 Secrets are placeholders in `.env.example` (`CHANGE_ME`). Copy to `.env` and fill only what you need. Never commit `.env`.
 
-### LLM providers -- one env set, four modes
+### LLM providers -- one env set, 15+ presets (OpenAI-compatible) -- full Hermes coverage
 
-| Provider | `LLM_PROVIDER` | `LLM_BASE_URL` | `LLM_MODEL` | `LLM_API_KEY` |
+RAPTOR uses a single `LLM_PROVIDER` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY` set that speaks the OpenAI Chat Completions API. Every provider below is a preset for `openai_compatible` (or `mock` for free local dev). The wizard (`./scripts/setup.sh`) offers 14 named presets; `Custom` covers any other OpenAI-compatible endpoint.
+
+**Common presets (quick reference):**
+
+| Provider | `LLM_PROVIDER` | `LLM_BASE_URL` | `LLM_MODEL` example | `LLM_API_KEY` |
 |---|---|---|---|---|
 | **Mock (free, no key)** | `mock` | `https://api.openai.com/v1` | `gpt-4o-mini` | `CHANGE_ME` (ignored) |
 | **OpenAI** | `openai_compatible` | `https://api.openai.com/v1` | `gpt-4o-mini` | `sk-...` |
-| **OpenRouter** | `openai_compatible` | `https://openrouter.ai/api/v1` | `openai/gpt-4o-mini` | `sk-or-...` |
+| **OpenRouter** (300+ models aggregator) | `openai_compatible` | `https://openrouter.ai/api/v1` | `openai/gpt-4o-mini` | `sk-or-...` |
+| **Anthropic via OpenRouter** | `openai_compatible` | `https://openrouter.ai/api/v1` | `anthropic/claude-3.5-sonnet` | `sk-or-...` |
+| **DeepSeek** | `openai_compatible` | `https://api.deepseek.com/v1` | `deepseek-chat` | `sk-...` |
+| **xAI Grok** | `openai_compatible` | `https://api.x.ai/v1` | `grok-3-mini` | `xai-...` |
+| **Google Gemini** (OpenAI compat) | `openai_compatible` | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-2.0-flash` | `AIza...` |
+| **Alibaba Qwen** (DashScope) | `openai_compatible` | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | `qwen-plus` | `sk-...` |
+| **MiniMax** | `openai_compatible` | `https://api.minimax.chat/v1` | `MiniMax-M2` | `sk-...` |
+| **Kimi / Moonshot** | `openai_compatible` | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` | `sk-...` |
+| **Fireworks AI** | `openai_compatible` | `https://api.fireworks.ai/inference/v1` | `accounts/fireworks/models/llama-v3p1-8b-instruct` | `fw_...` |
+| **Hugging Face Inference** | `openai_compatible` | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.1-8B-Instruct` | `hf_...` |
 | **Ollama (local)** | `openai_compatible` | `http://host.docker.internal:11434/v1` | `llama3.1` | `ollama` |
+| **LM Studio (local)** | `openai_compatible` | `http://host.docker.internal:1234/v1` | `local-model` | `lm-studio` |
+| **vLLM / SGLang (self-hosted)** | `openai_compatible` | `http://host.docker.internal:8000/v1` | `your-model` | `CHANGE_ME` or key |
+
+> **Full coverage:** The table above shows the most-used presets. RAPTOR's `openai_compatible` provider works with **any** OpenAI-compatible endpoint, so all 40+ Hermes providers are supported -- see [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) for the complete Hermes-to-RAPTOR mapping (Nous Portal, Claude Max OAuth, Grok OAuth, Bedrock, Vertex, Azure, OpenCode, Ramp, Novita, Arcee, Nebius, GMI, Tencent, StepFun, NVIDIA Build, and more).
 
 ```bash
 # .env -- OpenAI example
@@ -150,6 +169,24 @@ LLM_PROVIDER=openai_compatible
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=gpt-4o-mini
 LLM_API_KEY=sk-...
+
+# .env -- DeepSeek example
+LLM_PROVIDER=openai_compatible
+LLM_BASE_URL=https://api.deepseek.com/v1
+LLM_MODEL=deepseek-chat
+LLM_API_KEY=sk-...
+
+# .env -- OpenRouter (Anthropic via OpenRouter)
+LLM_PROVIDER=openai_compatible
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL=anthropic/claude-3.5-sonnet
+LLM_API_KEY=sk-or-...
+
+# .env -- Ollama local
+LLM_PROVIDER=openai_compatible
+LLM_BASE_URL=http://host.docker.internal:11434/v1
+LLM_MODEL=llama3.1
+LLM_API_KEY=ollama
 
 # .env -- Mock (no key, full loop with fixtures)
 LLM_PROVIDER=mock

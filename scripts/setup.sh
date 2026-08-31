@@ -218,14 +218,28 @@ fi
 echo ""
 
 # ---- Step 2: LLM Provider ----
-echo -e "${BOLD}Step 2/4 — LLM Provider${RESET}  ${DIM}(mock = free, no key; openai_compatible = OpenAI / OpenRouter / Ollama)${RESET}"
+# Covers the full Hermes provider ecosystem via OpenAI-compatible presets.
+# See docs/CONFIGURATION.md for the complete 40+ provider mapping.
+echo -e "${BOLD}Step 2/4 — LLM Provider${RESET}  ${DIM}(14 presets + Custom; all OpenAI-compatible; mock = free)${RESET}"
 CUR_PROVIDER="$(get_env_val LLM_PROVIDER)"; [ -z "$CUR_PROVIDER" ] && CUR_PROVIDER="mock"
-echo -e "  ${DIM}Current: ${CUR_PROVIDER}${RESET}"
-echo "  1) Mock (free, no API key) — full loop with fixtures"
-echo "  2) OpenAI (api.openai.com)"
-echo "  3) OpenRouter (openrouter.ai)"
-echo "  4) Ollama (local)"
-ask "Choose LLM [1-4]" "1" LLM_CHOICE
+CUR_BASE="$(get_env_val LLM_BASE_URL)"; CUR_MODEL_DISP="$(get_env_val LLM_MODEL)"
+echo -e "  ${DIM}Current: provider=${CUR_PROVIDER}  base=${CUR_BASE:- -}  model=${CUR_MODEL_DISP:- -}${RESET}"
+echo "  1) Mock (free, no API key) — fixtures, no network"
+echo "  2) OpenAI (api.openai.com) — gpt-4o-mini, gpt-4o"
+echo "  3) OpenRouter (openrouter.ai) — 300+ models aggregator"
+echo "  4) DeepSeek (api.deepseek.com) — deepseek-chat / deepseek-reasoner"
+echo "  5) xAI Grok (api.x.ai) — grok-3-mini, grok-4"
+echo "  6) Google Gemini (generativelanguage.googleapis.com) — gemini-2.0-flash"
+echo "  7) Alibaba Qwen / DashScope — qwen-plus, qwen-max"
+echo "  8) MiniMax (api.minimax.chat) — MiniMax-M2, MiniMax-Text-01"
+echo "  9) Kimi / Moonshot (api.moonshot.cn) — moonshot-v1-8k/32k"
+echo " 10) Fireworks AI (api.fireworks.ai) — Llama, Mixtral, etc."
+echo " 11) Hugging Face Inference (router.huggingface.co)"
+echo " 12) Ollama (local) — http://host.docker.internal:11434/v1"
+echo " 13) LM Studio (local) — http://host.docker.internal:1234/v1"
+echo " 14) vLLM / SGLang / llama.cpp (self-hosted) — :8000/v1"
+echo " 15) Custom — enter any OpenAI-compatible base URL"
+ask "Choose LLM [1-15]" "1" LLM_CHOICE
 case "$LLM_CHOICE" in
   2)
     set_env_val "LLM_PROVIDER" "openai_compatible"
@@ -240,12 +254,85 @@ case "$LLM_CHOICE" in
     set_env_val "LLM_PROVIDER" "openai_compatible"
     set_env_val "LLM_BASE_URL" "https://openrouter.ai/api/v1"
     CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="openai/gpt-4o-mini"
-    ask "Model" "$CUR_MODEL" IN_MODEL
+    ask "Model (e.g. openai/gpt-4o-mini, anthropic/claude-3.5-sonnet, google/gemini-2.0-flash)" "$CUR_MODEL" IN_MODEL
     set_env_val "LLM_MODEL" "$IN_MODEL"
     ask_secret "OpenRouter API key (sk-or-...)" IN_KEY
     if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
     ;;
   4)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://api.deepseek.com/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="deepseek-chat"
+    ask "Model (deepseek-chat, deepseek-reasoner)" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "DeepSeek API key (sk-...)" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
+    ;;
+  5)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://api.x.ai/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="grok-3-mini"
+    ask "Model (grok-3-mini, grok-4)" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "xAI API key (xai-...)" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
+    ;;
+  6)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://generativelanguage.googleapis.com/v1beta/openai/"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="gemini-2.0-flash"
+    ask "Model (gemini-2.0-flash, gemini-1.5-pro)" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "Google API key (AIza...)" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
+    ;;
+  7)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="qwen-plus"
+    ask "Model (qwen-plus, qwen-max, qwen-turbo)" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "DashScope API key (sk-...)" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
+    echo -e "${DIM}  CN endpoint alternative: https://dashscope.aliyuncs.com/compatible-mode/v1${RESET}"
+    ;;
+  8)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://api.minimax.chat/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="MiniMax-M2"
+    ask "Model (MiniMax-M2, MiniMax-Text-01)" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "MiniMax API key" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
+    ;;
+  9)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://api.moonshot.cn/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="moonshot-v1-8k"
+    ask "Model (moonshot-v1-8k, moonshot-v1-32k)" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "Moonshot/Kimi API key (sk-...)" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
+    ;;
+  10)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://api.fireworks.ai/inference/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="accounts/fireworks/models/llama-v3p1-8b-instruct"
+    ask "Model" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "Fireworks API key (fw_...)" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
+    ;;
+  11)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://router.huggingface.co/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="meta-llama/Llama-3.1-8B-Instruct"
+    ask "Model (e.g. meta-llama/Llama-3.1-8B-Instruct)" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "Hugging Face token (hf_...)" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
+    ;;
+  12)
     set_env_val "LLM_PROVIDER" "openai_compatible"
     CUR_URL="$(get_env_val LLM_BASE_URL)"; [ -z "$CUR_URL" ] && CUR_URL="http://host.docker.internal:11434/v1"
     ask "Ollama base URL" "$CUR_URL" IN_URL
@@ -255,6 +342,43 @@ case "$LLM_CHOICE" in
     set_env_val "LLM_MODEL" "$IN_MODEL"
     set_env_val "LLM_API_KEY" "ollama"
     echo -e "${DIM}  Note: run 'ollama serve && ollama pull ${IN_MODEL}' on host if needed.${RESET}"
+    ;;
+  13)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    CUR_URL="$(get_env_val LLM_BASE_URL)"; [ -z "$CUR_URL" ] && CUR_URL="http://host.docker.internal:1234/v1"
+    ask "LM Studio base URL" "$CUR_URL" IN_URL
+    set_env_val "LLM_BASE_URL" "$IN_URL"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="local-model"
+    ask "Model" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    set_env_val "LLM_API_KEY" "lm-studio"
+    echo -e "${DIM}  Note: enable 'Serve on Network' in LM Studio Developer tab.${RESET}"
+    ;;
+  14)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    CUR_URL="$(get_env_val LLM_BASE_URL)"; [ -z "$CUR_URL" ] && CUR_URL="http://host.docker.internal:8000/v1"
+    ask "Self-hosted base URL (vLLM/SGLang/llama.cpp)" "$CUR_URL" IN_URL
+    set_env_val "LLM_BASE_URL" "$IN_URL"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="your-model"
+    ask "Model" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    CUR_KEY="$(get_env_val LLM_API_KEY)"; [ -z "$CUR_KEY" ] && CUR_KEY="CHANGE_ME"
+    ask "API key (leave CHANGE_ME if none)" "$CUR_KEY" IN_KEY
+    set_env_val "LLM_API_KEY" "$IN_KEY"
+    echo -e "${DIM}  Start with: vLLM --enable-auto-tool-choice --tool-call-parser hermes  or  llama-server --jinja${RESET}"
+    ;;
+  15)
+    CUR_URL="$(get_env_val LLM_BASE_URL)"; [ -z "$CUR_URL" ] && CUR_URL="https://api.openai.com/v1"
+    ask "Custom base URL (must speak OpenAI Chat Completions)" "$CUR_URL" IN_URL
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "$IN_URL"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="gpt-4o-mini"
+    ask "Model" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    CUR_KEY="$(get_env_val LLM_API_KEY)"; [ -z "$CUR_KEY" ] && CUR_KEY="CHANGE_ME"
+    ask "API key" "$CUR_KEY" IN_KEY
+    set_env_val "LLM_API_KEY" "$IN_KEY"
+    echo -e "${DIM}  Covers: Novita, GMI, Nebius, Arcee, Tencent, StepFun, NVIDIA Build, Kilo, Xiaomi, Actual Computer, etc. — see docs/CONFIGURATION.md${RESET}"
     ;;
   *)
     set_env_val "LLM_PROVIDER" "mock"
