@@ -1,189 +1,280 @@
 # RAPTOR Agentic Observatory
 
 [![CI](https://github.com/your-owner/raptor-observatory/actions/workflows/ci.yml/badge.svg)](https://github.com/your-owner/raptor-observatory/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/your-owner/raptor-observatory/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](./CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+[![Docker](https://img.shields.io/badge/docker-compose-ready-blue)](./docker-compose.yml)
 
-## 🚀 Tek Komut Kurulum
+> **Observable, policy-gated agentic runtime over Telegram + Web UI** -- verifiable context, auditable tool execution, and human-in-the-loop approvals.
 
-> 60 saniyede çalışan stack — her yerde aynı 3 adım. Kopyala: `cp .env.example .env — hiçbir gerçek token yazma`
+RAPTOR is a self-hosted agentic runtime for observable, policy-controlled automation. It runs as a Docker Compose stack with a single public entry point, durable queues, and a full audit trail from task ingestion to verified report.
 
-Kopyala: cp .env.example .env — hiçbir gerçek token yazma
-gizli bilgi repo'da yok — ./scripts/secret-scan.sh ile doğrula
+---
+
+## Highlights
+
+- **Why RAPTOR:** Every agent step is assembled from auditable context, checked against policy, executed through declared tools, and verified against expected evidence before a report is persisted.
+- **Single-command local run:** `quickstart.sh` generates secrets, runs migrations, and starts the stack idempotently.
+- **Single origin:** The Web UI is served by the API behind a single gateway -- one host bind, no CORS sprawl.
+
+---
+
+## Features
+
+- **Policy-gated execution** -- Every tool call is classified as `ALLOW`, `REQUIRE_APPROVAL`, or `DENY`. Writes that leave the system (e.g. public posts) require explicit human approval bound to action hash, user, and expiry.
+- **Queue / worker with hardening** -- Redis Streams-backed queue with atomic claim, heartbeat/lease, exponential backoff, retry budget, and a dead-letter queue for poisoned runs.
+- **Durable Telegram inbox** -- Webhook receiver with opaque path, `X-Telegram-Bot-Api-Secret-Token` verification, and idempotent `update_id` handling.
+- **Memory with pgvector** -- Candidate -> approved/active lifecycle with embedding retrieval (`pgvector`) at task start; superseded/expired archival keeps history intact.
+- **Live SSE stream** -- `GET /api/v1/events/stream` (`text/event-stream`) with `Last-Event-ID` / `global_seq` cursor, auto-reconnect, and DB-backed global ordering.
+- **Technocore DID integration** -- Reads on a schedule; writes are DID-signed (ed25519) and gated behind approval -- no autonomous public posting.
+- **Web UI** -- Runs, context inspector, approvals, settings, and onboarding wizard (Tailwind 4 + shadcn/ui, light/dark tokens, SSE pulse).
+- **Production-ready hygiene** -- Non-root, read-only containers, `cap_drop: ALL`, isolated networks, secret scanning, and CI gates.
+
+---
+
+## Architecture
+
+```
+                Telegram Bot API -----+
+                                      +-> Gateway (Caddy) -> API (FastAPI)
+               Web UI (browser) -----+                         |
+                                                               +-> ContextAssembler (7 layers)
+                                                               +-> PolicyEngine (ALLOW / REQUIRE_APPROVAL / DENY)
+                                                               +-> ToolExecutor (declared connectors only)
+                                                               +-> Verifier / Reporter
+                                                               |
+                                    +--------------------------+
+                                    |
+                        Redis Streams <----> Worker / Scheduler <----> PostgreSQL 16 + pgvector
+                          (queue,              (run lifecycle,                (22 tables,
+                           DLQ,                 budgets, circuit-breaker,      append-only events,
+                           cursors)             deferred delivery)             memory, approvals)
+```
+
+**Run lifecycle:**
+
+```
+QUEUED -> CONTEXT_BUILDING -> PLANNING -> POLICY_CHECK
+       -> WAITING_APPROVAL | EXECUTING -> VERIFYING -> PERSISTING -> COMPLETED
+       -> FAILED | CANCELLED | PAUSED
+```
+
+Context is assembled in 7 layers (`system_policy`, `task_goal`, `conversation_window`, `episodic_memory`, `semantic_memory`, `procedural_memory`, `tool_schemas`) with token budgets and per-segment audit metadata. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full model.
+
+---
+
+## Services
+
+| Service | Role | External port |
+|---|---|---|
+| `raptor-gateway` | Caddy reverse proxy -- single host entry point for UI + API | `127.0.0.1:3525` |
+| `raptor-api` | FastAPI -- REST API, SSE stream, Telegram webhook, embedded UI static | internal |
+| `raptor-worker` | Agent execution -- dequeues runs, drives the coordinator loop | internal |
+| `raptor-scheduler` | Scheduling -- periodic reads, deferred delivery (`not_before`), maintenance | internal |
+| `raptor-migrate` | One-shot Alembic migration -- runs once, API/worker/scheduler depend on it | internal |
+| `raptor-postgres` | PostgreSQL 16 + pgvector -- durable state, vectors, append-only events | internal |
+| `raptor-redis` | Redis 7 -- Streams queue/DLQ, coordination, cursors | internal |
+
+All runtime containers run as non-root, read-only filesystem, `cap_drop: ALL`, `no-new-privileges`. Only `raptor-gateway` is bound to the host.
+
+---
+
+## Quick Start (60 seconds)
+
+**Prerequisites:** Docker Engine 24+, Compose v2.20+, 4 GB RAM (8 GB recommended), 10 GB disk, port `3525` free. See [docs/INSTALL.md](./docs/INSTALL.md) for details.
 
 ```bash
-# 1) klonla
+# 1) Clone
 git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
 
-# 2) env — kopyala; mock ile anahtar gerekmez, openai_compatible için LLM_API_KEY doldur
-cp .env.example .env  # içi CHANGE_ME — LLM_API_KEY gerekirse düzenle, mock works with no key
+# 2) Environment -- copy the example (placeholders only, never commit real secrets)
+cp .env.example .env
+# Edit .env only if you use an external LLM provider (see Configuration below).
+# With LLM_PROVIDER=mock the stack runs with no API key.
 
-# 3) tek komut (idempotent) — CHANGE_ME'leri otomatik üretir ve ayağa kaldırır
+# 3) Start -- generates secrets if CHANGE_ME remains, runs migrations, builds and starts the stack
 ./scripts/quickstart.sh
-# veya: docker compose up -d --build
-
-# → http://localhost:3525
+# Alternative: docker compose up -d --build
 ```
 
-- **İlk giriş:** `ADMIN_EMAIL` (varsayılan `your-email@example.com` / `admin@raptor` alias) + `.env` → `ADMIN_PASSWORD_HASH` — quickstart.sh ilk kurulumda parola üretip log'da gösterir; `ADMIN_PASSWORD_HASH` boşsa `.env`'den oku
-- **Önkoşullar:** Docker 24+, Docker Compose v2.20+, 4 GB RAM (8 GB önerilir), 10 GB disk, port `3525` boş
-- **Gizli bilgi repo'da yok — `./scripts/secret-scan.sh` ile doğrula** — hiçbir gerçek token commit edilmez; doğrulama: `./scripts/secret-scan.sh .`
-- **LLM:** `mock` (ücretsiz, anahtarsız) · `openai_compatible` → OpenAI / OpenRouter / Ollama — bkz. [CONFIGURATION.md](docs/CONFIGURATION.md) matris
-- **Sorun mu?** `docker compose logs -f` · `curl -s http://localhost:3525/health/ready | jq` · [INSTALL.md Troubleshooting](docs/INSTALL.md#troubleshooting)
+Open **http://localhost:3525**
 
-Hermes'ten bağımsız çalışan, Telegram + Web UI üzerinden yönlendirilen, izlenebilir
-agent runtime altyapısı. Gözlem (Technocore + açık kaynak) odaklı; bağlam denetlenebilir,
-her eylem politikadan, hafıza kontrollü, çıktı kanıtlanabilir.
+- First login: `ADMIN_EMAIL` (default `admin@example.com`) + password derived from `ADMIN_PASSWORD_HASH` in `.env`. On first run, `quickstart.sh` generates a random password if the hash is still `CHANGE_ME` and prints it once to the log -- save it.
+- Verify: `curl -s http://localhost:3525/health/ready | jq` should return `{"status":"ready"}`.
+- Logs: `docker compose logs -f`
+- Secret hygiene: `./scripts/secret-scan.sh .` must be clean -- real secrets live outside the repo.
 
-> Hermes bu sistemin **runtime'ı değildir** — yalnız kodlayan/kuran/doğrulayan operatördür.
+---
 
-## Mimari
+## Configuration
 
-```
-Telegram Bot API ----\
-                      > raptor-gateway (Caddy) -> raptor-api -> RunCoordinator
-Web UI / Cloudflare -/                            |              +-> ContextAssembler
-                                                  |              +-> PolicyEngine
-                                                  |              +-> ToolExecutor (connectors)
-                                                  |              +-> Verifier/Reporter
-                                                  |
-                            Redis <-> worker/scheduler <-> PostgreSQL + pgvector
-```
+Full reference: [docs/CONFIGURATION.md](./docs/CONFIGURATION.md)
 
-## Servisler (Docker Compose)
+Secrets are placeholders in `.env.example` (`CHANGE_ME`). Copy to `.env` and fill only what you need. Never commit `.env`.
 
-| Servis | Rol | Port (host) |
-|---|---|---|
-| `raptor-gateway` | Caddy reverse proxy + UI/API | `127.0.0.1:3525` |
-| `raptor-api` | FastAPI + SSE + webhook + UI static | iç |
-| `raptor-worker` | run yürütme (Redis queue) | iç |
-| `raptor-scheduler` | periyodik/takip | iç |
-| `raptor-migrate` | one-shot Alembic migration | iç |
-| `raptor-postgres` | PostgreSQL 16 + pgvector | yok (internal) |
-| `raptor-redis` | kuyruk/koordinasyon | yok (internal) |
+### LLM providers -- one env set, four modes
 
-Tüm container'lar non-root, read-only rootfs, cap_drop ALL. Host'ta tek bind `127.0.0.1:3525`.
-
-## Hızlı başlangıç
-
-> Her yerde aynı 3 adım — aynı komutlar. Kopyala: `cp .env.example .env — hiçbir gerçek token yazma`
-
-Kopyala: cp .env.example .env — hiçbir gerçek token yazma
-gizli bilgi repo'da yok — ./scripts/secret-scan.sh ile doğrula
-
-### Public Quickstart (60 sn) — önerilen
-
-```bash
-# 1) klonla
-git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
-
-# 2) env — kopyala; mock ile anahtar gerekmez, openai_compatible için LLM_API_KEY doldur
-cp .env.example .env  # içi CHANGE_ME — LLM_API_KEY gerekirse düzenle, mock works with no key
-
-# 3) tek komut (idempotent) — CHANGE_ME'leri otomatik üretir ve ayağa kaldırır
-./scripts/quickstart.sh
-# veya: docker compose up -d --build
-
-# → http://localhost:3525
-# ilk giriş: ADMIN_EMAIL (your-email@example.com) + .env → ADMIN_PASSWORD_HASH (quickstart log'da parola gösterilir)
-```
-
-Tarayıcıda aç: **http://localhost:3525** — prod tünel (opsiyonel): `https://raptor.your-domain.example`
-
-> `LLM_PROVIDER=mock` ile API anahtarı olmadan da otonom loop çalışır (ücretsiz test).
-> gizli bilgi repo'da yok — `./scripts/secret-scan.sh` ile doğrula — `./scripts/secret-scan.sh .`
-> Önkoşullar: Docker 24+, 4 GB RAM, 10 GB disk, port 3525 boş — detay: [docs/INSTALL.md](docs/INSTALL.md)
-
-### Production (managed) — `./secrets` ile
-
-Sunucuda Hermes-managed kurulum için secret'lar `./secrets/raptor-observatory/app.env` içinde tutulur:
-
-```bash
-# 1) secret'lar (root-only)
-./scripts/configure-secrets.sh --gen        # otomatik üret
-./scripts/configure-secrets.sh              # interaktif (TG bot + LLM key)
-
-# 2) compose env
-cp .env.example .env                         # üretimde değerleri ./secrets/raptor-observatory/app.env dosyasından aktar
-# POSTGRES_PASSWORD, JWT_SECRET, SESSION_ENCRYPTION_MASTER_KEY, TELEGRAM_WEBHOOK_SECRET ...
-
-# 3) stack
-docker compose up -d --build
-./scripts/secret-scan.sh .                   # secret taraması
-
-# 4) test
-pytest
-```
-
-## AI API Bağlama (LLM Provider)
-
-Tek env seti — `mock` veya herhangi bir OpenAI-compatible sağlayıcı:
-
-| Alan | Env Değişkeni | Açıklama |
-|---|---|---|
-| Provider | `LLM_PROVIDER` | `mock` (ücretsiz / test) veya `openai_compatible` |
-| Base URL | `LLM_BASE_URL` | OpenAI-compatible endpoint |
-| Model | `LLM_MODEL` | Kullanılacak model adı |
-| API Key | `LLM_API_KEY` | Sağlayıcı API anahtarı (`mock` için `CHANGE_ME` kalabilir) |
-
-### Örnekler
-
-| Sağlayıcı | `LLM_PROVIDER` | `LLM_BASE_URL` | `LLM_MODEL` | `LLM_API_KEY` |
+| Provider | `LLM_PROVIDER` | `LLM_BASE_URL` | `LLM_MODEL` | `LLM_API_KEY` |
 |---|---|---|---|---|
-| **Mock (ücretsiz)** | `mock` | `https://api.openai.com/v1` | `gpt-4o-mini` | `CHANGE_ME` |
+| **Mock (free, no key)** | `mock` | `https://api.openai.com/v1` | `gpt-4o-mini` | `CHANGE_ME` (ignored) |
 | **OpenAI** | `openai_compatible` | `https://api.openai.com/v1` | `gpt-4o-mini` | `sk-...` |
 | **OpenRouter** | `openai_compatible` | `https://openrouter.ai/api/v1` | `openai/gpt-4o-mini` | `sk-or-...` |
-| **Ollama (local)** | `openai_compatible` | `http://localhost:11434/v1` | `llama3.1` | `ollama` veya `CHANGE_ME` |
+| **Ollama (local)** | `openai_compatible` | `http://host.docker.internal:11434/v1` | `llama3.1` | `ollama` |
 
 ```bash
-# .env — OpenAI örneği
+# .env -- OpenAI example
 LLM_PROVIDER=openai_compatible
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=gpt-4o-mini
 LLM_API_KEY=sk-...
 
-# .env — OpenRouter örneği
-LLM_PROVIDER=openai_compatible
-LLM_BASE_URL=https://openrouter.ai/api/v1
-LLM_MODEL=openai/gpt-4o-mini
-LLM_API_KEY=sk-or-...
-
-# .env — Ollama (yerel) örneği
-LLM_PROVIDER=openai_compatible
-LLM_BASE_URL=http://localhost:11434/v1
-LLM_MODEL=llama3.1
-LLM_API_KEY=ollama
+# .env -- Mock (no key, full loop with fixtures)
+LLM_PROVIDER=mock
+LLM_API_KEY=CHANGE_ME
 ```
 
-> Bağlantıyı test et: `curl -s http://localhost:3525/health/ready | jq` ve UI → Settings → LLM Test (`POST /api/v1/settings/llm/test`).
+Test the connection via `POST /api/v1/settings/llm/test` or the Web UI -> Settings -> LLM Test.
 
-## Yönetim
+### Telegram
+
+| Variable | Description |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | From @BotFather; leave empty to disable Telegram |
+| `TELEGRAM_ALLOWED_USER_IDS` | Comma-separated numeric user IDs; empty / `*` denies all |
+| `TELEGRAM_WEBHOOK_SECRET` | 64 hex chars -- verified as `X-Telegram-Bot-Api-Secret-Token` |
+
+Webhook path is opaque: `/webhooks/telegram/<opaque>` -- never logged.
+
+### Technocore
+
+| Variable | Default | Notes |
+|---|---|---|
+| `TECHNOCORE_BASE_URL` | `https://technocore.chat` | API base |
+| `TECHNOCORE_ROOM_CLAIM` | `dm-topic` | Default room |
+
+Reads run every 5 minutes via the scheduler. Writes are DID-signed and require explicit approval.
+
+---
+
+## Operations
 
 ```bash
-systemctl status raptor-observatory          # stack (boot'ta auto-start)
-./scripts/backup-restore.sh backup           # yedek
-./scripts/backup-restore.sh restore <dump>   # ayrı test DB'sine geri yükle
+# Health
+curl -s http://localhost:3525/health/live  | jq  # liveness
+curl -s http://localhost:3525/health/ready | jq  # readiness (DB + deps)
+
+# Logs
+docker compose logs -f
+docker compose logs raptor-api --tail 100
+
+# Backup / restore (restore targets a separate test DB, never overwrites production)
+./scripts/backup-restore.sh backup
+./scripts/backup-restore.sh restore /var/backups/raptor-observatory/raptor-<timestamp>.dump
+
+# Secret check
+./scripts/secret-scan.sh .
 ```
 
-## Durum
+See [OPERATIONS.md](./OPERATIONS.md) for systemd, runbook, and incident notes.
 
-Production-ready (AŞAMA 0–13 tamamlandı, canlıda):
+---
 
-- ✅ **AŞAMA 0–13** — keşif → scaffold → agent core → kuyruk/worker → Telegram durable inbox →
-  atomik claim + DLQ → Technocore DID → embedding/hafıza → SSE global cursor → Web UI →
-  migration servisi → CI kapıları → production deploy (uçtan uca doğrulandı)
-- ✅ **Production canlı** — `raptor.your-domain.example` (Cloudflare Tunnel), Telegram
-  `@raptoragarnaccio_bot`, Technocore oda `dm-topic`
-- ✅ **Kalite kapıları** — 185 test, coverage ≥%70, ruff 0, bandit 0 Medium/High, secret-scan temiz
-- ✅ **Güvenlik** — local auth (JWT + PBKDF2 + RBAC), rate limit, SSRF allowlist, non-root/read-only
+## Security Model
 
-## Sürümler (Versioning)
+- **Tool isolation** -- Only declared, schema-validated connectors; no arbitrary shell or Docker access.
+- **SSRF protection** -- Loopback/RFC1918/link-local/metadata/socket/internal hostnames are blocked; DNS re-resolution and redirect re-classification; allowlist + size/timeout guards.
+- **Policy + approvals** -- `READ_ONLY` auto; `SAFE_WRITE` audited; `PUBLIC_WRITE`/`PRIVILEGED` require human approval (single-use, expiry-bound, HMAC over canonical action hash); `DESTRUCTIVE` is denied.
+- **Redaction** -- Tokens, `Authorization` headers, JWTs, and env secrets are masked before reaching the model or memory.
+- **Container hardening** -- Non-root user, read-only rootfs, `no-new-privileges`, `cap_drop: ALL`; only `127.0.0.1:3525` is host-exposed.
+- **Telegram** -- Numeric allowlist only; group mode off by default; webhook secret verified; `update_id` deduplication.
 
-[SemVer](https://semver.org/) kullanılır; sürüm tek kaynaktan (`packages/observability/__init__.py`
-`__version__`) okunur.
+Full details: [SECURITY.md](./SECURITY.md)
 
-- Git tag: `vMAJOR.MINOR.PATCH` (örn. `v1.0.0`)
-- Her sürüm [CHANGELOG.md](CHANGELOG.md)'de kayıtlıdır
-- Sürüm çıkarmak: `gh release create v1.0.0 --generate-notes`
+---
 
-Daha fazla: [ARCHITECTURE.md](ARCHITECTURE.md) · [SECURITY.md](SECURITY.md) · [OPERATIONS.md](OPERATIONS.md) · [DECISIONS.md](DECISIONS.md) · [CHANGELOG.md](CHANGELOG.md)
+## Project Structure
+
+```
+.
+|-- apps/
+|   |-- api/            # FastAPI app -- routes, SSE, webhooks, auth
+|   |-- worker/         # Agent run execution
+|   |-- scheduler/      # Periodic / deferred jobs
+|   |-- migrate/        # Alembic one-shot runner
+|   +-- web/            # React + Vite + Tailwind 4 frontend (built into API image)
+|-- packages/           # Shared Python packages (policy, memory, observability, connectors)
+|-- migrations/         # Alembic migrations
+|-- infra/
+|   |-- caddy/          # Gateway config
+|   +-- compose/        # initdb
+|-- scripts/            # quickstart.sh, secret-scan.sh, backup-restore.sh
+|-- docs/
+|   |-- INSTALL.md
+|   |-- CONFIGURATION.md
+|   +-- UI_GUIDE.md
+|-- docker-compose.yml
++-- pyproject.toml
+```
+
+---
+
+## Development
+
+```bash
+# Python deps
+pip install -r packages/requirements-api.txt -r packages/requirements-worker.txt -r packages/requirements-dev.txt
+
+# Lint / type / security
+ruff check packages apps migrations tests
+bandit -r packages apps --severity-level high -q
+./scripts/secret-scan.sh .
+
+# Tests (requires local Postgres + Redis or docker services)
+pytest -q --cov=packages --cov-report=term-missing --cov-fail-under=70
+
+# Frontend
+npm --prefix apps/web install
+npm --prefix apps/web run build
+
+# Compose validation
+docker compose config --quiet
+```
+
+CI runs on every push/PR to `master`: `pytest` (pgvector + Redis + coverage >= 70%), `ruff`, `bandit`, `secret-scan`, `compose-config`, `frontend` (tsc + build), `docker-build`. See `.github/workflows/ci.yml`.
+
+---
+
+## Documentation
+
+| Document | Description |
+|---|---|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | System, data model (22 tables), queue/worker, connectors, API, SSE |
+| [SECURITY.md](./SECURITY.md) | Isolation, runtime, agent, Telegram, web, and approval security |
+| [OPERATIONS.md](./OPERATIONS.md) | Health, backup/restore, deploy, incident runbook |
+| [docs/INSTALL.md](./docs/INSTALL.md) | Prerequisites, quick start detail, environment reference |
+| [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) | Full env and LLM/Telegram/Technocore matrix |
+| [docs/UI_GUIDE.md](./docs/UI_GUIDE.md) | Web UI -- 11 tabs, design system, onboarding, SSE |
+| [CHANGELOG.md](./CHANGELOG.md) | Version history (Keep a Changelog / SemVer) |
+| [LICENSE](./LICENSE) | MIT |
+
+---
+
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/). The canonical version is defined in `packages/observability/__init__.py` (`__version__`) and tagged as `vMAJOR.MINOR.PATCH`.
+
+Current release: **v1.0.0** -- see [CHANGELOG.md](./CHANGELOG.md).
+
+To cut a new release:
+
+```bash
+gh release create v1.0.0 --generate-notes
+```
+
+---
+
+## License
+
+MIT -- see [LICENSE](./LICENSE).
+

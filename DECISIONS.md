@@ -1,38 +1,34 @@
-# DECISIONS.md — Karar Kaydı
+# Decision Log — RAPTOR
 
-Bu dosya mimari ve ürün kararlarını, gerekçeleriyle birlikte tutar (append-only niyetli).
+This file records architecture and product decisions with rationale (append-only intent).
 
-## D1 — Tek origin mimarisi (UI + API aynı origin)
-- **Karar:** Web UI statik build'i `raptor-api` image'ına gömdük; `raptor-web` ayrı servis kaldırıldı.
-- **Gerekçe:** Şartname "tek origin altında API ile sun" der. Tek origin CORS/CSRF/cookie
-  risklerini azaltır, SSO/Cloudflare Access tek noktada doğrulanır.
-- **Alternatif **: ayrı static server. Reddedildi (çift origin).
+## D1 — Single-Origin Architecture (UI + API on the Same Origin)
+- **Decision:** Embed the Web UI static build into the `raptor-api` image; remove the separate `raptor-web` service.
+- **Rationale:** The specification requires serving the UI under the same origin as the API. A single origin reduces CORS/CSRF/cookie risks and allows SSO / Cloudflare Access to be verified at a single point.
+- **Alternative:** separate static server. Rejected (dual origin).
 
-## D2 — Quartz/Celery yerine Redis listesi
-- **Karar:** Job queue Redis list (`raptor:queue`); worker bloş poll eder.
-- **Gerekçe:** Bağımlılık az, istemci-sürücülü, yeterli. Üretimde RQ/arq'ya geçilebilir.
-- **Not:** Soyut arayüz üzerinden değiştirilebilir.
+## D2 — Redis List Instead of Quartz / Celery
+- **Decision:** Job queue is a Redis list (`raptor:queue`); the worker performs a blocking poll.
+- **Rationale:** Fewer dependencies, client-driven, sufficient for the current scale. Can be migrated to RQ/arq in production if needed.
+- **Note:** Replaceable via an abstract queue interface.
 
-## D3 — `runs.plan_id`'de FK döngüsü kırıldı
-- **Karar:** `runs.plan_id` düz UUID kolonu; `plans.run_id -> runs` tek yönlü FK.
-- **Gerekçe:** plan↔run çift yönlü FK Alembic autogenerate'i bozuyordu (tables order).
-- **Etki:** referans doğruluğunu uygulama katmanı sağlar.
+## D3 — Breaking the FK Cycle on `runs.plan_id`
+- **Decision:** `runs.plan_id` is a plain UUID column; the only foreign key is `plans.run_id -> runs` (one-directional).
+- **Rationale:** A bidirectional FK between `plans` and `runs` broke Alembic autogenerate (table ordering).
+- **Impact:** Referential integrity for `runs.plan_id` is enforced at the application layer.
 
-## D4 — Alembic async (asyncpg)
-- **Karar:** Datab basis `postgresql+asyncpg`; Alembic env async çalışır.
-- **Gerekçe:** App async; senkron psycopg şeması iki farklı URL gerektiriyordu.
+## D4 — Alembic Async (asyncpg)
+- **Decision:** Database uses `postgresql+asyncpg`; the Alembic environment runs in async mode.
+- **Rationale:** The application is async; a synchronous psycopg setup would require two different database URLs.
 
-## D5 — Technocore public yazı varsayılan kapalı
-- **Karar:** `technocore_signed_write` policy'de `REQUIRE_APPROVAL`; `PUBLIC-POST-APPROVED`
-  gate'i. DID key yine de üretildi, imza doğrulandı.
-- **Gerekçe:** "kullanıcı onayı olmadan yazma yok" — airdrop/spam karşıtı.
+## D5 — Technocore Public Writes Disabled by Default
+- **Decision:** `technocore_signed_write` is `REQUIRE_APPROVAL` in the policy engine, gated by `PUBLIC-POST-APPROVED`. The DID key is still generated and signatures are verified.
+- **Rationale:** No writes without explicit user approval — mitigates airdrop / spam abuse.
 
-## D6 — Cloudflare Access şimdi kurulmadı
-- **Karar:** Public hostname şimdilik aktive edilmedi; yalnız localhost/Tailscale.
-- **Gerekçe:** Şartnamedeki "Access hazır değilse public hostname'i aktive etme" kuralı.
-  Access kurulunca ingress + DNS + origin JWT doğrulaması eklenir.
+## D6 — Cloudflare Access Not Enabled Yet
+- **Decision:** The public hostname is not activated yet; only localhost and private-network access.
+- **Rationale:** Follows the rule "do not activate the public hostname unless Access is ready." When Access is configured, add ingress, DNS, and origin JWT verification.
 
-## D7 — Verb/LLM key'ler sıfırdan gelir
-- **Karar:** Telegram bot ve LLM provider ayrı (Hermes'ten kopyalanmaz); secret script
-  ile girilir. Mock provider varsayılan dev/test için.
-- **Gerekçe:** İzolasyon kuralı; Hermes sırları paylaşılmaz.
+## D7 — Telegram / LLM Keys Are Provided Fresh (Not Copied)
+- **Decision:** The Telegram bot and LLM provider credentials are provided separately (not copied from the operator). They are entered via the secrets setup script. A mock provider is the default for dev/test.
+- **Rationale:** Isolation — operator secrets are not shared with the runtime.

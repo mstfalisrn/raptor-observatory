@@ -1,3 +1,9 @@
+[project]
+name = "raptor-observatory"
+version = "1.0.0"
+description = "Observable, policy-gated agentic runtime"
+requires-python = ">=3.12"
+
 [tool.ruff]
 target-version = "py312"
 line-length = 120

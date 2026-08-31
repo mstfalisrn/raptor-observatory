@@ -30,3 +30,5 @@ tests/artifacts/
 # Sistemsel
 *.log
 .DS_Store
+docs/mcp-audit/
+docs/remediation/

@@ -1,46 +1,42 @@
-# SECURITY.md — RAPTOR Güvenlik Modeli
+# Security Model — RAPTOR
 
-## İzolasyon (değiştirilemez)
-- Proje kökü: `/path/to/raptor-observatory`
-- Sırlar: `./secrets/raptor-observatory/app.env` (0700/0600, root:root)
-- `/path/.hermes`, Hermes runtime, container, volume, config, memory, skills
-  ve `hermes.your-domain.example:9119` **dokunulmaz**.
-- Hermes'in TG token / model anahtarı RAPTOR'a kopyalanmaz; ayrı bot + ayrı provider.
-- RAPTOR container'larına Hermes dizini / Docker socket / host root mount **yok**.
-- RAPTOR runtime'ı Hermes dururken de çalışır (ayrı Docker stack + systemd).
+## Isolation (Immutable)
+- Repository root is self-contained; no host-specific absolute paths are required to run.
+- Secrets live in an external secrets store outside the repository (not committed, 0600 permissions). Never copy them into the repo or images.
+- External builder/operator infrastructure (containers, volumes, configs, skills, control plane) is **isolated** and not mounted into RAPTOR containers.
+- The operator's Telegram token and model provider keys are not reused by RAPTOR; RAPTOR uses a separate bot and provider credentials.
+- No host root, Docker socket, or operator directory is mounted into RAPTOR containers.
+- The RAPTOR runtime keeps running even if the operator control plane is stopped (separate Docker stack and process supervision).
 
-## Runtime güvenliği
-- Tüm servisler: non-root (10001), read-only rootfs, `cap_drop: ALL`,
-  `no-new-privileges:true`.
-- PostgreSQL/Redis host portu açılmaz (internal network).
-- Yalnız `raptor-gateway` host'ta `127.0.0.1:3525`'e bind eder.
+## Runtime Security
+- All services run as non-root (UID 10001), with read-only root filesystem, `cap_drop: ALL`, and `no-new-privileges:true`.
+- PostgreSQL and Redis do not expose host ports (internal Docker network only).
+- Only `raptor-gateway` binds to the host, on `127.0.0.1:3525`.
 
-## Agent güvenliği
-- **Araçlar:** yalnız kayıtlı & şemalı araçlar; keyfi shell/Docker **yok**.
-- **SSRF:** loopback/RFC1918/link-local/metadata/socket/internal hostname engeli;
-  DNS çözümü + her redirect sonrası IP yeniden sınıflandırma; url allowlist + boyut/timeout.
-- **Politika:** READ_ONLY auto · SAFE_WRITE audit'li · PUBLIC_WRITE/PRIVILEGED/DESTRUCTIVE
-  insan onayı. Onaylar tek kullanımlık + süreli + eylem hash'ine bağlı.
-- **Redaksiyon:** token, Authorization, JWT, env sırları modele/hafızaya girmeden maskelenir.
-- **Untrusted:** Technocore mesajları daima `UNTRUSTED` — komut çıkarılamaz, tool tetiklenemez.
+## Agent Security
+- **Tools:** only registered and schema-validated tools; arbitrary shell or Docker execution is not allowed.
+- **SSRF:** loopback / RFC1918 / link-local / metadata / socket / internal hostname blocked; DNS resolution plus IP re-classification after every redirect; URL allowlist with size and timeout limits.
+- **Policy:** `READ_ONLY` auto-approved; `SAFE_WRITE` audited; `PUBLIC_WRITE` / `PRIVILEGED` / `DESTRUCTIVE` require human approval. Approvals are single-use, time-bound, and bound to an action hash.
+- **Redaction:** tokens, `Authorization` headers, JWTs, and environment secrets are masked before reaching the model or memory.
+- **Untrusted content:** messages from external sources (e.g., Technocore) are always marked `UNTRUSTED` — they cannot inject commands or trigger tools.
 
 ## Telegram
-- Yalnız `TELEGRAM_ALLOWED_USER_IDS` (numeric); `*` / allow-all **yasak**.
-- Grup varsayılan kapalı. Webhook secret token doğrulanır. Token loglanmaz.
-- `update_id` ile idempotent; approve callback'leri user+action+hash+expiry bağlı token.
+- Only `TELEGRAM_ALLOWED_USER_IDS` (numeric allowlist) is authorized; wildcard / allow-all is forbidden.
+- Group chats are disabled by default. The webhook secret token is verified on every request. Tokens are never logged.
+- Idempotent handling via `update_id`; approval callbacks use a token bound to user + action + hash + expiry.
 
 ## Web
-- Üretimde Cloudflare Access arkasında; origin `Cf-Access-Jwt-Assertion` doğrular.
-- Secure/HttpOnly/SameSite cookie, CSP, rate limit, login audit.
-- localStorage'a auth token/secret yazılmaz.
+- In production, the origin sits behind Cloudflare Access; the origin verifies the `Cf-Access-Jwt-Assertion` header.
+- Secure / HttpOnly / SameSite cookies, Content Security Policy, rate limiting, and login auditing.
+- No auth tokens or secrets are written to `localStorage`.
 
-## Onay akışı (public yayın)
-Technocore'a yazma yalnız kullanıcı `PUBLIC-POST-APPROVED` dediğinde, DID imzalı olarak.
+## Approval Flow (Public Publishing)
+Writes to external public networks (e.g., Technocore) are only performed after the user explicitly confirms with `PUBLIC-POST-APPROVED`, signed with a DID key.
 
-## Sızma testleri (doğrulandı)
-- SSRF birim testleri (loopback/rfc1918/metadata/redirect)
-- Policy: public write/privileged = approval; destructive = deny
-- Redaction birim testleri (Bearer/TG token/JWT)
-- `secret-scan.sh` repo taraması temiz
-- Backup/restore üretim verisine dokunmadan geçti
-- Port taraması: raptor yalnız `127.0.0.1:3525`
+## Penetration Tests (Verified)
+- SSRF unit tests (loopback / RFC1918 / metadata / redirect)
+- Policy tests: public write / privileged require approval; destructive is denied
+- Redaction unit tests (Bearer / Telegram token / JWT)
+- `secret-scan.sh` repository scan is clean
+- Backup and restore verified without touching production data
+- Port scan: only `127.0.0.1:3525` is exposed on the host

@@ -1,46 +1,49 @@
-# OPERATIONS.md — RAPTOR Operasyon / Runbook
+# Operations / Runbook — RAPTOR
 
-## Servisler
-| Servis | Durum komutu | Log |
-|---|---|---|
-| Stack (systemd) | `systemctl status raptor-observatory` | `journalctl -u raptor-observatory` |
-| API | `docker logs raptor-api` | internal 8000 |
-| Worker | `docker logs raptor-worker` | internal 8001 |
-| Scheduler | `docker logs raptor-scheduler` | internal 8002 |
-| Gateway | `docker logs raptor-gateway` | 127.0.0.1:3525 |
-| PostgreSQL | `docker logs raptor-postgres` | internal |
-| Redis | `docker logs raptor-redis` | internal |
+## Services
+
+| Service    | Status / Logs Command              | Port        |
+|------------|------------------------------------|-------------|
+| Stack (systemd) | `systemctl status raptor-observatory` / `journalctl -u raptor-observatory` | — |
+| API        | `docker logs raptor-api`           | internal 8000 |
+| Worker     | `docker logs raptor-worker`        | internal 8001 |
+| Scheduler  | `docker logs raptor-scheduler`     | internal 8002 |
+| Gateway    | `docker logs raptor-gateway`       | 127.0.0.1:3525 |
+| PostgreSQL | `docker logs raptor-postgres`      | internal    |
+| Redis      | `docker logs raptor-redis`         | internal    |
 
 ## Health
-- `curl http://127.0.0.1:3525/health/live`  → liveness
-- `curl http://127.0.0.1:3525/health/ready` → DB bağlantısı
+- `curl http://127.0.0.1:3525/health/live` — liveness
+- `curl http://127.0.0.1:3525/health/ready` — readiness (DB connectivity)
 
-## Yedek / Geri yükleme
+## Backup / Restore
 ```bash
-export $(grep '^DB_PASSWORD=' ./secrets/raptor-observatory/app.env)
+# Load DB_PASSWORD from your external secrets store (not from the repo)
+export DB_PASSWORD="..."  # sourced externally
 ./scripts/backup-restore.sh backup
-./scripts/backup-restore.sh restore /var/backups/raptor-observatory/raptor-<ts>.dump
+./scripts/backup-restore.sh restore /var/backups/raptor-observatory/raptor-<timestamp>.dump
 ```
-Restore **ayrı** `raptor_restore_test` DB'sine yazar; üretim verisine dokunmaz.
+Restore writes to a separate `raptor_restore_test` database; it does not touch production data.
 
-## Deployment / Güncelleme
+## Deployment / Update
 ```bash
-cd /path/to/raptor-observatory
+# From the repository root
 docker compose up -d --build
 ./scripts/secret-scan.sh .
 ```
 
 ## Incident
-- **Worker takıldı:** `docker restart raptor-worker` — Redis queue'den aynen devam.
-- **API unhealthy:** `docker logs raptor-api` — migration/import hatası kontrol.
-- **Data kaybı:** yedekten restore (`backup-restore.sh restore`).
-- **Circuit breaker açıldı:** cooldown 30sn sonra otomatik sıfırlanır; kalıcısa tool revisiew.
 
-## Sırlar
-- Değiştirme: `./scripts/configure-secrets.sh --gen` veya interaktif; ardından `docker compose up -d`.
-- Asla ekrana/loga/commit'e yazma.
+- **Worker stalled:** `docker restart raptor-worker` — resumes from the Redis queue.
+- **API unhealthy:** `docker logs raptor-api` — check for migration or import errors.
+- **Data loss:** restore from backup (`backup-restore.sh restore`).
+- **Circuit breaker tripped:** resets automatically after a 30s cooldown; if persistent, review the failing tool.
 
-## Erişim
-- Localhost: `http://127.0.0.1:3525`
-- Tailscale: sunucu IP `100.122.82.116` üzerinden erişilebilir.
-- Public hostname: Cloudflare Access kurulunca `raptor.your-domain.example`.
+## Secrets
+- Rotate or generate: `./scripts/configure-secrets.sh --gen` or interactive mode, then `docker compose up -d`.
+- Never print secrets to screen, logs, or commits.
+
+## Access
+- Local: `http://127.0.0.1:3525`
+- Private network: via VPN / private overlay (e.g., Tailscale / WireGuard) if configured — no hardcoded IPs in the repo.
+- Public hostname (optional): when Cloudflare Access is configured, expose via an example domain such as `raptor.example.com`. Public access is disabled by default until Access is active.
