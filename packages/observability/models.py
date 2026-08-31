@@ -518,3 +518,4 @@ class OutboxMessage(_UUIDMixin, Base):
     # Redis Streams entry id after publish (for tracing)
     stream_id: Mapped[str] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    not_before: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)

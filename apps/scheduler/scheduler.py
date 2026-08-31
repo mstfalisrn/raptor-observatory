@@ -32,6 +32,7 @@ class SchedulerLoop:
     async def publish_outbox(self) -> int:
         """Outbox publisher: unprocessed messages -> Redis Streams (reliable)."""
         published = 0
+        now = datetime.now(UTC)
         async with async_session_factory() as s:
             res = await s.execute(
                 select(models.OutboxMessage)
@@ -43,6 +44,16 @@ class SchedulerLoop:
             for m in msgs:
                 if m.attempts > 10:
                     continue
+                # not_before guard: future scheduled messages are skipped
+                nb = getattr(m, "not_before", None)
+                if nb is not None:
+                    try:
+                        if nb.tzinfo is None:
+                            nb = nb.replace(tzinfo=UTC)  # type: ignore
+                        if nb > now:
+                            continue
+                    except Exception:
+                        pass
                 try:
                     from observability.queue import ensure_stream_group, publish_to_stream
                     try:
@@ -76,7 +87,16 @@ class SchedulerLoop:
                 runs = list(res.scalars().all())
                 for r in runs:
                     heartbeat = r.heartbeat_at or r.updated_at
-                    lease_expired = r.lease_expires_at and r.lease_expires_at < datetime.now(UTC)
+                    # SQLite returns naive datetimes; normalize to UTC aware for comparison
+                    if heartbeat is not None and heartbeat.tzinfo is None:
+                        heartbeat = heartbeat.replace(tzinfo=UTC)
+                    now = datetime.now(UTC)
+                    lease_expired = False
+                    if r.lease_expires_at is not None:
+                        lep = r.lease_expires_at
+                        if lep.tzinfo is None:
+                            lep = lep.replace(tzinfo=UTC)
+                        lease_expired = lep < now
                     stuck = (heartbeat and heartbeat < cutoff) or lease_expired
                     if not stuck:
                         continue
@@ -94,11 +114,11 @@ class SchedulerLoop:
                                            reason="max_retries_exceeded")
                         except Exception as e:
                             import logging as _log
-
                             _log.getLogger("raptor.scheduler").warning("DLQ publish failed %s", type(e).__name__)
                         await append_run_event_in_session(s, r.id, "DLQ", {"retry_count": retry})
                     else:
                         backoff_sec = 30 * (2 ** (retry - 1))
+                        not_before = datetime.now(UTC) + timedelta(seconds=backoff_sec)
                         new_run = models.Run(
                             task_id=r.task_id,
                             status=models.RunStatus.QUEUED.value,
@@ -113,24 +133,50 @@ class SchedulerLoop:
                             payload={"run_id": str(new_run.id), "task_id": str(new_run.task_id), "retry_of": str(r.id)},
                             idempotency_key=f"retry:{r.id}:{new_run.id}",
                             processed=False,
+                            not_before=not_before,
                         )
                         s.add(ob)
                         await append_run_event_in_session(s, new_run.id, "RETRY_QUEUED", {"from_run": str(r.id), "backoff_sec": backoff_sec})
                     recovered += 1
         return recovered
 
+    async def auto_promote_memory(self) -> int:
+        """C3: periodic memory auto-promotion."""
+        try:
+            async with async_session_factory() as s:
+                async with s.begin():
+                    from memory.service import MemoryService
+                    svc = MemoryService(s)
+                    n = await svc.auto_promote_candidates()
+                    return n
+        except Exception as e:
+            import logging as _log2
+            _log2.getLogger("raptor.scheduler").warning("auto_promote failed %s", type(e).__name__)
+            return 0
+
     async def check_sources(self) -> int:
         """Gerçek kaynak işleri: etkin kaynaklar için gözlem oluştur, task/run yarat."""
         await self.publish_outbox()
         await self.recover_stuck_runs()
+        try:
+            await self.auto_promote_memory()
+        except Exception:
+            pass
         async with async_session_factory() as s:
             async with s.begin():
                 res = await s.execute(select(models.Source).where(models.Source.is_enabled.is_(True)))
                 sources = list(res.scalars().all())
                 for src in sources:
-                    if src.backoff_until and src.backoff_until > datetime.now(UTC):
+                    # handle naive vs aware for SQLite
+                    def _aware(dt):
+                        if dt is None:
+                            return None
+                        return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+                    bu = _aware(src.backoff_until)
+                    if bu and bu > datetime.now(UTC):
                         continue
-                    stale = not src.last_accessed_at or (datetime.now(UTC) - src.last_accessed_at) > timedelta(hours=1)
+                    la = _aware(src.last_accessed_at)
+                    stale = not la or (datetime.now(UTC) - la) > timedelta(hours=1)
                     if stale:
                         idem = f"source:{src.id}:{datetime.now(UTC).strftime('%Y-%m-%d-%H')}"
                         ex = await s.execute(select(models.Task).where(models.Task.idempotency_key == idem))
@@ -169,7 +215,6 @@ class SchedulerLoop:
                 await self.check_sources()
             except Exception as e:
                 import logging as _log2
-
                 _log2.getLogger("raptor.scheduler").warning("scheduler loop failed %s", type(e).__name__)
             await asyncio.sleep(self.interval)
 

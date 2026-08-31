@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = ""  # boşsa LLM_MODEL kullanılır
     EMBEDDING_DIM: int = 1536  # modele göre yapılandırılabilir (sabit varsayım değil)
 
+    # Memory auto-promote
+    MEMORY_AUTO_PROMOTE_THRESHOLD: float = 0.85
+
     # Technocore
     TECHNOCORE_BASE_URL: str = "https://technocore.chat"
     TECHNOCORE_ROOM_CLAIM: str = "dm-topic"

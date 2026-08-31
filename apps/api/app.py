@@ -512,6 +512,68 @@ async def technocore_status(user: dict = Depends(get_current_user)):
             "room_claim": settings.TECHNOCORE_ROOM_CLAIM, "registered": False}
 
 
+class LLMTestRequest(BaseModel):
+    provider: str = "mock"
+    base_url: str = ""
+    model: str = ""
+    api_key: str = ""
+
+
+@app.post("/api/v1/settings/llm/test")
+async def test_llm_settings(req: LLMTestRequest, user: dict = Depends(get_current_user)):
+    _ = user
+    prov = (req.provider or "mock").strip().lower()
+    if prov == "mock":
+        return {"ok": True, "provider": "mock", "detail": "mock provider always ok"}
+    # normalize alias
+    if prov in ("openai", "openai_compatible", "openrouter", "ollama"):
+        prov_norm = "openai_compatible"
+    else:
+        prov_norm = prov
+    # basic validation
+    if prov_norm == "openai_compatible":
+        url = (req.base_url or "").strip()
+        if url and not (url.startswith("http://") or url.startswith("https://")):
+            raise HTTPException(400, "base_url http(s) ile başlamalı")
+        # ollama can have empty api_key
+        is_ollama = "11434" in url or prov == "ollama"
+        if not is_ollama and req.api_key and len(req.api_key.strip()) < 8:
+            raise HTTPException(400, "api_key çok kısa")
+        if url:
+            # try live ping with small payload; fail -> return ok false with detail
+            try:
+                import httpx
+                ping_url = url.rstrip("/") + "/chat/completions"
+                headers = {}
+                if req.api_key:
+                    headers["Authorization"] = f"Bearer {req.api_key.strip()}"
+                payload = {
+                    "model": req.model or "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 5,
+                }
+                async with httpx.AsyncClient(timeout=6.0) as client:
+                    resp = await client.post(ping_url, json=payload, headers=headers)
+                    # 401 means key invalid but endpoint reachable
+                    if resp.status_code == 401:
+                        return {"ok": False, "provider": prov_norm, "detail": f"401 unauthorized — api_key geçersiz ({resp.text[:200]})"}
+                    if resp.status_code >= 200 and resp.status_code < 300:
+                        return {"ok": True, "provider": prov_norm, "detail": "connection ok"}
+                    # other 4xx/5xx -> treat as reachable but error
+                    return {"ok": False, "provider": prov_norm, "detail": f"http {resp.status_code}: {resp.text[:200]}"}
+            except HTTPException:
+                raise
+            except Exception as e:
+                # network failure -> report but don't raise 500
+                return {"ok": False, "provider": prov_norm, "detail": f"connection failed: {type(e).__name__}: {str(e)[:200]}"}
+        # no url -> only format check
+        if not url:
+            raise HTTPException(400, "base_url gerekli")
+        return {"ok": True, "provider": prov_norm, "detail": "format valid (no live ping)"}
+    # unknown provider -> format check only
+    return {"ok": True, "provider": prov, "detail": "unknown provider — format check only"}
+
+
 @app.get("/api/v1/settings/non-secret")
 async def settings_non_secret(user: dict = Depends(get_current_user)):
     return {

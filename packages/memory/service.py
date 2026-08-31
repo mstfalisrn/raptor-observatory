@@ -232,3 +232,39 @@ class MemoryService:
         if count:
             await self.session.flush()
         return count
+
+    async def auto_promote_candidates(self, threshold: float | None = None, min_runs: int = 2) -> int:
+        """C3: yüksek güvenli candidate'ları otomatik onayla.
+
+        Kural: confidence > threshold (default 0.85) ve sistemde en az min_runs
+        başarılı run varsa -> CANDIDATE -> AUTO_APPROVED.
+        İlişki run sayısıyla değil genel tamamlanmış run sayısıyla doğrulanır
+        (basit ve deterministik; FK yok). Scheduler tarafından periyodik çağrılır.
+        """
+        from observability.config import settings as _settings
+        from observability.models import Run, RunStatus
+
+        thr = threshold if threshold is not None else float(getattr(_settings, "MEMORY_AUTO_PROMOTE_THRESHOLD", 0.85))
+        # başarılı run sayısı kontrolü
+        completed_stmt = select(Run).where(Run.status == RunStatus.COMPLETED.value).limit(min_runs)
+        res_runs = await self.session.execute(completed_stmt)
+        if len(list(res_runs.scalars().all())) < min_runs:
+            return 0
+        now = datetime.now(UTC)
+        stmt = select(MemoryItem).where(
+            and_(
+                MemoryItem.status == MemoryStatus.CANDIDATE.value,
+                MemoryItem.confidence > thr,
+                or_(MemoryItem.expires_at.is_(None), MemoryItem.expires_at > now),
+            )
+        )
+        res = await self.session.execute(stmt)
+        items = list(res.scalars().all())
+        count = 0
+        for it in items:
+            it.status = MemoryStatus.AUTO_APPROVED.value
+            it.verification_status = VERIFIED_VALUE
+            count += 1
+        if count:
+            await self.session.flush()
+        return count

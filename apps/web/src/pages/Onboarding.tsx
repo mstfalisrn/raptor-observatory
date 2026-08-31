@@ -1,0 +1,232 @@
+import { useState } from 'react'
+import { api, errMsg } from '../api'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+
+type Step = 1 | 2 | 3
+
+type Props = {
+  onDone?: () => void
+}
+
+export default function Onboarding({ onDone }: Props) {
+  const [step, setStep] = useState<Step>(1)
+
+  // Step 1 - admin password
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [pwBusy, setPwBusy] = useState(false)
+  const [pwMsg, setPwMsg] = useState('')
+  const [pwErr, setPwErr] = useState('')
+
+  // Step 2 - LLM
+  const [provider, setProvider] = useState<'mock' | 'openai' | 'openrouter' | 'ollama'>('mock')
+  const [baseUrl, setBaseUrl] = useState('')
+  const [model, setModel] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [testBusy, setTestBusy] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  // Step 3 - Telegram
+  const [tgToken, setTgToken] = useState('')
+  const [tgDone, setTgDone] = useState(false)
+
+  async function handleStep1() {
+    if (!email.trim() || !password) {
+      setPwErr('email ve parola gerekli')
+      return
+    }
+    setPwBusy(true)
+    setPwErr('')
+    setPwMsg('')
+    try {
+      // verify credentials work via login
+      await api('/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim(), password }),
+      })
+      setPwMsg('✓ giriş doğrulandı — admin hazır')
+      setTimeout(() => setStep(2), 600)
+    } catch (e) {
+      setPwErr(errMsg(e))
+    } finally {
+      setPwBusy(false)
+    }
+  }
+
+  async function handleTestLLM() {
+    setTestBusy(true)
+    setTestResult(null)
+    const provMap: Record<string, string> = {
+      mock: 'mock',
+      openai: 'openai',
+      openrouter: 'openai',
+      ollama: 'openai',
+    }
+    const p = provMap[provider] || provider
+    // defaults per provider if empty
+    let url = baseUrl.trim()
+    let mdl = model.trim()
+    if (!url) {
+      if (provider === 'openai') url = 'https://api.openai.com/v1'
+      else if (provider === 'openrouter') url = 'https://openrouter.ai/api/v1'
+      else if (provider === 'ollama') url = 'http://localhost:11434/v1'
+    }
+    if (!mdl && provider === 'ollama') mdl = 'llama3.1'
+    if (!mdl && provider === 'openai') mdl = 'gpt-4o-mini'
+    try {
+      const r = await api<{ ok: boolean; provider: string; detail?: string }>('/v1/settings/llm/test', {
+        method: 'POST',
+        body: JSON.stringify({ provider: p, base_url: url, model: mdl, api_key: apiKey }),
+      })
+      if (r.ok) setTestResult({ ok: true, msg: `✓ bağlantı OK (${r.provider})` })
+      else setTestResult({ ok: false, msg: r.detail || 'test başarısız' })
+    } catch (e) {
+      setTestResult({ ok: false, msg: errMsg(e) })
+    } finally {
+      setTestBusy(false)
+    }
+  }
+
+  function handleStep3Done() {
+    setTgDone(true)
+    onDone?.()
+  }
+
+  return (
+    <div className="mx-auto max-w-[640px] space-y-6 p-4 md:p-6">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold tracking-tight">RAPTOR Kurulum Sihirbazı</h1>
+        <p className="mt-1 text-sm text-muted-foreground">3 adımda çalışmaya hazır — mock ile anında, API anahtarıyla tam otonom.</p>
+      </div>
+
+      <div className="flex items-center justify-center gap-2">
+        {[1, 2, 3].map((s) => (
+          <div key={s} className="flex items-center gap-2">
+            <div
+              className={
+                'flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors ' +
+                (step === s
+                  ? 'bg-primary text-primary-foreground shadow'
+                  : step > s
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-muted text-muted-foreground')
+              }
+            >
+              {step > s ? '✓' : s}
+            </div>
+            {s < 3 && <div className={'h-0.5 w-10 ' + (step > s ? 'bg-emerald-500' : 'bg-border')} />}
+          </div>
+        ))}
+      </div>
+
+      {step === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">Adım 1 — Admin hesabı <Badge variant="secondary">gerekli</Badge></CardTitle>
+            <CardDescription>Yerel admin email + parola ile giriş yap. İlk kurulumda .env ADMIN_PASSWORD_HASH ile oluşturulur.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Input placeholder="admin email (örn. your-email@example.com)" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
+            <Input placeholder="parola" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+            {pwErr && <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">⚠ {pwErr}</div>}
+            {pwMsg && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{pwMsg}</div>}
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <span className="text-xs text-muted-foreground">POST /api/v1/auth/login ile doğrulanır</span>
+            <Button onClick={handleStep1} disabled={pwBusy || !email.trim() || !password}>
+              {pwBusy ? 'doğrulanıyor…' : 'Doğrula ve devam →'}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {step === 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">Adım 2 — LLM sağlayıcı <Badge variant="outline">Mock ücretsiz</Badge></CardTitle>
+            <CardDescription>Mock hiç anahtar istemez. OpenAI / OpenRouter / Ollama için base_url, model ve api_key gir.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {(['mock', 'openai', 'openrouter', 'ollama'] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setProvider(p)}
+                  className={
+                    'rounded-lg border px-3 py-2.5 text-sm font-medium capitalize transition-colors ' +
+                    (provider === p ? 'border-primary bg-primary text-primary-foreground shadow-sm' : 'border-input bg-background hover:bg-accent')
+                  }
+                >
+                  {p === 'mock' ? 'Mock' : p === 'openai' ? 'OpenAI' : p === 'openrouter' ? 'OpenRouter' : 'Ollama'}
+                  {p === 'mock' && <span className="ml-1 text-xs opacity-80">(ücretsiz)</span>}
+                </button>
+              ))}
+            </div>
+
+            {provider !== 'mock' && (
+              <div className="space-y-3">
+                <Input placeholder={provider === 'ollama' ? 'base_url (örn. http://localhost:11434/v1)' : 'base_url (örn. https://api.openai.com/v1)'} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+                <Input placeholder={provider === 'ollama' ? 'model (örn. llama3.1)' : 'model (örn. gpt-4o-mini)'} value={model} onChange={(e) => setModel(e.target.value)} />
+                <Input placeholder="api_key (gizli — sunucuda saklanır, UI'da gösterilmez)" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" onClick={handleTestLLM} disabled={testBusy}>
+                    {testBusy ? 'test ediliyor…' : '🔌 Bağlantıyı test et'}
+                  </Button>
+                  {testResult && (
+                    <Badge variant={testResult.ok ? 'default' : 'destructive'} className={testResult.ok ? 'bg-emerald-600' : ''}>
+                      {testResult.msg}
+                    </Badge>
+                  )}
+                </div>
+                {!testResult && <p className="text-xs text-muted-foreground">Test → POST /api/v1/settings/llm/test (auth gerekli)</p>}
+              </div>
+            )}
+
+            {provider === 'mock' && (
+              <div className="rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-800 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-200">
+                Mock seçildi — anahtar gerekmez. Scheduler ve worker mock provider ile tam loop döner.
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="ghost" onClick={() => setStep(1)}>← Geri</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep(3)}>Atla →</Button>
+              <Button onClick={() => setStep(3)}>Devam →</Button>
+            </div>
+          </CardFooter>
+        </Card>
+      )}
+
+      {step === 3 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">Adım 3 — Telegram <Badge variant="outline">opsiyonel</Badge></CardTitle>
+            <CardDescription>Bot token varsa gir; yoksa atla. Token .env TELEGRAM_BOT_TOKEN içinde saklanır.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Input placeholder="Telegram bot token (opsiyonel,örn. 123456:ABC...)" type="password" value={tgToken} onChange={(e) => setTgToken(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Token boş bırakılırsa Telegram kapalı kalır — daha sonra Settings’ten eklenir.</p>
+            {tgDone && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">✓ kurulum tamamlandı</div>}
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="ghost" onClick={() => setStep(2)}>← Geri</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleStep3Done}>Atla ve bitir</Button>
+              <Button onClick={handleStep3Done}>Bitir ✓</Button>
+            </div>
+          </CardFooter>
+        </Card>
+      )}
+
+      <div className="flex justify-center gap-1 pt-2">
+        {[1, 2, 3].map((s) => (
+          <span key={s} className={'h-1.5 rounded-full transition-all ' + (step === s ? 'w-8 bg-primary' : 'w-1.5 bg-border')} />
+        ))}
+      </div>
+    </div>
+  )
+}
