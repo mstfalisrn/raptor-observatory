@@ -97,8 +97,11 @@ export default function Onboarding({ onDone }: Props) {
 
   return (
     <div className="mx-auto max-w-[640px] space-y-6 p-4 md:p-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold tracking-tight">RAPTOR Kurulum Sihirbazı</h1>
+      <div className="text-center space-y-2">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_8px_24px_rgba(99,102,241,0.3)]">
+          <span className="text-lg font-bold">R</span>
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">RAPTOR Kurulum Sihirbazı</h1>
         <p className="mt-1 text-sm text-muted-foreground">3 adımda çalışmaya hazır — mock ile anında, API anahtarıyla tam otonom.</p>
       </div>
 
@@ -107,17 +110,17 @@ export default function Onboarding({ onDone }: Props) {
           <div key={s} className="flex items-center gap-2">
             <div
               className={
-                'flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors ' +
+                'flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold transition-all duration-300 ' +
                 (step === s
-                  ? 'bg-primary text-primary-foreground shadow'
+                  ? 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_4px_14px_rgba(99,102,241,0.3)] scale-105'
                   : step > s
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-muted text-muted-foreground')
+                    ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm'
+                    : 'bg-white border border-zinc-200 text-muted-foreground dark:bg-white/5 dark:border-white/10 dark:text-zinc-400')
               }
             >
               {step > s ? '✓' : s}
             </div>
-            {s < 3 && <div className={'h-0.5 w-10 ' + (step > s ? 'bg-emerald-500' : 'bg-border')} />}
+            {s < 3 && <div className={'h-0.5 w-10 rounded-full transition-colors ' + (step > s ? 'bg-emerald-500' : 'bg-zinc-200 dark:bg-white/10')} />}
           </div>
         ))}
       </div>

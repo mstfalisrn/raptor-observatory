@@ -127,7 +127,7 @@ export function SheetContent({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]"
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md"
             onClick={() => onOpenChange(false)}
             aria-hidden
           />
@@ -135,9 +135,9 @@ export function SheetContent({
             initial={variants[side].initial}
             animate={variants[side].animate}
             exit={variants[side].exit}
-            transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+            transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
             className={cn(
-              "fixed z-50 bg-background shadow-lg flex flex-col",
+              "fixed z-50 bg-background/85 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/75 shadow-[0_16px_48px_rgba(0,0,0,0.22),0_4px_16px_rgba(0,0,0,0.12)] flex flex-col border-white/10",
               sideClasses[side],
               className
             )}

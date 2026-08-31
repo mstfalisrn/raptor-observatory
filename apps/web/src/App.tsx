@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Bird,
   PanelLeft,
+  Sparkles,
 } from 'lucide-react'
 import { api, openSSE, getToken, setToken, setOnUnauthorized } from './api'
 import type { SSEState } from './api'
@@ -63,12 +64,16 @@ const NAV: [NavKey, string, React.ElementType][] = [
 function SSEDot({ state }: { state: SSEState }) {
   const color =
     state === 'open' ? 'bg-emerald-500' : state === 'connecting' ? 'bg-amber-500' : state === 'error' ? 'bg-red-500' : 'bg-zinc-400'
+  const glow = state === 'open' ? 'shadow-[0_0_10px_theme(colors.emerald.500),0_0_20px_theme(colors.emerald.500/0.4)]' : ''
   return (
     <span className="relative flex h-2.5 w-2.5 shrink-0">
       {state === 'open' && (
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+        <>
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+          <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-emerald-400 opacity-20 blur-[2px]" />
+        </>
       )}
-      <span className={cn('relative inline-flex h-2.5 w-2.5 rounded-full', color, state === 'open' && 'shadow-[0_0_8px_theme(colors.emerald.500)]')} />
+      <span className={cn('relative inline-flex h-2.5 w-2.5 rounded-full ring-2 ring-white/20 dark:ring-white/10', color, glow)} />
     </span>
   )
 }
@@ -79,13 +84,13 @@ function SSEBadge({ state, lastId }: { state: SSEState; lastId: string }) {
     state === 'open' ? 'default' : state === 'error' ? 'destructive' : 'secondary'
   return (
     <div
-      className="inline-flex items-center gap-2 rounded-full border bg-card px-2.5 py-1 text-xs font-medium shadow-sm"
+      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/70 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur-xl dark:bg-white/[0.06] dark:border-white/[0.06]"
       title={lastId ? `Last-Event-ID: ${lastId}` : undefined}
     >
       <SSEDot state={state} />
-      <span className="capitalize tracking-tight">{label}</span>
-      {lastId && <span className="hidden text-[10px] text-muted-foreground sm:inline">#{lastId.slice(0, 8)}</span>}
-      <Badge variant={variant} className="ml-1 hidden h-5 px-1.5 text-[10px] font-semibold uppercase tracking-wider sm:inline-flex">
+      <span className="capitalize tracking-tight font-semibold">{label}</span>
+      {lastId && <span className="hidden text-[10px] font-mono text-muted-foreground sm:inline">#{lastId.slice(0, 8)}</span>}
+      <Badge variant={variant} className="ml-1 hidden h-5 px-1.5 text-[10px] font-bold uppercase tracking-widest sm:inline-flex">
         SSE
       </Badge>
     </div>
@@ -110,20 +115,23 @@ function NavButton({
       onClick={onClick}
       title={collapsed ? label : undefined}
       className={cn(
-        'flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors duration-150',
-        'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+        'group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/20',
         active
-          ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
-          : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
-        collapsed && 'justify-center px-2'
+          ? 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_4px_14px_rgba(99,102,241,0.35),0_1px_3px_rgba(0,0,0,0.1)] hover:shadow-[0_6px_20px_rgba(99,102,241,0.4)] hover:from-violet-600 hover:to-indigo-700'
+          : 'text-sidebar-foreground/75 hover:bg-white/60 hover:text-sidebar-foreground hover:shadow-sm hover:backdrop-blur-sm dark:hover:bg-white/[0.06] dark:hover:text-sidebar-foreground',
+        collapsed && 'justify-center px-2.5',
+        'active:scale-[0.98]'
       )}
     >
-      <Icon className={cn('h-4 w-4 shrink-0', active && 'text-sidebar-primary')} />
-      {!collapsed && <span className="truncate tracking-tight">{label}</span>}
+      {/* active indicator glow */}
+      {active && <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/12 to-transparent pointer-events-none" />}
+      <Icon className={cn('h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-105', active ? 'text-white' : 'text-muted-foreground group-hover:text-foreground')} />
+      {!collapsed && <span className="truncate tracking-tight text-[13.5px]">{label}</span>}
+      {!collapsed && active && <motion.span layoutId="nav-dot" className="ml-auto h-1.5 w-1.5 rounded-full bg-white/80 shadow-sm" />}
     </button>
   )
 }
-
 export default function App() {
   const [tab, setTab] = useState<NavKey>('dashboard')
   const [runId, setRunId] = useState<string>('')
@@ -187,60 +195,69 @@ export default function App() {
   if (authLoading)
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-violet-500" />
-          yükleniyor…
-        </div>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-[0_4px_14px_rgba(99,102,241,0.3)]">
+            <Bird className="h-5 w-5 text-white animate-pulse" />
+          </div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-500 shadow-[0_0_8px_theme(colors.violet.500)]" />
+            yükleniyor…
+          </div>
+        </motion.div>
       </div>
     )
 
   if (!session) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-        <div className="w-full max-w-[420px]">
-          <div className="mb-6 flex flex-col items-center gap-2 text-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow">
-              <Bird className="h-5 w-5" />
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.32,0.72,0,1] }} className="w-full max-w-[420px]">
+          <div className="mb-6 flex flex-col items-center gap-3 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_8px_24px_rgba(99,102,241,0.35)]">
+              <Bird className="h-6 w-6" />
             </div>
-            <div className="text-sm font-semibold tracking-tight">RAPTOR OBSERVATORY</div>
-            <div className="text-xs text-muted-foreground">Gözlem ve orkestrasyon</div>
+            <div>
+              <div className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-base font-bold tracking-tight text-transparent">RAPTOR OBSERVATORY</div>
+              <div className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Gözlem ve orkestrasyon</div>
+            </div>
           </div>
-          <Card className="shadow-lg">
+          <Card className="shadow-[0_16px_40px_rgba(0,0,0,0.1),0_4px_12px_rgba(0,0,0,0.06)] border-white/20 dark:border-white/5">
             <CardContent className="pt-6">
               <LoginPage onLogin={(u) => setSession(u)} />
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground antialiased">
-      {/* Topbar */}
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-4">
+      {/* Topbar — glass */}
+      <header className="sticky top-0 z-40 flex h-[60px] items-center gap-3 border-b border-white/10 bg-white/65 px-3 backdrop-blur-2xl supports-[backdrop-filter]:bg-white/45 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.03)] dark:bg-zinc-900/55 dark:border-white/[0.06] dark:shadow-[0_1px_3px_rgba(0,0,0,0.2)] lg:px-4">
+        {/* subtle top highlight */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-500/20 to-transparent dark:via-violet-400/15" />
         {/* mobile menu */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="shrink-0 md:hidden" aria-label="Menüyü aç">
+            <Button variant="ghost" size="icon" className="shrink-0 rounded-xl md:hidden" aria-label="Menüyü aç">
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[300px] p-0">
+          <SheetContent side="left" className="w-[300px] p-0 border-white/10">
             <div className="flex h-full flex-col">
-              <div className="flex h-14 items-center gap-2 border-b px-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white">
+              <div className="flex h-[60px] items-center gap-3 border-b border-white/10 px-4 bg-white/30 dark:bg-white/[0.02]">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-md">
                   <Bird className="h-4 w-4" />
                 </div>
                 <div>
-                  <div className="text-sm font-semibold leading-none tracking-tight">RAPTOR</div>
-                  <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Observatory</div>
+                  <div className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-sm font-bold leading-none tracking-tight text-transparent">RAPTOR</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Observatory</div>
                 </div>
               </div>
               <div className="p-3">
                 <SSEBadge state={sseState} lastId={lastId} />
               </div>
-              <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-2">
+              <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
                 {NAV.map(([k, label, Icon]) => (
                   <NavButton
                     key={k}
@@ -255,12 +272,12 @@ export default function App() {
                   />
                 ))}
               </nav>
-              <div className="border-t p-3">
-                <div className="mb-2 truncate text-xs font-medium">{session.email}</div>
-                <Badge variant="secondary" className="mb-3 text-[10px] uppercase tracking-wider">
+              <div className="border-t border-white/10 p-4 bg-white/20 dark:bg-white/[0.02]">
+                <div className="mb-2 truncate text-xs font-semibold tracking-tight">{session.email}</div>
+                <Badge variant="violet" className="mb-3 text-[10px] uppercase tracking-widest">
                   {session.role}
                 </Badge>
-                <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={logout}>
+                <Button variant="outline" size="sm" className="w-full justify-start gap-2 rounded-xl" onClick={logout}>
                   <LogOut className="h-4 w-4" /> Çıkış
                 </Button>
               </div>
@@ -268,54 +285,56 @@ export default function App() {
           </SheetContent>
         </Sheet>
 
-        {/* brand */}
-        <div className="flex items-center gap-2.5">
-          <div className="hidden h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm md:flex">
-            <Bird className="h-4 w-4" />
+        {/* brand — gradient text */}
+        <div className="flex items-center gap-3">
+          <div className="hidden h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_4px_14px_rgba(99,102,241,0.35)] ring-1 ring-white/15 md:flex">
+            <Bird className="h-5 w-5" />
           </div>
           <div className="hidden md:block">
-            <div className="text-sm font-semibold leading-none tracking-tight">RAPTOR</div>
-            <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Observatory</div>
+            <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-700 bg-clip-text text-[15px] font-extrabold leading-none tracking-tight text-transparent">RAPTOR</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground flex items-center gap-1">Observatory <Sparkles className="h-2.5 w-2.5 text-violet-500/70" /></div>
           </div>
-          <div className="flex items-center gap-1 md:hidden">
-            <Bird className="h-4 w-4 text-violet-600" />
-            <span className="text-sm font-semibold tracking-tight">RAPTOR</span>
+          <div className="flex items-center gap-1.5 md:hidden">
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-sm">
+              <Bird className="h-3.5 w-3.5" />
+            </div>
+            <span className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-sm font-bold tracking-tight text-transparent">RAPTOR</span>
           </div>
         </div>
 
         <div className="hidden items-center gap-2 lg:flex">
-          <span className="mx-2 h-4 w-px bg-border" />
+          <span className="mx-2 h-5 w-px bg-border/60 dark:bg-white/10" />
           <SSEBadge state={sseState} lastId={lastId} />
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-2">
           {/* desktop SSE compact */}
-          <div className="hidden items-center gap-2 sm:flex lg:hidden">
+          <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/60 px-3 py-1.5 backdrop-blur-xl dark:bg-white/[0.04] sm:flex lg:hidden">
             <SSEDot state={sseState} />
-            <span className="text-xs font-medium capitalize text-muted-foreground">{sseState === 'open' ? 'canlı' : sseState}</span>
+            <span className="text-xs font-semibold capitalize text-muted-foreground">{sseState === 'open' ? 'canlı' : sseState}</span>
           </div>
 
-          <div className="hidden items-center gap-2 sm:flex">
+          <div className="hidden items-center gap-3 sm:flex">
             <div className="hidden flex-col items-end leading-none md:flex">
-              <span className="max-w-[160px] truncate text-xs font-medium">{session.email}</span>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{session.role}</span>
+              <span className="max-w-[160px] truncate text-xs font-semibold tracking-tight">{session.email}</span>
+              <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">{session.role}</span>
             </div>
-            <Badge variant="secondary" className="hidden text-[10px] uppercase tracking-wider md:inline-flex">
+            <Badge variant="violet" className="hidden text-[10px] uppercase tracking-widest shadow-sm md:inline-flex">
               {session.role}
             </Badge>
           </div>
 
-          <Button variant="ghost" size="sm" className="hidden gap-1.5 md:inline-flex" onClick={logout}>
+          <Button variant="ghost" size="sm" className="hidden gap-1.5 rounded-xl md:inline-flex" onClick={logout}>
             <LogOut className="h-4 w-4" /> Çıkış
           </Button>
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={logout} aria-label="Çıkış">
+          <Button variant="ghost" size="icon" className="rounded-xl md:hidden" onClick={logout} aria-label="Çıkış">
             <LogOut className="h-4 w-4" />
           </Button>
 
           <Button
             variant="ghost"
             size="icon"
-            className="hidden h-8 w-8 md:inline-flex"
+            className="hidden h-8 w-8 rounded-xl border border-black/[0.04] bg-white/40 backdrop-blur-sm hover:bg-white/70 dark:bg-white/[0.04] dark:border-white/5 dark:hover:bg-white/10 md:inline-flex"
             onClick={() => setCollapsed((v) => !v)}
             aria-label={collapsed ? 'Kenar çubuğunu genişlet' : 'Kenar çubuğunu daralt'}
           >
@@ -325,28 +344,28 @@ export default function App() {
       </header>
 
       <div className="flex">
-        {/* Sidebar desktop */}
+        {/* Sidebar desktop — glass */}
         <aside
           className={cn(
-            'sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground md:flex',
-            'transition-all duration-150',
-            collapsed ? 'w-[64px]' : 'w-[240px]'
+            'sticky top-[60px] hidden h-[calc(100vh-60px)] shrink-0 flex-col border-r border-white/10 bg-white/65 backdrop-blur-2xl supports-[backdrop-filter]:bg-white/40 text-sidebar-foreground shadow-[4px_0_24px_rgba(0,0,0,0.03)] md:flex dark:bg-zinc-900/40 dark:border-white/[0.06] dark:shadow-[4px_0_24px_rgba(0,0,0,0.12)]',
+            'transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
+            collapsed ? 'w-[72px]' : 'w-[252px]'
           )}
         >
-          <div className={cn('flex h-10 items-center border-b px-2', collapsed ? 'justify-center' : 'justify-between gap-2 px-3')}>
+          <div className={cn('flex h-11 items-center border-b border-black/[0.04] dark:border-white/[0.05] px-2 bg-white/20 dark:bg-white/[0.015]', collapsed ? 'justify-center' : 'justify-between gap-2 px-3')}>
             {!collapsed && (
-              <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+              <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                 <PanelLeft className="h-3.5 w-3.5" /> Menü
               </span>
             )}
             {!collapsed && (
-              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+              <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[10px] bg-white/70 dark:bg-white/[0.04]">
                 {NAV.length}
               </Badge>
             )}
           </div>
 
-          <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+          <nav className="flex-1 space-y-1.5 overflow-y-auto p-3">
             {NAV.map(([k, label, Icon]) => (
               <NavButton
                 key={k}
@@ -359,49 +378,59 @@ export default function App() {
             ))}
           </nav>
 
-          <div className={cn('border-t p-3', collapsed && 'p-2')}>
+          <div className={cn('border-t border-black/[0.04] dark:border-white/[0.05] p-3 bg-gradient-to-br from-violet-50/50 to-indigo-50/30 dark:from-violet-950/10 dark:to-indigo-950/5', collapsed && 'p-2')}>
             {!collapsed ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2 rounded-xl border border-white/50 bg-white/60 px-2.5 py-2 backdrop-blur-sm dark:bg-white/[0.04] dark:border-white/5">
                   <SSEDot state={sseState} />
-                  <span className="text-xs font-medium">SSE {sseState}</span>
+                  <span className="text-xs font-semibold capitalize tracking-tight">SSE {sseState}</span>
+                  <span className={cn('ml-auto h-1.5 w-1.5 rounded-full', sseState==='open'?'bg-emerald-500 shadow-[0_0_6px_theme(colors.emerald.500)]':'bg-zinc-300')} />
                 </div>
-                <div className="truncate text-xs text-muted-foreground" title={session.email}>
+                <div className="truncate text-[11px] font-medium tracking-tight text-muted-foreground px-1" title={session.email}>
                   {session.email}
                 </div>
               </div>
             ) : (
-              <div className="flex justify-center">
+              <div className="flex justify-center rounded-xl bg-white/50 p-2 dark:bg-white/[0.04]">
                 <SSEDot state={sseState} />
               </div>
             )}
           </div>
         </aside>
 
-        {/* Main */}
-        <main className="min-w-0 flex-1 bg-muted/20">
-          <div className="mx-auto max-w-[1200px] p-4 md:p-6 lg:p-8">
-            {/* toast */}
+        {/* Main — page transition wrapper */}
+        <main className="min-w-0 flex-1">
+          <div className="mx-auto max-w-[1240px] p-4 md:p-6 lg:p-8">
+            {/* toast premium */}
             <AnimatePresence>
               {toast && (
                 <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.15 }}
+                  initial={{ opacity: 0, y: -12, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                  transition={{ duration: 0.22, ease: [0.32,0.72,0,1] }}
                   onClick={() => setToast('')}
-                  className="fixed right-4 top-[4rem] z-50 cursor-pointer rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 shadow-lg dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100"
+                  className="fixed right-4 top-[4.5rem] z-50 cursor-pointer rounded-2xl border border-emerald-200/50 bg-white/85 px-4 py-3 text-sm font-medium text-emerald-800 shadow-[0_8px_32px_rgba(16,185,129,0.18),0_2px_8px_rgba(0,0,0,0.06)] backdrop-blur-xl dark:border-emerald-800/30 dark:bg-emerald-950/70 dark:text-emerald-100"
                 >
-                  {toast}
+                  <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_theme(colors.emerald.500)] animate-pulse" />{toast}</span>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* grid container */}
-            <div className="space-y-6">
+            {/* page content with fade+slide */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={tab + runId}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.28, ease: [0.32,0.72,0,1] }}
+                className="space-y-6"
+              >
               {tab === 'dashboard' && (
-                <Card className="border-violet-200 bg-gradient-to-br from-violet-50 to-card dark:border-violet-900/30 dark:from-violet-950/20">
-                  <CardContent className="p-4 md:p-6">
+                <Card className="overflow-hidden border-violet-200/40 bg-gradient-to-br from-violet-50/80 via-white to-indigo-50/40 dark:border-violet-900/20 dark:from-violet-950/20 dark:via-zinc-900/40 dark:to-indigo-950/10 shadow-[0_8px_32px_rgba(99,102,241,0.08)]">
+                  <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] via-transparent to-indigo-500/[0.03] pointer-events-none" />
+                  <CardContent className="relative p-5 md:p-6">
                     <CommandCenter
                       onCreated={(id: string) => {
                         setRunId(id)
@@ -435,7 +464,7 @@ export default function App() {
               {tab === 'audit' && <AuditPage />}
 
               {tab !== 'dashboard' && (
-                <Card className="border-dashed">
+                <Card className="border-dashed border-violet-200/40 bg-white/40 backdrop-blur-sm dark:bg-white/[0.02] dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/[0.04] transition-colors">
                   <CardContent className="p-4">
                     <CommandCenter
                       compact
@@ -448,16 +477,13 @@ export default function App() {
                   </CardContent>
                 </Card>
               )}
-            </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
         </main>
       </div>
     </div>
   )
-}
-
-function SSEStateLabel(s: SSEState) {
-  return s === 'open' ? 'bağlı' : s === 'connecting' ? 'bağlanıyor' : s === 'error' ? 'hata/yeniden deneme' : 'kapalı'
 }
 
 function RunsWithDetail({ runId, onBack, onOpenDetail }: { runId: string; onBack: () => void; onOpenDetail: (id: string) => void }) {

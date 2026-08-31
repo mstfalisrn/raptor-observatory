@@ -17,6 +17,20 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Inbox,
+  Sparkles,
+  BarChart3,
+  Shield,
+  FileSearch,
+  Play,
+  Puzzle,
+  Brain,
+  Radio,
+  Satellite,
+  Send,
+  Settings,
+  FileText,
+  ScrollText,
 } from 'lucide-react'
 
 // ---------- types ----------
@@ -104,57 +118,96 @@ function useFetch<T>(path: string, deps: unknown[] = []) {
   }, [key, tick, ...deps])
   return { data, err, loading, reload }
 }
-
-function statusVariant(s: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+function statusVariant(s: string): 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'violet' {
   const v = s.toUpperCase()
-  if (['COMPLETED','ACTIVE','APPROVED','AUTO_APPROVED'].includes(v)) return 'default'
+  if (['COMPLETED','ACTIVE','APPROVED','AUTO_APPROVED'].includes(v)) return 'success'
   if (['FAILED','REJECTED','EXPIRED','CANCELLED'].includes(v)) return 'destructive'
-  if (['QUEUED','EXECUTING','CONTEXT_BUILDING','PLANNING','POLICY_CHECK','VERIFYING','PERSISTING','PENDING','PAUSED','WAITING_APPROVAL'].includes(v)) return 'secondary'
+  if (['QUEUED','EXECUTING','CONTEXT_BUILDING','PLANNING','POLICY_CHECK','VERIFYING','PERSISTING','PENDING','PAUSED','WAITING_APPROVAL'].includes(v)) return 'violet'
   return 'outline'
 }
-function runStatusVariant(s: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+function runStatusVariant(s: string): 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'violet' {
   const u = s.toUpperCase()
-  if (u === 'COMPLETED') return 'default'
+  if (u === 'COMPLETED') return 'success'
   if (u === 'FAILED' || u === 'CANCELLED') return 'destructive'
-  if (u === 'EXECUTING' || u === 'QUEUED') return 'secondary'
+  if (u === 'EXECUTING' || u === 'QUEUED') return 'violet'
+  if (u === 'PAUSED') return 'warning'
   return 'outline'
 }
 
 function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={'animate-pulse rounded-md bg-muted ' + className} />
+  return <div className={'shimmer rounded-xl ' + className} />
 }
 function Loading(){
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[0,1,2,3].map(i=> <Skeleton key={i} className="h-[96px] w-full" />)}
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[0,1,2,3].map(i=> (
+          <Card key={i} className="overflow-hidden"><CardContent className="p-4 space-y-3"><Skeleton className="h-4 w-24" /><Skeleton className="h-8 w-16" /><Skeleton className="h-3 w-full" /></CardContent></Card>
+        ))}
       </div>
       <Skeleton className="h-6 w-40" />
-      <div className="space-y-2">
-        {[0,1,2].map(i=> <Skeleton key={i} className="h-12 w-full" />)}
+      <div className="space-y-3">
+        {[0,1,2].map(i=> <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
       </div>
     </div>
   )
 }
 function TableSkeleton({ rows = 3 }: { rows?: number }) {
   return (
-    <div className="space-y-2">
-      <Skeleton className="h-10 w-full" />
-      {Array.from({ length: rows }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+    <div className="space-y-3">
+      <Skeleton className="h-10 w-full rounded-xl" />
+      {Array.from({ length: rows }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
     </div>
   )
 }
 function Err({msg, onRetry}:{msg:string, onRetry?:()=>void}){
   return (
-    <Card className="border-destructive/40 bg-destructive/5">
+    <Card className="border-red-200/50 bg-gradient-to-br from-red-50/80 to-rose-50/40 dark:border-red-900/30 dark:from-red-950/20 dark:to-zinc-900">
       <CardContent className="flex items-center justify-between gap-3 p-4">
-        <span className="flex items-center gap-2 text-sm text-destructive"><AlertCircle className="h-4 w-4" /> {msg}</span>
-        {onRetry && <Button variant="outline" size="sm" onClick={onRetry}><RefreshCw className="h-3.5 w-3.5" /> Yeniden dene</Button>}
+        <span className="flex items-center gap-2.5 text-sm font-medium text-red-700 dark:text-red-300"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40"><AlertCircle className="h-4 w-4" /></span> {msg}</span>
+        {onRetry && <Button variant="outline" size="sm" className="rounded-xl border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20" onClick={onRetry}><RefreshCw className="h-3.5 w-3.5" /> Yeniden dene</Button>}
       </CardContent>
     </Card>
   )
 }
-function Empty({msg}:{msg:string}){ return <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{msg}</div> }
+function PremiumEmpty({ title, msg, icon: Icon = Inbox, action }: { title?: string; msg: string; icon?: React.ElementType; action?: React.ReactNode }) {
+  return (
+    <Card className="border-dashed border-violet-200/40 bg-gradient-to-br from-white/60 via-violet-50/20 to-indigo-50/20 dark:border-white/10 dark:from-white/[0.02] dark:via-violet-950/5 dark:to-indigo-950/5">
+      <CardContent className="flex flex-col items-center justify-center gap-4 py-10 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 text-violet-600 shadow-sm ring-1 ring-violet-200/50 dark:from-violet-900/30 dark:to-indigo-900/20 dark:text-violet-300 dark:ring-violet-800/30">
+          <Icon className="h-7 w-7" />
+        </div>
+        {title && <div className="text-sm font-semibold tracking-tight">{title}</div>}
+        <div className="max-w-sm text-sm leading-relaxed text-muted-foreground">{msg}</div>
+        {action && <div className="pt-1">{action}</div>}
+      </CardContent>
+    </Card>
+  )
+}
+function Empty({msg}:{msg:string}){ return <PremiumEmpty msg={msg} /> }
+
+// sparkline placeholder
+function Sparkline({ variant = 'violet' }: { variant?: 'violet' | 'emerald' | 'amber' | 'indigo' }) {
+  const colors: Record<string, string> = {
+    violet: '#8b5cf6',
+    emerald: '#10b981',
+    amber: '#f59e0b',
+    indigo: '#6366f1',
+  }
+  const id = `grad-${variant}-${Math.random().toString(36).slice(2,6)}`
+  return (
+    <svg viewBox="0 0 60 20" className="h-6 w-full" preserveAspectRatio="none" aria-hidden>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={colors[variant]} stopOpacity={0.35} />
+          <stop offset="100%" stopColor={colors[variant]} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d="M0 14 C 6 12, 10 16, 16 10 S 24 4, 30 8 S 38 14, 44 9 S 52 2, 60 6 L 60 20 L 0 20 Z" fill={`url(#${id})`} />
+      <path d="M0 14 C 6 12, 10 16, 16 10 S 24 4, 30 8 S 38 14, 44 9 S 52 2, 60 6" fill="none" stroke={colors[variant]} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
+    </svg>
+  )
+}
 
 // ---------- Login ----------
 export function LoginPage({ onLogin }: { onLogin:(u:{email:string, role:string}) => void }) {
@@ -172,17 +225,17 @@ export function LoginPage({ onLogin }: { onLogin:(u:{email:string, role:string})
     } catch(e){ setErr(errMsg(e)) } finally { setBusy(false) }
   }
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">Giriş</h2>
+        <h2 className="text-lg font-bold tracking-tight flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-violet-600" />Giriş</h2>
         <p className="text-sm text-muted-foreground">Yerel kimlik doğrulama — oturum aç.</p>
       </div>
       <div className="flex flex-col gap-3">
         <Input placeholder="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username" />
         <Input placeholder="parola" type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" onKeyDown={e=> e.key==='Enter' && submit()} />
-        <Button onClick={submit} disabled={busy || !email.trim() || !password} className="w-full">{busy ? 'giriş…' : 'Giriş'}</Button>
+        <Button onClick={submit} disabled={busy || !email.trim() || !password} className="w-full rounded-xl h-10 font-semibold">{busy ? 'giriş…' : 'Giriş'}</Button>
       </div>
-      {err && <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"><AlertCircle className="h-4 w-4" /> {err}</div>}
+      {err && <div className="flex items-center gap-2 rounded-xl border border-red-200/50 bg-red-50/80 px-3 py-2.5 text-sm font-medium text-red-700 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-300"><AlertCircle className="h-4 w-4" /> {err}</div>}
     </div>
   )
 }
@@ -206,19 +259,23 @@ export function CommandCenter({ onCreated, compact }: { onCreated?:(runId:string
     } catch(e){ setErr(errMsg(e)) } finally { setBusy(false) }
   }
   return (
-    <div className={compact ? '' : ''}>
+    <div>
       <div className="mb-3 flex items-center gap-2">
-        <h3 className="text-sm font-semibold tracking-tight">{compact ? '⚡ Komut' : '🎛️ Command Center'}</h3>
-        {!compact && <Badge variant="secondary" className="text-[10px]">SSE canlı</Badge>}
+        <div className={compact ? "flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-sm" : "flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_4px_14px_rgba(99,102,241,0.3)]"}>
+          <Sparkles className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        </div>
+        <h3 className="text-sm font-bold tracking-tight">{compact ? 'Komut' : 'Command Center'}</h3>
+        {!compact && <Badge variant="violet" className="text-[10px]">SSE canlı</Badge>}
+        {!compact && <span className="ml-auto hidden items-center gap-1 text-xs text-muted-foreground sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_theme(colors.emerald.500)]" /> hazır</span>}
       </div>
-      {!compact && <p className="mb-3 text-sm text-muted-foreground">Prompt gir, run oluştur. SSE ile canlı takip.</p>}
+      {!compact && <p className="mb-3 text-sm text-muted-foreground leading-relaxed">Prompt gir, run oluştur. SSE ile canlı takip.</p>}
       <div className="flex flex-wrap gap-2">
-        <Input placeholder="başlık (opsiyonel)" value={title} onChange={e=>setTitle(e.target.value)} className="flex-none sm:w-[220px]" />
+        <Input placeholder="başlık (opsiyonel)" value={title} onChange={e=>setTitle(e.target.value)} className="flex-none sm:w-[200px]" />
         <Input placeholder="prompt — ne yapsın?" value={prompt} onChange={e=>setPrompt(e.target.value)} className="min-w-[220px] flex-1" onKeyDown={e=> e.key==='Enter' && submit()} />
-        <Button onClick={submit} disabled={busy || !prompt.trim()}>{busy?'gönderiliyor…':'▶️ Çalıştır'}</Button>
+        <Button onClick={submit} disabled={busy || !prompt.trim()} className="rounded-xl px-5 font-semibold">{busy?'gönderiliyor…':'▶️ Çalıştır'}</Button>
       </div>
-      {err && <div className="mt-2 text-sm text-destructive">⚠ {err}</div>}
-      {ok && <div className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">✓ {ok}</div>}
+      {err && <motion.div initial={{ opacity:0, y:4 }} animate={{opacity:1, y:0}} className="mt-3 flex items-center gap-2 rounded-xl border border-red-200/50 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-300">⚠ {err}</motion.div>}
+      {ok && <motion.div initial={{ opacity:0, y:4 }} animate={{opacity:1, y:0}} className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200/50 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-300">✓ {ok}</motion.div>}
     </div>
   )
 }
@@ -251,139 +308,156 @@ export function Dashboard({ live, sseState, lastId, onOpen, onOpenRun }: Dashboa
   const sseColor = sseState==='open' ? 'bg-emerald-500' : sseState==='connecting' ? 'bg-amber-500' : sseState==='error' ? 'bg-red-500' : 'bg-zinc-400'
 
   if (l1 || l2) {
-    // skeleton while loading essential
     if (!runs && !approvals) return <Loading/>
   }
+
+  const kpiCards = [
+    { title: 'Toplam Run', icon: Layers, value: total, sub: `${running} aktif · ${completed} tamamlandı`, accent: 'from-violet-600 to-indigo-600', light: 'from-violet-50 to-indigo-50', spark: 'violet' as const, action: ()=>onOpen('runs'), actionLabel: "Run'ları gör →" },
+    { title: 'Başarı %', icon: TrendingUp, value: `${successPct}%`, sub: `${completed}/${total} tamamlandı`, accent: 'from-emerald-500 to-teal-600', light: 'from-emerald-50 to-teal-50', spark: 'emerald' as const },
+    { title: 'Kuyruk derinliği', icon: Activity, value: running, sub: 'QUEUED + EXECUTING', accent: 'from-amber-500 to-orange-500', light: 'from-amber-50 to-orange-50', spark: 'amber' as const, badge: running ? 'aktif iş var' : 'boşta' },
+    { title: 'Ort. Token', icon: Zap, value: avgTokens, sub: 'run başına ortalama', accent: 'from-indigo-600 to-violet-600', light: 'from-indigo-50 to-violet-50', spark: 'indigo' as const, extra: health?.status ? `sağlık: ${health.status}` : 'sağlık kontrol…' },
+  ]
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold tracking-tight">📊 Dashboard</h1>
+        <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-md"><BarChart3 className="h-4 w-4" /></span> Dashboard</h1>
         <div className="flex items-center gap-2">
           <span className="relative flex h-2.5 w-2.5">
-            {sseState==='open' && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />}
-            <span className={'relative inline-flex h-2.5 w-2.5 rounded-full ' + sseColor + (sseState==='open' ? ' shadow-[0_0_8px_theme(colors.emerald.500)]' : '')} />
+            {sseState==='open' && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
+            <span className={'relative inline-flex h-2.5 w-2.5 rounded-full ring-2 ring-white/20 ' + sseColor + (sseState==='open' ? ' shadow-[0_0_10px_theme(colors.emerald.500)]' : '')} />
           </span>
-          <Badge variant={sseState==='open' ? 'default' : sseState==='error' ? 'destructive' : 'secondary'} className="capitalize">{sseState}</Badge>
-          <span className="hidden text-xs text-muted-foreground sm:inline">#{lastId?.slice(0,8) || '—'}</span>
+          <Badge variant={sseState==='open' ? 'success' : sseState==='error' ? 'destructive' : 'secondary'} className="capitalize rounded-full">{sseState}</Badge>
+          <span className="hidden text-xs font-mono text-muted-foreground sm:inline">#{lastId?.slice(0,8) || '—'}</span>
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" /> Toplam Run</CardDescription>
-            <CardTitle className="text-2xl">{l1 ? <Skeleton className="h-7 w-12" /> : total}</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-xs text-muted-foreground">{running} aktif · {completed} tamamlandı</p>
-            <Button variant="ghost" size="sm" className="mt-2 h-7 px-2 text-xs" onClick={()=>onOpen('runs')}>Run&apos;ları gör →</Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5"><TrendingUp className="h-3.5 w-3.5" /> Başarı %</CardDescription>
-            <CardTitle className="text-2xl">{l1 ? <Skeleton className="h-7 w-16" /> : `${successPct}%`}</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-xs text-muted-foreground">{completed}/{total} tamamlandı</p>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <motion.div initial={{ width: 0 }} animate={{ width: total ? `${(completed/total)*100}%` : '0%' }} transition={{ duration: 0.6 }} className="h-full bg-emerald-500" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5"><Activity className="h-3.5 w-3.5" /> Kuyruk derinliği</CardDescription>
-            <CardTitle className="text-2xl">{l1 ? <Skeleton className="h-7 w-10" /> : running}</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-xs text-muted-foreground">QUEUED + EXECUTING</p>
-            <Badge variant="outline" className="mt-2 text-[11px]">{running ? 'aktif iş var' : 'boşta'}</Badge>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5"><Zap className="h-3.5 w-3.5" /> Ort. Token</CardDescription>
-            <CardTitle className="text-2xl">{l1 ? <Skeleton className="h-7 w-14" /> : avgTokens}</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-xs text-muted-foreground">run başına ortalama</p>
-            <span className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3" /> {health?.status ? `sağlık: ${health.status}` : 'sağlık kontrol…'}</span>
-          </CardContent>
-        </Card>
+      {/* KPI cards — premium glass + gradient icon + sparkline */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpiCards.map((k, i) => (
+          <motion.div
+            key={k.title}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.06, duration: 0.35, ease: [0.32,0.72,0,1] }}
+            whileHover={{ y: -3 }}
+            className="group"
+          >
+            <Card className="relative overflow-hidden h-full hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_12px_32px_rgba(0,0,0,0.3)]">
+              <div className={`absolute inset-0 bg-gradient-to-br ${k.light} opacity-60 dark:opacity-[0.04]`} />
+              <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br from-white/40 to-transparent blur-2xl dark:from-white/[0.03]" />
+              <CardHeader className="relative pb-2">
+                <CardDescription className="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase">
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br ${k.accent} text-white shadow-sm ring-1 ring-white/15`}>
+                    <k.icon className="h-3.5 w-3.5" />
+                  </span>
+                  {k.title}
+                </CardDescription>
+                <CardTitle className="text-[28px] font-bold tracking-tight leading-none mt-2">{l1 ? <Skeleton className="h-7 w-14" /> : k.value}</CardTitle>
+              </CardHeader>
+              <CardContent className="relative pt-0 space-y-2.5">
+                <p className="text-xs font-medium text-muted-foreground">{k.sub}</p>
+                <div className="opacity-80 group-hover:opacity-100 transition-opacity">
+                  <Sparkline variant={k.spark} />
+                </div>
+                {k.action && (
+                  <Button variant="ghost" size="sm" className="h-7 rounded-full px-3 text-xs font-semibold -ml-1 group-hover:bg-violet-50 group-hover:text-violet-700 dark:group-hover:bg-violet-950/40 dark:group-hover:text-violet-300" onClick={k.action}>{k.actionLabel}</Button>
+                )}
+                {k.badge && <Badge variant={running ? 'warning' : 'secondary'} className="text-[11px] rounded-full mt-1">{k.badge}</Badge>}
+                {k.extra && <span className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3" /> {k.extra}</span>}
+                {k.title === 'Başarı %' && !l1 && (
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/5 dark:bg-white/10 mt-1">
+                    <motion.div initial={{ width: 0 }} animate={{ width: total ? `${(completed/total)*100}%` : '0%' }} transition={{ duration: 0.8, ease: [0.32,0.72,0,1], delay: 0.3 }} className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full" />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-3">
+        <motion.div initial={{ opacity:0, y: 8 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.25, duration: 0.35 }} className="lg:col-span-2">
+        <Card className="overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.02] to-transparent pointer-events-none" />
+          <CardHeader className="relative pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">Son Run&apos;lar — timeline</CardTitle>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={()=>onOpen('runs')}>Tümü</Button>
+              <CardTitle className="text-sm flex items-center gap-2"><span className="h-6 w-6 rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 flex items-center justify-center"><Activity className="h-3.5 w-3.5" /></span> Son Run&apos;lar — timeline</CardTitle>
+              <Button variant="ghost" size="sm" className="h-7 rounded-full text-xs font-semibold" onClick={()=>onOpen('runs')}>Tümü</Button>
             </div>
             <CardDescription>En son 5 run · SSE canlı akış ile senkron</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="relative">
             {(e1||e2) && <div className="mb-3"><Err msg={(e1||e2) as string} onRetry={()=>{r1();r2()}} /></div>}
-            {l1 ? <TableSkeleton rows={5} /> : !runs?.length ? <Empty msg="henüz run yok — Command Center'dan oluştur."/> : (
+            {l1 ? <TableSkeleton rows={5} /> : !runs?.length ? <PremiumEmpty title="Henüz run yok" msg="Command Center'dan ilk run'ını oluştur ve canlı timeline'de takip et." icon={Sparkles} action={<Button size="sm" className="rounded-xl" onClick={()=>onOpen('runs')}>Run oluştur</Button>} /> : (
               <div className="relative">
-                <div className="absolute bottom-0 left-[11px] top-2 w-px bg-border" />
+                <div className="absolute bottom-0 left-[11px] top-2 w-px bg-gradient-to-b from-violet-200 via-border to-transparent dark:from-violet-800/30" />
                 <div className="space-y-3">
-                  {runs!.slice(0,5).map(r=> (
-                    <div key={r.id} onClick={()=>onOpenRun?.(r.id)} className="relative flex cursor-pointer items-center gap-3 rounded-lg border bg-card p-3 pl-7 transition-colors hover:bg-accent/50">
-                      <span className="absolute left-0 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow" style={{ left: '5px' }} />
+                  {runs!.slice(0,5).map((r, idx)=> (
+                    <motion.div
+                      key={r.id}
+                      initial={{ opacity:0, x: -8 }}
+                      animate={{ opacity:1, x: 0 }}
+                      transition={{ delay: 0.3 + idx*0.06 }}
+                      onClick={()=>onOpenRun?.(r.id)}
+                      className="group relative flex cursor-pointer items-center gap-3 rounded-2xl border bg-card/60 p-3 pl-7 backdrop-blur-sm transition-all duration-200 hover:bg-white hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] hover:border-violet-200/50 hover:-translate-y-0.5 dark:hover:bg-white/[0.04] dark:hover:border-white/10"
+                    >
+                      <span className="absolute left-0 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-background bg-gradient-to-br from-violet-600 to-indigo-600 shadow-md ring-2 ring-violet-100 dark:ring-violet-900/40" style={{ left: '5px' }} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="truncate font-mono text-xs">{r.id.slice(0,8)}</span>
-                          <Badge variant={runStatusVariant(r.status)} className="text-[10px]">{r.status}</Badge>
-                          <span className="text-xs text-muted-foreground">iter {r.iteration}</span>
+                          <span className="truncate font-mono text-xs font-semibold tracking-tight">{r.id.slice(0,8)}</span>
+                          <Badge variant={runStatusVariant(r.status)} className="text-[10px] rounded-full">{r.status}</Badge>
+                          <span className="text-xs font-medium text-muted-foreground">iter {r.iteration}</span>
                         </div>
-                        <div className="text-xs text-muted-foreground">{r.created_at?.slice(0,19)} {r.error && <span className="text-destructive">· {r.error.slice(0,60)}</span>}</div>
+                        <div className="text-xs text-muted-foreground truncate">{r.created_at?.slice(0,19)} {r.error && <span className="text-red-600 dark:text-red-400">· {r.error.slice(0,60)}</span>}</div>
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-violet-600 group-hover:translate-x-0.5 transition-all" />
+                    </motion.div>
                   ))}
                 </div>
               </div>
             )}
             {/* SSE live pulse detail */}
-            <div className="mt-4 flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs">
-              <motion.span animate={sseState==='open' ? { scale:[1,1.2,1]} : {}} transition={{ repeat: Infinity, duration: 1.2 }} className={'h-2 w-2 rounded-full ' + sseColor} />
-              <span className="text-muted-foreground">SSE</span>
-              <Badge variant="outline" className="h-5 text-[10px]">{sseState}</Badge>
-              <span className="truncate text-muted-foreground">{live ? `son event: ${String((live as any).event_type || (live as any).seq || JSON.stringify(live).slice(0,60))}` : 'bekleniyor'}</span>
+            <div className="mt-4 flex items-center gap-2.5 rounded-2xl border bg-gradient-to-br from-zinc-50 to-white px-3.5 py-2.5 text-xs shadow-sm dark:from-zinc-900/50 dark:to-zinc-900/20 border-black/[0.04] dark:border-white/5">
+              <motion.span animate={sseState==='open' ? { scale:[1,1.25,1]} : {}} transition={{ repeat: Infinity, duration: 1.4 }} className={'h-2 w-2 rounded-full shadow-sm ' + sseColor + (sseState==='open'?' shadow-[0_0_8px_theme(colors.emerald.500)]':'')} />
+              <span className="font-semibold tracking-wide text-muted-foreground">SSE</span>
+              <Badge variant="outline" className="h-5 rounded-full text-[10px] bg-white dark:bg-white/5">{sseState}</Badge>
+              <span className="truncate font-mono text-[11px] text-muted-foreground hidden sm:inline">{live ? `son event: ${String((live as any).event_type || (live as any).seq || JSON.stringify(live).slice(0,60))}` : 'bekleniyor'}</span>
+              <span className="ml-auto hidden h-1.5 w-12 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 opacity-20 sm:block" />
             </div>
           </CardContent>
         </Card>
+        </motion.div>
 
-        <Card>
+        <motion.div initial={{ opacity:0, y: 8 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.32, duration: 0.35 }}>
+        <Card className="h-full">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm"><CheckCircle2 className="h-4 w-4" /> Onaylar</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-sm"><span className="h-7 w-7 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-sm"><CheckCircle2 className="h-4 w-4" /></span> Onaylar</CardTitle>
             <CardDescription>{pending} bekleyen · hızlı bakış</CardDescription>
           </CardHeader>
           <CardContent>
-            {l2 ? <div className="space-y-2"><Skeleton className="h-12 w-full"/><Skeleton className="h-12 w-full"/></div> : !approvals?.length ? <Empty msg="onay yok" /> : (
-              <div className="space-y-2">
+            {l2 ? <div className="space-y-2"><Skeleton className="h-14 w-full rounded-xl"/><Skeleton className="h-14 w-full rounded-xl"/></div> : !approvals?.length ? <PremiumEmpty msg="Bekleyen onay yok — her şey yolunda." icon={Shield} /> : (
+              <div className="space-y-2.5">
                 {approvals!.slice(0,4).map(a=> (
-                  <div key={a.id} className="rounded-lg border p-3">
+                  <div key={a.id} className="group rounded-2xl border bg-white/40 p-3.5 backdrop-blur-sm hover:bg-white hover:shadow-md hover:border-violet-200/40 transition-all duration-200 dark:bg-white/[0.02] dark:hover:bg-white/[0.04] dark:hover:border-white/10">
                     <div className="flex items-center gap-2">
-                      <Badge variant={statusVariant(a.status)} className="text-[10px]">{a.status}</Badge>
-                      <span className="truncate text-sm font-medium">{a.action_class}</span>
+                      <Badge variant={statusVariant(a.status)} className="text-[10px] rounded-full">{a.status}</Badge>
+                      <span className="truncate text-sm font-semibold tracking-tight">{a.action_class}</span>
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">{a.target.slice(0,80)}</div>
+                    <div className="truncate text-xs text-muted-foreground mt-1">{a.target.slice(0,80)}</div>
                   </div>
                 ))}
-                <Button variant="outline" size="sm" className="w-full" onClick={()=>onOpen('approvals')}>Onaylara git {pending>0 && <Badge variant="destructive" className="ml-2 h-5 text-[10px]">{pending}</Badge>}</Button>
+                <Button variant="outline" size="sm" className="w-full rounded-xl font-semibold mt-1" onClick={()=>onOpen('approvals')}>Onaylara git {pending>0 && <Badge variant="destructive" className="ml-2 h-5 rounded-full text-[10px]">{pending}</Badge>}</Button>
               </div>
             )}
-            <div className="mt-4 rounded-md border bg-card p-3">
-              <div className="text-xs font-medium">Sağlık</div>
-              <div className="text-sm">{health ? `✓ ${health.status}` : '...'}</div>
-              <div className="text-xs text-muted-foreground">{health?.time?.slice(0,19) || ''}</div>
+            <div className="mt-4 rounded-2xl border bg-gradient-to-br from-violet-50/60 to-indigo-50/40 p-3.5 dark:from-violet-950/10 dark:to-indigo-950/10 border-violet-100/50 dark:border-violet-900/20">
+              <div className="text-xs font-bold tracking-wide flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Sağlık</div>
+              <div className="text-sm font-semibold mt-1">{health ? `✓ ${health.status}` : '...'}</div>
+              <div className="text-xs font-mono text-muted-foreground">{health?.time?.slice(0,19) || ''}</div>
             </div>
           </CardContent>
         </Card>
+        </motion.div>
       </div>
     </div>
   )
@@ -411,59 +485,63 @@ export function RunsPage({ onOpenDetail }: { onOpenDetail?:(id:string)=>void }) 
   const statuses = ['ALL','QUEUED','EXECUTING','COMPLETED','FAILED','CANCELLED','PAUSED']
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold tracking-tight">▶️ Runs</h1>
-        <Badge variant="outline" className="text-xs">offset {offset} · limit {limit}{data ? ` · ${data.length} kayıt` : ''}</Badge>
+        <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Play className="h-4 w-4 fill-white/20" /></span> Runs</h1>
+        <Badge variant="outline" className="rounded-full bg-white/60 backdrop-blur-sm dark:bg-white/[0.04] font-mono text-xs">offset {offset} · limit {limit}{data ? ` · ${data.length} kayıt` : ''}</Badge>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="p-3 sm:p-4">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <div className="relative flex-1 min-w-[180px]">
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="filtre (id/durum)" value={q} onChange={e=>setQ(e.target.value)} className="pl-8" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="filtre (id/durum)" value={q} onChange={e=>setQ(e.target.value)} className="pl-9 rounded-xl" />
             </div>
-            <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="h-10 rounded-xl border border-input bg-white/60 backdrop-blur-sm px-3 text-sm font-medium shadow-sm hover:border-violet-200 focus:border-violet-300 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all dark:bg-white/[0.04] dark:hover:border-white/10">
               {statuses.map(s=> <option key={s} value={s}>{s==='ALL' ? 'Tüm durumlar' : s}</option>)}
             </select>
-            <Button variant="outline" size="sm" onClick={()=>reload()}><RefreshCw className="h-4 w-4" /> Yenile</Button>
-            <select value={String(limit)} onChange={e=>onLimitChange(parseInt(e.target.value))} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+            <Button variant="outline" size="sm" className="rounded-xl" onClick={()=>reload()}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+            <select value={String(limit)} onChange={e=>onLimitChange(parseInt(e.target.value))} className="h-10 rounded-xl border border-input bg-white/60 backdrop-blur-sm px-2.5 text-sm font-medium shadow-sm hover:border-violet-200 focus:border-violet-300 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all dark:bg-white/[0.04]">
               <option value="10">10</option><option value="20">20</option><option value="50">50</option>
             </select>
           </div>
         </CardContent>
       </Card>
 
-      {loading ? <TableSkeleton rows={5} /> : err ? <Err msg={err} onRetry={reload}/> : !filtered?.length ? <Empty msg={data?.length? 'filtreye uygun run yok':'run yok — Command Center ile oluştur.'}/> : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
-                  <tr><th className="px-3 py-2 text-left">ID</th><th className="px-3 py-2 text-left">Durum</th><th className="px-3 py-2 text-left">Iter</th><th className="px-3 py-2 text-left">Hata</th><th className="px-3 py-2 text-right"></th></tr>
-                </thead>
-                <tbody>
-                  {filtered!.map(r => (
-                    <tr key={r.id} className="border-b last:border-0 hover:bg-muted/40">
-                      <td className="px-3 py-2 font-mono text-xs" title={r.id}>{r.id.slice(0,8)}</td>
-                      <td className="px-3 py-2"><Badge variant={runStatusVariant(r.status)} className="text-[10px]">{r.status}</Badge></td>
-                      <td className="px-3 py-2 text-muted-foreground">{r.iteration}</td>
-                      <td className="max-w-[260px] truncate px-3 py-2 text-xs text-destructive">{r.error||''}</td>
-                      <td className="px-3 py-2 text-right"><Button size="sm" variant="outline" className="h-7 text-xs" onClick={()=>onOpenDetail?.(r.id)}>Detay</Button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {loading ? <TableSkeleton rows={5} /> : err ? <Err msg={err} onRetry={reload}/> : !filtered?.length ? <PremiumEmpty title="Run bulunamadı" msg={data?.length? 'Filtreye uygun run yok — filtreyi temizlemeyi dene.':'Henüz run yok — Command Center ile ilk run\'ını oluştur.'} icon={FileSearch} action={data?.length ? <Button size="sm" variant="outline" className="rounded-xl" onClick={()=>{setQ(''); setStatusFilter('ALL')}}>Filtreyi temizle</Button> : undefined} /> : (
+        <Card className="overflow-hidden p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-gradient-to-r from-zinc-50/80 to-white dark:from-zinc-900/40 dark:to-zinc-900/10 text-xs uppercase tracking-widest text-muted-foreground">
+                <tr><th className="px-4 py-3 text-left font-semibold">ID</th><th className="px-3 py-3 text-left font-semibold">Durum</th><th className="px-3 py-3 text-left font-semibold">Iter</th><th className="px-3 py-3 text-left font-semibold">Hata</th><th className="px-3 py-3 text-right"></th></tr>
+              </thead>
+              <tbody>
+                {filtered!.map((r, idx) => (
+                  <motion.tr
+                    key={r.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.03, duration: 0.25 }}
+                    className="border-b last:border-0 hover:bg-violet-50/40 dark:hover:bg-white/[0.03] transition-colors group even:bg-zinc-50/40 dark:even:bg-white/[0.015]"
+                  >
+                    <td className="px-4 py-3.5 font-mono text-xs font-semibold tracking-tight" title={r.id}><span className="inline-flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-violet-500 opacity-60 group-hover:opacity-100 transition-opacity" />{r.id.slice(0,8)}</span></td>
+                    <td className="px-3 py-3.5"><Badge variant={runStatusVariant(r.status)} className="text-[10px] rounded-full shadow-sm">{r.status}</Badge></td>
+                    <td className="px-3 py-3.5"><span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-zinc-100 px-2 text-xs font-semibold dark:bg-white/10">{r.iteration}</span></td>
+                    <td className="max-w-[260px] truncate px-3 py-3.5 text-xs font-medium text-red-600 dark:text-red-400">{r.error||<span className="text-muted-foreground/50">—</span>}</td>
+                    <td className="px-3 py-3.5 text-right"><Button size="sm" variant="outline" className="h-7 rounded-full text-xs font-semibold group-hover:border-violet-200 group-hover:bg-violet-50 dark:group-hover:border-violet-800/30 dark:group-hover:bg-violet-950/20" onClick={()=>onOpenDetail?.(r.id)}>Detay <ChevronRight className="h-3 w-3" /></Button></td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between border-t bg-zinc-50/50 p-3 dark:bg-white/[0.02]">
+            <span className="text-xs font-medium text-muted-foreground">{filtered.length} gösteriliyor{data && statusFilter!=='ALL' ? ` (filtreli)`:''}</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="rounded-xl" disabled={!hasPrev} onClick={goPrev}><ChevronLeft className="h-4 w-4" /> Geri</Button>
+              <Button variant="outline" size="sm" className="rounded-xl" disabled={!hasNext} onClick={goNext}>İleri <ChevronRight className="h-4 w-4" /></Button>
             </div>
-            <div className="flex items-center justify-between border-t p-3">
-              <span className="text-xs text-muted-foreground">{filtered.length} gösteriliyor{data && statusFilter!=='ALL' ? ` (filtreli)`:''}</span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={!hasPrev} onClick={goPrev}><ChevronLeft className="h-4 w-4" /> Geri</Button>
-                <Button variant="outline" size="sm" disabled={!hasNext} onClick={goNext}>İleri <ChevronRight className="h-4 w-4" /></Button>
-              </div>
-            </div>
-          </CardContent>
+          </div>
         </Card>
       )}
     </div>
@@ -477,22 +555,22 @@ function Stepper({ status }: { status: string }) {
   const isTerminalFail = ['FAILED','CANCELLED'].includes(upper)
   const activeIdx = idx >=0 ? idx : (upper==='FAILED' || upper==='CANCELLED' ? 1 : 0)
   return (
-    <div className="flex items-center gap-1 sm:gap-2">
+    <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
       {RUN_STEPS.map((s,i)=> {
         const done = i < activeIdx
         const active = i===activeIdx && !isTerminalFail
         const fail = isTerminalFail && i===activeIdx
         return (
           <div key={s} className="flex items-center gap-1 sm:gap-2">
-            <div className={'flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold ' + (done ? 'bg-emerald-500 text-white' : active ? 'bg-primary text-primary-foreground shadow' : fail ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground')}>
+            <div className={'flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold shadow-sm ring-1 transition-all duration-300 ' + (done ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white ring-emerald-200 dark:ring-emerald-800' : active ? 'bg-gradient-to-br from-violet-600 to-indigo-600 text-white ring-violet-200 dark:ring-violet-800 shadow-[0_4px_12px_rgba(99,102,241,0.3)]' : fail ? 'bg-gradient-to-br from-red-500 to-rose-600 text-white ring-red-200' : 'bg-zinc-100 text-zinc-500 ring-zinc-200 dark:bg-white/5 dark:text-zinc-400 dark:ring-white/10')}>
               {done ? '✓' : i+1}
             </div>
-            <span className={'hidden text-xs font-medium sm:inline ' + (active ? 'text-foreground' : 'text-muted-foreground')}>{s}</span>
-            {i < RUN_STEPS.length-1 && <div className={'h-0.5 w-6 sm:w-10 ' + (done ? 'bg-emerald-500' : 'bg-border')} />}
+            <span className={'hidden text-xs font-semibold tracking-wide sm:inline ' + (active ? 'text-foreground' : done ? 'text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground')}>{s}</span>
+            {i < RUN_STEPS.length-1 && <div className={'h-0.5 w-6 sm:w-10 rounded-full transition-colors ' + (done ? 'bg-emerald-500' : 'bg-zinc-200 dark:bg-white/10')} />}
           </div>
         )
       })}
-      {isTerminalFail && <Badge variant="destructive" className="ml-2 text-[10px]">{upper}</Badge>}
+      {isTerminalFail && <Badge variant="destructive" className="ml-2 rounded-full text-[10px]">{upper}</Badge>}
     </div>
   )
 }
@@ -521,108 +599,109 @@ export function RunDetailPage({ runId, onBack }: { runId:string, onBack:()=>void
     catch(e){ setMsg('⚠ '+errMsg(e)) } finally { setBusy('') }
   }
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack}><ChevronLeft className="h-4 w-4" /> Geri</Button>
-        <h2 className="truncate text-lg font-semibold tracking-tight">Run: {runId.slice(0,8)} <span className="hidden font-mono text-xs font-normal text-muted-foreground sm:inline">{runId}</span></h2>
-        {run && <Badge variant={runStatusVariant(run.status)}>{run.status}</Badge>}
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" className="rounded-xl gap-1.5" onClick={onBack}><ChevronLeft className="h-4 w-4" /> Geri</Button>
+        <h2 className="truncate text-lg font-bold tracking-tight flex items-center gap-2"><span className="h-7 w-7 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-sm"><FileSearch className="h-3.5 w-3.5" /></span> Run: {runId.slice(0,8)} <span className="hidden font-mono text-xs font-normal text-muted-foreground sm:inline bg-zinc-100 px-2 py-1 rounded-full dark:bg-white/10">{runId.slice(0,8)}…</span></h2>
+        {run && <Badge variant={runStatusVariant(run.status)} className="rounded-full">{run.status}</Badge>}
       </div>
 
       {run && (
-        <Card>
-          <CardContent className="space-y-3 p-4">
+        <Card className="overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-indigo-500/[0.02] pointer-events-none" />
+          <CardContent className="relative space-y-4 p-5">
             <Stepper status={run.status} />
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <Badge variant="outline" className="font-mono">{run.id.slice(0,8)}</Badge>
-              <span className="text-muted-foreground">iter {run.iteration}</span>
-              <span className="text-muted-foreground">token {run.token_used ?? 0}</span>
-              <span className="text-muted-foreground">cost ${run.cost_used ?? 0}</span>
-              <span className="text-muted-foreground">worker {run.worker_id?.slice(0,8) || '—'}</span>
-              {run.control_request && <Badge variant="secondary">kontrol: {run.control_request}</Badge>}
+              <Badge variant="outline" className="font-mono rounded-full bg-white dark:bg-white/5">{run.id.slice(0,8)}</Badge>
+              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-white/10">iter {run.iteration}</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-white/10">token {run.token_used ?? 0}</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-white/10">cost ${run.cost_used ?? 0}</span>
+              <span className="text-muted-foreground font-mono text-xs">worker {run.worker_id?.slice(0,8) || '—'}</span>
+              {run.control_request && <Badge variant="violet" className="rounded-full">kontrol: {run.control_request}</Badge>}
             </div>
-            {run.error && <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">⚠ {run.error}</div>}
+            {run.error && <div className="rounded-xl border border-red-200/50 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-300">⚠ {run.error}</div>}
             <div className="flex flex-wrap gap-2">
               {active && <>
-                <Button size="sm" variant="outline" disabled={!!busy} onClick={()=>control('pause')}>{busy==='pause'?'...':'⏸ Durdur'}</Button>
-                <Button size="sm" variant="outline" disabled={!!busy} onClick={()=>control('resume')}>{busy==='resume'?'...':'▶️ Sürdür'}</Button>
-                <Button size="sm" variant="destructive" disabled={!!busy} onClick={()=>control('stop')}>{busy==='stop'?'...':'⏹ Sonlandır'}</Button>
+                <Button size="sm" variant="outline" className="rounded-xl" disabled={!!busy} onClick={()=>control('pause')}>{busy==='pause'?'...':'⏸ Durdur'}</Button>
+                <Button size="sm" variant="outline" className="rounded-xl" disabled={!!busy} onClick={()=>control('resume')}>{busy==='resume'?'...':'▶️ Sürdür'}</Button>
+                <Button size="sm" variant="destructive" className="rounded-xl" disabled={!!busy} onClick={()=>control('stop')}>{busy==='stop'?'...':'⏹ Sonlandır'}</Button>
               </>}
-              {terminal && <Button size="sm" disabled={!!busy} onClick={retry}>{busy==='retry'?'...':'🔄 Tekrar çalıştır'}</Button>}
+              {terminal && <Button size="sm" className="rounded-xl" disabled={!!busy} onClick={retry}>{busy==='retry'?'...':'🔄 Tekrar çalıştır'}</Button>}
             </div>
           </CardContent>
         </Card>
       )}
-      {msg && <div className={'rounded-md border px-3 py-2 text-sm ' + (msg.startsWith('⚠') ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200')}>{msg}</div>}
+      {msg && <motion.div initial={{ opacity:0, y:4 }} animate={{ opacity:1, y:0 }} className={'rounded-xl border px-4 py-2.5 text-sm font-medium ' + (msg.startsWith('⚠') ? 'border-red-200/50 bg-red-50 text-red-700 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-300')}>{msg}</motion.div>}
 
-      {/* tabs */}
-      <div className="flex gap-1 rounded-lg border bg-muted p-1 text-sm">
+      {/* tabs premium */}
+      <div className="flex gap-1 rounded-2xl border bg-zinc-100/70 p-1.5 backdrop-blur-sm dark:bg-white/[0.04] dark:border-white/5">
         {(['overview','events','timeline'] as const).map(t=> (
-          <button key={t} onClick={()=>setTab(t)} className={'flex-1 rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors ' + (tab===t ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+          <button key={t} onClick={()=>setTab(t)} className={'flex-1 rounded-xl px-3 py-2 text-sm font-semibold capitalize transition-all duration-200 ' + (tab===t ? 'bg-white shadow-sm text-foreground ring-1 ring-black/5 dark:bg-white/10 dark:ring-white/5' : 'text-muted-foreground hover:text-foreground hover:bg-white/40 dark:hover:bg-white/[0.03]')}>
             {t==='overview' ? 'Genel' : t==='events' ? `Eventler (${evs?.length ?? 0})` : 'Timeline'}
           </button>
         ))}
       </div>
 
       <Card>
-        <CardContent className="p-4">
-          <div className="mb-3 flex gap-2">
+        <CardContent className="p-4 sm:p-5">
+          <div className="mb-4 flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="event tipi filtre" value={filter} onChange={e=>setFilter(e.target.value)} className="pl-8" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="event tipi filtre" value={filter} onChange={e=>setFilter(e.target.value)} className="pl-9 rounded-xl" />
             </div>
-            <Button variant="outline" size="sm" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+            <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
           </div>
 
           {tab==='overview' && (
             <div className="space-y-3">
-              {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !evs?.length ? <Empty msg="event yok"/> : (
-                <div className="space-y-2">
-                  <div className="text-xs text-muted-foreground">{evs.length} event</div>
+              {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !evs?.length ? <PremiumEmpty msg="event yok" icon={Inbox} /> : (
+                <div className="space-y-3">
+                  <div className="text-xs font-medium text-muted-foreground">{evs.length} event</div>
                   {evs.slice(0,5).map((e,i)=> (
-                    <div className="rounded-lg border p-3" key={i}>
-                      <div className="flex items-center gap-2"><Badge variant="secondary" className="text-[10px]">{e.event_type}</Badge> <span className="text-xs text-muted-foreground">seq {e.seq}</span> <span className="text-xs text-muted-foreground">{e.ts?.slice(0,19)}</span></div>
-                      {e.payload && <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted p-2 text-xs">{JSON.stringify(e.payload, null, 2).slice(0,1200)}</pre>}
-                    </div>
+                    <motion.div initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay: i*0.04 }} className="group rounded-2xl border bg-white/50 p-4 backdrop-blur-sm hover:bg-white hover:shadow-md transition-all dark:bg-white/[0.02] dark:hover:bg-white/[0.04]" key={i}>
+                      <div className="flex items-center gap-2"><Badge variant="violet" className="text-[10px] rounded-full">{e.event_type}</Badge> <span className="text-xs font-mono text-muted-foreground">seq {e.seq}</span> <span className="text-xs text-muted-foreground">{e.ts?.slice(0,19)}</span></div>
+                      {e.payload && <pre className="mt-3 max-h-40 overflow-auto rounded-xl bg-zinc-950 text-zinc-100 p-3 text-xs leading-relaxed font-mono dark:bg-black/40">{JSON.stringify(e.payload, null, 2).slice(0,1200)}</pre>}
+                    </motion.div>
                   ))}
-                  {evs.length>5 && <p className="text-center text-xs text-muted-foreground">… ve {evs.length-5} daha — Eventler sekmesine geç</p>}
+                  {evs.length>5 && <p className="text-center text-xs font-medium text-muted-foreground py-2">… ve {evs.length-5} daha — Eventler sekmesine geç</p>}
                 </div>
               )}
             </div>
           )}
 
           {tab==='events' && (
-            loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !evs?.length ? <Empty msg="event yok"/> : (
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">{evs.length} event</div>
+            loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !evs?.length ? <PremiumEmpty msg="event yok" /> : (
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-muted-foreground">{evs.length} event</div>
                 {evs.map((e,i)=> (
-                  <div className="rounded-lg border p-3" key={i}>
-                    <div className="flex items-center gap-2"><Badge variant="outline" className="text-[10px]">{e.event_type}</Badge> <Badge variant="secondary" className="text-[10px]">seq {e.seq}</Badge> <span className="text-xs text-muted-foreground">{e.ts?.slice(0,19)}</span></div>
-                    {e.payload && <pre className="mt-2 max-h-48 overflow-auto rounded bg-muted p-2 text-xs">{JSON.stringify(e.payload, null, 2).slice(0,2000)}</pre>}
-                  </div>
+                  <motion.div initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay: i*0.02 }} className="group rounded-2xl border bg-white/50 p-4 backdrop-blur-sm hover:bg-white hover:shadow-md transition-all dark:bg-white/[0.02] dark:hover:bg-white/[0.04]" key={i}>
+                    <div className="flex items-center gap-2"><Badge variant="outline" className="text-[10px] rounded-full bg-white dark:bg-white/5">{e.event_type}</Badge> <Badge variant="secondary" className="text-[10px] rounded-full">seq {e.seq}</Badge> <span className="text-xs text-muted-foreground font-mono">{e.ts?.slice(0,19)}</span></div>
+                    {e.payload && <pre className="mt-3 max-h-48 overflow-auto rounded-xl bg-zinc-950 text-zinc-100 p-3 text-xs leading-relaxed font-mono dark:bg-black/40">{JSON.stringify(e.payload, null, 2).slice(0,2000)}</pre>}
+                  </motion.div>
                 ))}
               </div>
             )
           )}
 
           {tab==='timeline' && (
-            loading ? <TableSkeleton/> : !evs?.length ? <Empty msg="event yok"/> : (
+            loading ? <TableSkeleton/> : !evs?.length ? <PremiumEmpty msg="event yok" /> : (
               <div className="relative pl-6">
-                <div className="absolute bottom-0 left-[9px] top-2 w-px bg-border" />
+                <div className="absolute bottom-0 left-[9px] top-2 w-px bg-gradient-to-b from-violet-200 via-zinc-200 to-transparent dark:from-violet-800/30 dark:via-white/10" />
                 <div className="space-y-4">
                   {evs.map((e,i)=> (
-                    <div key={i} className="relative">
-                      <span className="absolute -left-6 top-1 h-3 w-3 rounded-full border-2 border-background bg-primary shadow" />
-                      <div className="rounded-lg border bg-card p-3">
+                    <motion.div key={i} initial={{ opacity:0, x:-8 }} animate={{ opacity:1, x:0 }} transition={{ delay: i*0.03 }} className="relative">
+                      <span className="absolute -left-6 top-1 h-3 w-3 rounded-full border-2 border-background bg-gradient-to-br from-violet-600 to-indigo-600 shadow-sm ring-2 ring-violet-100 dark:ring-violet-900/30" />
+                      <div className="rounded-2xl border bg-white/60 p-4 backdrop-blur-sm hover:shadow-md hover:bg-white transition-all dark:bg-white/[0.03] dark:hover:bg-white/[0.05]">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold">{e.event_type}</span>
-                          <Badge variant="outline" className="text-[10px]">#{e.seq}</Badge>
-                          <span className="text-xs text-muted-foreground">{e.ts?.slice(0,19)}</span>
+                          <span className="text-sm font-bold tracking-tight">{e.event_type}</span>
+                          <Badge variant="outline" className="text-[10px] rounded-full bg-white dark:bg-white/5 font-mono">#{e.seq}</Badge>
+                          <span className="text-xs text-muted-foreground font-mono">{e.ts?.slice(0,19)}</span>
                         </div>
                         {e.payload && Object.keys(e.payload).length>0 && (
-                          <details className="mt-2"><summary className="cursor-pointer text-xs text-muted-foreground">payload</summary><pre className="mt-1 max-h-40 overflow-auto rounded bg-muted p-2 text-xs">{JSON.stringify(e.payload, null, 2).slice(0,1500)}</pre></details>
+                          <details className="mt-3"><summary className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground">payload</summary><pre className="mt-2 max-h-40 overflow-auto rounded-xl bg-zinc-950 text-zinc-100 p-3 text-xs font-mono leading-relaxed dark:bg-black/40">{JSON.stringify(e.payload, null, 2).slice(0,1500)}</pre></details>
                         )}
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               </div>
@@ -646,29 +725,31 @@ export function ApprovalsPage() {
     catch(e){ setErr2(errMsg(e)) } finally { setBusy('') }
   }
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight">🕐 Approvals</h1><Button variant="outline" size="sm" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button></div>
-      {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <Empty msg="onay yok"/> : data.map(a => (
-        <Card key={a.id}>
-          <CardContent className="p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2"><Badge variant={statusVariant(a.status)}>{a.status}</Badge><span className="font-medium">{a.action_class}</span><span className="text-muted-foreground">— {a.target.slice(0,80)}</span></div>
-                <div className="mt-1 text-sm text-muted-foreground">etki: {a.impact_summary}</div>
-                <div className="text-xs text-muted-foreground">expires: {a.expires_at?.slice(0,19) || '—'}</div>
+    <div className="space-y-5">
+      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-md"><Clock className="h-4 w-4" /></span> Approvals</h1><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button></div>
+      {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <PremiumEmpty title="Onay beklemiyor" msg="Şu anda bekleyen onay yok. Yeni işlemler burada görünecek." icon={Shield} /> : data.map((a, idx) => (
+        <motion.div key={a.id} initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay: idx*0.04 }}>
+        <Card className="group hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-200">
+          <CardContent className="p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2"><Badge variant={statusVariant(a.status)} className="rounded-full">{a.status}</Badge><span className="font-bold tracking-tight">{a.action_class}</span><span className="text-muted-foreground truncate">— {a.target.slice(0,80)}</span></div>
+                <div className="mt-1.5 text-sm text-muted-foreground leading-relaxed">etki: {a.impact_summary}</div>
+                <div className="text-xs font-mono text-muted-foreground mt-1">expires: {a.expires_at?.slice(0,19) || '—'}</div>
               </div>
               {a.status === 'PENDING' && (
                 <div className="flex gap-2">
-                  <Button size="sm" disabled={!!busy} onClick={() => decide(a.id, 'approve')}>{busy===a.id+'approve'?'...':'✅ Onayla'}</Button>
-                  <Button size="sm" variant="destructive" disabled={!!busy} onClick={() => decide(a.id, 'reject')}>{busy===a.id+'reject'?'...':'❌ Reddet'}</Button>
+                  <Button size="sm" className="rounded-xl" disabled={!!busy} onClick={() => decide(a.id, 'approve')}>{busy===a.id+'approve'?'...':'✅ Onayla'}</Button>
+                  <Button size="sm" variant="destructive" className="rounded-xl" disabled={!!busy} onClick={() => decide(a.id, 'reject')}>{busy===a.id+'reject'?'...':'❌ Reddet'}</Button>
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
+        </motion.div>
       ))}
-      {msg && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{msg}</div>}
-      {err2 && <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">⚠ {err2}</div>}
+      {msg && <motion.div initial={{ opacity:0, y:4 }} animate={{opacity:1,y:0}} className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-300">{msg}</motion.div>}
+      {err2 && <motion.div initial={{ opacity:0, y:4 }} animate={{opacity:1,y:0}} className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-300">⚠ {err2}</motion.div>}
     </div>
   )
 }
@@ -682,30 +763,32 @@ export function ContextPage({ initialRunId }: { initialRunId?:string }) {
   const { data, err, loading, reload } = useFetch<RunEvent[]>(path, [runId])
   const segments: Segment[] = (data||[]).flatMap((e)=> (e.payload?.segments as Segment[] | undefined ||[]).map((s)=> ({...s, _event:e.event_type, _seq:e.seq})))
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold tracking-tight">🧩 Context Inspector</h1>
+    <div className="space-y-5">
+      <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Puzzle className="h-4 w-4" /></span> Context Inspector</h1>
       <Card>
-        <CardContent className="flex flex-wrap gap-2 p-3">
-          {runs && <select value={runId} onChange={e=>setRunId(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm"><option value="">run seç…</option>{runs.map((r)=> <option key={r.id} value={r.id}>{r.id.slice(0,8)} · {r.status}</option>)}</select>}
-          <Input placeholder="run_id" value={runId} onChange={e => setRunId(e.target.value)} className="min-w-[260px] flex-1" />
-          <Button variant="outline" size="sm" onClick={reload} disabled={!runId}><RefreshCw className="h-4 w-4" /> Yükle</Button>
+        <CardContent className="flex flex-wrap gap-2 p-4">
+          {runs && <select value={runId} onChange={e=>setRunId(e.target.value)} className="h-10 rounded-xl border border-input bg-white/60 backdrop-blur-sm px-3 text-sm font-medium shadow-sm hover:border-violet-200 focus:border-violet-300 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all dark:bg-white/[0.04]"><option value="">run seç…</option>{runs.map((r)=> <option key={r.id} value={r.id}>{r.id.slice(0,8)} · {r.status}</option>)}</select>}
+          <Input placeholder="run_id" value={runId} onChange={e => setRunId(e.target.value)} className="min-w-[260px] flex-1 rounded-xl" />
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={reload} disabled={!runId}><RefreshCw className="h-4 w-4" /> Yükle</Button>
         </CardContent>
       </Card>
-      {!runId ? <Empty msg="run seçerek context segment metadata'sını gör."/> : loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !segments.length ? <Empty msg="bu run için segment yok (event payload'ında segments beklenir)."/> : (
+      {!runId ? <PremiumEmpty title="Run seç" msg="Run seçerek context segment metadata'sını görüntüle." icon={FileSearch} /> : loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !segments.length ? <PremiumEmpty msg="Bu run için segment yok (event payload'ında segments beklenir)." icon={Inbox} /> : (
         <div className="space-y-3">
-          <div className="text-xs text-muted-foreground">{segments.length} segment · {data?.length} event</div>
+          <div className="text-xs font-medium text-muted-foreground">{segments.length} segment · {data?.length} event</div>
           {segments.map((s, j) => (
-            <Card key={j} className="border-l-2 border-l-primary">
-              <CardContent className="p-3">
-                <div className="flex flex-wrap items-center gap-2"><Badge>{s.segment_type}</Badge><span className="text-xs text-muted-foreground">{s.token_count} tok · güv {s.confidence}</span><Badge variant="outline" className="text-[10px]">{s._event} #{s._seq}</Badge> {s.contains_untrusted_input && <Badge variant="destructive" className="text-[10px]">UNTRUSTED</Badge>}</div>
-                <div className="mt-1 text-xs text-muted-foreground">neden: {s.included_reason}</div>
-                {s.preview && <pre className="mt-2 max-h-32 overflow-auto rounded bg-muted p-2 text-xs">{String(s.preview).slice(0,800)}</pre>}
-                {s.content_preview && <pre className="mt-2 max-h-32 overflow-auto rounded bg-muted p-2 text-xs">{String(s.content_preview).slice(0,800)}</pre>}
+            <motion.div key={j} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay: j*0.04 }}>
+            <Card className="border-l-2 border-l-violet-500 hover:shadow-md hover:-translate-y-0.5 transition-all">
+              <CardContent className="p-4">
+                <div className="flex flex-wrap items-center gap-2"><Badge className="rounded-full">{s.segment_type}</Badge><span className="text-xs font-medium text-muted-foreground bg-zinc-100 px-2 py-1 rounded-full dark:bg-white/10">{s.token_count} tok · güv {s.confidence}</span><Badge variant="outline" className="text-[10px] rounded-full bg-white dark:bg-white/5 font-mono">{s._event} #{s._seq}</Badge> {s.contains_untrusted_input && <Badge variant="destructive" className="text-[10px] rounded-full">UNTRUSTED</Badge>}</div>
+                <div className="mt-2 text-xs font-medium text-muted-foreground">neden: {s.included_reason}</div>
+                {s.preview && <pre className="mt-3 max-h-32 overflow-auto rounded-xl bg-zinc-950 text-zinc-100 p-3 text-xs font-mono leading-relaxed dark:bg-black/40">{String(s.preview).slice(0,800)}</pre>}
+                {s.content_preview && <pre className="mt-3 max-h-32 overflow-auto rounded-xl bg-zinc-950 text-zinc-100 p-3 text-xs font-mono leading-relaxed dark:bg-black/40">{String(s.content_preview).slice(0,800)}</pre>}
               </CardContent>
             </Card>
+            </motion.div>
           ))}
-          <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm text-muted-foreground">Ham event&apos;ler ({data?.length})</summary>
-            <div className="mt-3 space-y-2">{data!.map((e,i)=>(<Card key={i}><CardContent className="p-3"><Badge variant="outline" className="text-[10px]">{e.event_type}</Badge><pre className="mt-2 max-h-40 overflow-auto rounded bg-muted p-2 text-xs">{JSON.stringify(e.payload||{}, null,2).slice(0,1500)}</pre></CardContent></Card>))}</div>
+          <details className="rounded-2xl border bg-white/40 p-4 backdrop-blur-sm dark:bg-white/[0.02]"><summary className="cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground">Ham event&apos;ler ({data?.length})</summary>
+            <div className="mt-4 space-y-2">{data!.map((e,i)=>(<Card key={i}><CardContent className="p-4"><Badge variant="outline" className="text-[10px] rounded-full">{e.event_type}</Badge><pre className="mt-3 max-h-40 overflow-auto rounded-xl bg-zinc-950 text-zinc-100 p-3 text-xs font-mono dark:bg-black/40">{JSON.stringify(e.payload||{}, null,2).slice(0,1500)}</pre></CardContent></Card>))}</div>
           </details>
         </div>
       )}
@@ -743,18 +826,19 @@ export function MemoryPage() {
     }catch(ex){ setMsg('⚠ '+errMsg(ex)) } finally { setCreating(false) }
   }
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold tracking-tight">🧠 Memory</h1>
-      <Card className="border-primary/30">
-        <CardHeader className="pb-3"><CardTitle className="text-sm">Yeni candidate oluştur</CardTitle><CardDescription>POST /v1/memory — yüksek güvenli (&gt;0.85) kayıtlar 2+ başarılı run sonrası otomatik onaylanır</CardDescription></CardHeader>
-        <CardContent>
+    <div className="space-y-5">
+      <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Brain className="h-4 w-4" /></span> Memory</h1>
+      <Card className="overflow-hidden border-violet-200/30 bg-gradient-to-br from-violet-50/40 via-white to-indigo-50/20 dark:from-violet-950/10 dark:via-zinc-900/20 dark:to-indigo-950/10">
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
+        <CardHeader className="relative pb-3"><CardTitle className="text-sm flex items-center gap-2">Yeni candidate oluştur <Badge variant="violet" className="text-[10px] rounded-full">POST /v1/memory</Badge></CardTitle><CardDescription>yüksek güvenli (&gt;0.85) kayıtlar 2+ başarılı run sonrası otomatik onaylanır</CardDescription></CardHeader>
+        <CardContent className="relative">
           <form onSubmit={createCandidate} className="flex flex-col gap-3">
-            <textarea placeholder="content (gerekli)" value={content} onChange={e=>setContent(e.target.value)} rows={3} className="min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+            <textarea placeholder="content (gerekli)" value={content} onChange={e=>setContent(e.target.value)} rows={3} className="min-h-[80px] w-full rounded-xl border border-input bg-white/60 backdrop-blur-sm px-3.5 py-3 text-sm placeholder:text-muted-foreground/60 hover:border-violet-200 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/20 transition-all dark:bg-white/[0.04] dark:hover:border-white/10" />
             <div className="flex flex-wrap gap-2">
-              <Input placeholder="source (opsiyonel)" value={source} onChange={e=>setSource(e.target.value)} className="min-w-[160px] flex-1" />
-              <Input placeholder="category (opsiyonel)" value={category} onChange={e=>setCategory(e.target.value)} className="min-w-[160px] flex-1" />
-              <Input type="number" min={0} max={1} step={0.1} value={confidence} onChange={e=>setConfidence(e.target.value)} className="w-[120px]" />
-              <Button type="submit" disabled={creating || !content.trim()}>{creating?'oluşturuluyor…':'＋ Oluştur'}</Button>
+              <Input placeholder="source (opsiyonel)" value={source} onChange={e=>setSource(e.target.value)} className="min-w-[160px] flex-1 rounded-xl" />
+              <Input placeholder="category (opsiyonel)" value={category} onChange={e=>setCategory(e.target.value)} className="min-w-[160px] flex-1 rounded-xl" />
+              <Input type="number" min={0} max={1} step={0.1} value={confidence} onChange={e=>setConfidence(e.target.value)} className="w-[120px] rounded-xl" />
+              <Button type="submit" className="rounded-xl" disabled={creating || !content.trim()}>{creating?'oluşturuluyor…':'＋ Oluştur'}</Button>
             </div>
           </form>
         </CardContent>
@@ -762,34 +846,36 @@ export function MemoryPage() {
 
       <Card>
         <CardContent className="flex flex-wrap gap-2 p-3">
-          <select value={status} onChange={e=>setStatus(e.target.value)} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+          <select value={status} onChange={e=>setStatus(e.target.value)} className="h-10 rounded-xl border border-input bg-white/60 backdrop-blur-sm px-3 text-sm font-medium shadow-sm hover:border-violet-200 focus:border-violet-300 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all dark:bg-white/[0.04]">
             <option value="candidate">candidate</option><option value="active">active</option><option value="rejected">rejected</option>
           </select>
           <div className="relative flex-1 min-w-[160px]">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="ara..." value={q} onChange={e=>setQ(e.target.value)} className="pl-8" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="ara..." value={q} onChange={e=>setQ(e.target.value)} className="pl-9 rounded-xl" />
           </div>
-          <Button variant="outline" size="sm" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
         </CardContent>
       </Card>
 
-      {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <Empty msg={`"${status}" için kayıt yok`}/> : data.map(m => (
-        <Card key={m.id}>
-          <CardContent className="space-y-2 p-4">
-            <p className="text-sm">{m.content}</p>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant={statusVariant(m.status)} className="text-[10px]">{m.status}</Badge>
-              <span>güv {m.confidence}</span><span>· {m.source} {m.category?`· ${m.category}`:''}</span>
-              {m.confidence>0.85 && <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300 text-[10px]">auto-promote aday</Badge>}
+      {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <PremiumEmpty msg={`"${status}" için kayıt yok`} title="Kayıt bulunamadı" /> : data.map((m, idx)=> (
+        <motion.div key={m.id} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay: idx*0.03 }}>
+        <Card className="group hover:shadow-md hover:-translate-y-0.5 transition-all">
+          <CardContent className="space-y-3 p-5">
+            <p className="text-sm leading-relaxed font-medium">{m.content}</p>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <Badge variant={statusVariant(m.status)} className="text-[10px] rounded-full">{m.status}</Badge>
+              <span className="bg-zinc-100 px-2.5 py-1 rounded-full font-medium dark:bg-white/10">güv {m.confidence}</span><span className="text-muted-foreground">· {m.source} {m.category?`· ${m.category}`:''}</span>
+              {m.confidence>0.85 && <Badge variant="success" className="border-emerald-200 text-[10px] rounded-full">auto-promote aday</Badge>}
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={!!busy} onClick={() => decide(m.id, 'approve')}>✅ Onayla</Button>
-              <Button size="sm" variant="destructive" disabled={!!busy} onClick={() => decide(m.id, 'reject')}>❌ Reddet</Button>
+              <Button size="sm" variant="outline" className="rounded-xl" disabled={!!busy} onClick={() => decide(m.id, 'approve')}>✅ Onayla</Button>
+              <Button size="sm" variant="destructive" className="rounded-xl" disabled={!!busy} onClick={() => decide(m.id, 'reject')}>❌ Reddet</Button>
             </div>
           </CardContent>
         </Card>
+        </motion.div>
       ))}
-      {msg && <div className={'rounded-md border px-3 py-2 text-sm ' + (msg.startsWith('⚠') ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200')}>{msg}</div>}
+      {msg && <motion.div initial={{ opacity:0, y:4 }} animate={{opacity:1,y:0}} className={'rounded-xl border px-4 py-3 text-sm font-medium ' + (msg.startsWith('⚠') ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-300')}>{msg}</motion.div>}
     </div>
   )
 }
@@ -798,15 +884,17 @@ export function MemoryPage() {
 export function SourcesPage() {
   const { data, err, loading, reload } = useFetch<SourceItem[]>('/v1/sources')
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight">📡 Sources</h1><Button variant="outline" size="sm" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button></div>
-      {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <Empty msg="kaynak yok. Teknolojik İlk Önce connector ile eklenir."/> : data.map(s => (
-        <Card key={s.id}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2"><span className="font-medium">{s.name}</span><Badge variant="outline" className="text-[10px]">{s.source_type}</Badge>{s.is_enabled ? <Badge className="bg-emerald-600 text-[10px]">aktif</Badge> : <Badge variant="secondary" className="text-[10px]">pasif</Badge>}</div>
-            <div className="text-xs text-muted-foreground">hata serisi: {s.error_series_len} {s.last_accessed_at?`· son: ${s.last_accessed_at.slice(0,19)}`:''}</div>
+    <div className="space-y-5">
+      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Radio className="h-4 w-4" /></span> Sources</h1><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button></div>
+      {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <PremiumEmpty msg="kaynak yok. Teknolojik İlk Önce connector ile eklenir." title="Kaynak bulunamadı" /> : data.map((s, idx)=> (
+        <motion.div key={s.id} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay: idx*0.04 }}>
+        <Card className="group hover:shadow-md hover:-translate-y-0.5 transition-all">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2.5"><span className="font-bold tracking-tight">{s.name}</span><Badge variant="outline" className="text-[10px] rounded-full bg-white dark:bg-white/5">{s.source_type}</Badge>{s.is_enabled ? <Badge variant="success" className="text-[10px] rounded-full">aktif</Badge> : <Badge variant="secondary" className="text-[10px] rounded-full">pasif</Badge>}</div>
+            <div className="text-xs font-medium text-muted-foreground mt-1.5">hata serisi: {s.error_series_len} {s.last_accessed_at?`· son: ${s.last_accessed_at.slice(0,19)}`:''}</div>
           </CardContent>
         </Card>
+        </motion.div>
       ))}
     </div>
   )
@@ -815,13 +903,13 @@ export function SourcesPage() {
 // ---------- Technocore ----------
 export function TechnocorePage() {
   const { data, err, loading, reload } = useFetch<{base_url:string, room_claim:string, registered:boolean}>('/v1/technocore')
-  if (loading) return <div className="space-y-4"><h1 className="text-xl font-bold tracking-tight">🛰️ Technocore</h1><TableSkeleton rows={2}/></div>
-  if (err) return <div className="space-y-4"><h1 className="text-xl font-bold tracking-tight">🛰️ Technocore</h1><Err msg={err} onRetry={reload}/></div>
+  if (loading) return <div className="space-y-5"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Satellite className="h-4 w-4" /></span> Technocore</h1><TableSkeleton rows={2}/></div>
+  if (err) return <div className="space-y-5"><h1 className="text-xl font-bold tracking-tight">🛰️ Technocore</h1><Err msg={err} onRetry={reload}/></div>
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold tracking-tight">🛰️ Technocore</h1>
-      {data && <Card><CardContent className="space-y-2 p-4"><div className="font-medium">{data.base_url || '—'}</div><div className="text-sm text-muted-foreground">Oda: {data.room_claim || '—'}</div><div className="flex items-center gap-2 text-sm">Kayıt: {data.registered ? <Badge className="bg-emerald-600">✓</Badge> : <Badge variant="secondary">henüz değil (Faz 7)</Badge>}</div></CardContent></Card>}
-      <Button variant="outline" size="sm" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+    <div className="space-y-5">
+      <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Satellite className="h-4 w-4" /></span> Technocore</h1>
+      {data && <Card className="overflow-hidden"><div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.04] to-indigo-500/[0.02] pointer-events-none" /><CardContent className="relative space-y-3 p-5"><div className="font-mono text-sm font-semibold">{data.base_url || '—'}</div><div className="text-sm text-muted-foreground">Oda: <span className="font-mono bg-zinc-100 px-2 py-1 rounded-full text-xs dark:bg-white/10">{data.room_claim || '—'}</span></div><div className="flex items-center gap-2 text-sm">Kayıt: {data.registered ? <Badge variant="success">✓ kayıtlı</Badge> : <Badge variant="secondary">henüz değil (Faz 7)</Badge>}</div></CardContent></Card>}
+      <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
     </div>
   )
 }
@@ -829,17 +917,17 @@ export function TechnocorePage() {
 // ---------- Telegram ----------
 export function TelegramPage() {
   const { data, err, loading, reload } = useFetch<{telegram_token_configured:boolean, telegram_allowed_user_ids_count:number, telegram_group_enabled:boolean}>('/v1/settings/non-secret')
-  if (loading) return <div className="space-y-4"><h1 className="text-xl font-bold tracking-tight">✈️ Telegram</h1><TableSkeleton rows={2}/></div>
-  if (err) return <div className="space-y-4"><h1 className="text-xl font-bold tracking-tight">✈️ Telegram</h1><Err msg={err} onRetry={reload}/></div>
+  if (loading) return <div className="space-y-5"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white shadow-md"><Send className="h-4 w-4" /></span> Telegram</h1><TableSkeleton rows={2}/></div>
+  if (err) return <div className="space-y-5"><h1 className="text-xl font-bold tracking-tight">✈️ Telegram</h1><Err msg={err} onRetry={reload}/></div>
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold tracking-tight">✈️ Telegram</h1>
-      {data && (<Card><CardContent className="space-y-2 p-4">
-        <div><Badge variant={data.telegram_token_configured ? 'default' : 'destructive'} className={data.telegram_token_configured ? 'bg-emerald-600' : ''}>{data.telegram_token_configured ? 'bot token ✓' : '⚠️ token yok'}</Badge></div>
-        <div className="text-sm">Allowlist kullanıcı: {data.telegram_allowed_user_ids_count}</div>
-        <div className="text-sm">Grup: {data.telegram_group_enabled ? 'açık' : 'kapalı'}</div>
+    <div className="space-y-5">
+      <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white shadow-md"><Send className="h-4 w-4" /></span> Telegram</h1>
+      {data && (<Card><CardContent className="space-y-3 p-5">
+        <div><Badge variant={data.telegram_token_configured ? 'success' : 'destructive'} className="rounded-full">{data.telegram_token_configured ? 'bot token ✓' : '⚠️ token yok'}</Badge></div>
+        <div className="text-sm">Allowlist kullanıcı: <span className="font-bold bg-zinc-100 px-2 py-1 rounded-full text-xs dark:bg-white/10">{data.telegram_allowed_user_ids_count}</span></div>
+        <div className="text-sm">Grup: <Badge variant={data.telegram_group_enabled ? 'success' : 'secondary'} className="rounded-full text-xs">{data.telegram_group_enabled ? 'açık' : 'kapalı'}</Badge></div>
       </CardContent></Card>)}
-      <Button variant="outline" size="sm" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+      <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
     </div>
   )
 }
@@ -847,22 +935,22 @@ export function TelegramPage() {
 // ---------- Settings ----------
 export function SettingsPage() {
   const { data, err, loading, reload } = useFetch<{app_env:string, llm_provider:string, llm_model:string, llm_base_url:string, llm_key_configured:boolean, run_max_iterations:number, run_max_wall_seconds:number}>('/v1/settings/non-secret')
-  if (loading) return <div className="space-y-4"><h1 className="text-xl font-bold tracking-tight">⚙️ Settings</h1><TableSkeleton rows={3}/></div>
-  if (err) return <div className="space-y-4"><h1 className="text-xl font-bold tracking-tight">⚙️ Settings</h1><Err msg={err} onRetry={reload}/></div>
+  if (loading) return <div className="space-y-5"><h1 className="text-xl font-bold tracking-tight">⚙️ Settings</h1><TableSkeleton rows={3}/></div>
+  if (err) return <div className="space-y-5"><h1 className="text-xl font-bold tracking-tight">⚙️ Settings</h1><Err msg={err} onRetry={reload}/></div>
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold tracking-tight">⚙️ Settings</h1>
-      {data && (<Card><CardContent className="space-y-1.5 p-4 text-sm">
-        <div>Ortam: <Badge variant="outline">{data.app_env}</Badge></div>
-        <div>Provider: <Badge variant="secondary">{data.llm_provider}</Badge></div>
-        <div>Model: {data.llm_model || '-'}</div>
-        <div>Base URL: {data.llm_base_url || '-'}</div>
-        <div>LLM key: <Badge variant={data.llm_key_configured ? 'default' : 'outline'} className={data.llm_key_configured ? 'bg-emerald-600' : ''}>{data.llm_key_configured ? '✓' : '✗'}</Badge></div>
-        <div>Max iterasyon: {data.run_max_iterations}</div>
-        <div>Max wall s: {data.run_max_wall_seconds}</div>
+    <div className="space-y-5">
+      <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-zinc-900 flex items-center justify-center text-white shadow-md dark:bg-white dark:text-zinc-900"><Settings className="h-4 w-4" /></span> Settings</h1>
+      {data && (<Card><CardContent className="space-y-2.5 p-5 text-sm">
+        <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Ortam</span> <Badge variant="outline" className="rounded-full font-mono">{data.app_env}</Badge></div>
+        <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Provider</span> <Badge variant="violet" className="rounded-full">{data.llm_provider}</Badge></div>
+        <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Model</span> <span className="font-mono text-xs bg-zinc-100 px-2 py-1 rounded-full dark:bg-white/10">{data.llm_model || '-'}</span></div>
+        <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Base URL</span> <span className="font-mono text-xs truncate max-w-[200px]">{data.llm_base_url || '-'}</span></div>
+        <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">LLM key</span> <Badge variant={data.llm_key_configured ? 'success' : 'outline'} className="rounded-full">{data.llm_key_configured ? '✓' : '✗'}</Badge></div>
+        <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Max iterasyon</span> <span className="font-bold">{data.run_max_iterations}</span></div>
+        <div className="flex items-center justify-between py-1.5"><span className="text-muted-foreground">Max wall s</span> <span className="font-bold">{data.run_max_wall_seconds}</span></div>
       </CardContent></Card>)}
-      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">Secret değerleri asla gösterilmez.</div>
-      <Button variant="outline" size="sm" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+      <div className="rounded-2xl border border-amber-200/50 bg-gradient-to-br from-amber-50 to-orange-50/40 px-4 py-3 text-sm font-medium text-amber-800 dark:border-amber-900/30 dark:from-amber-950/20 dark:to-orange-950/10 dark:text-amber-200">🔒 Secret değerleri asla gösterilmez.</div>
+      <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
     </div>
   )
 }
@@ -872,28 +960,31 @@ export function ReportsPage() {
   const { data, err, loading, reload } = useFetch<Report[]>('/v1/reports?limit=50')
   const [selected, setSelected] = useState<Report | null>(null)
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight">📄 Reports</h1><div className="flex gap-2"><Button variant="outline" size="sm" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>{selected && <Button variant="ghost" size="sm" onClick={()=>setSelected(null)}>← Listeye dön</Button>}<Badge variant="outline">{data ? `${data.length} rapor` : ''}</Badge></div></div>
+    <div className="space-y-5">
+      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><FileText className="h-4 w-4" /></span> Reports</h1><div className="flex gap-2"><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>{selected && <Button variant="ghost" size="sm" className="rounded-xl" onClick={()=>setSelected(null)}>← Listeye dön</Button>}<Badge variant="outline" className="rounded-full bg-white dark:bg-white/5">{data ? `${data.length} rapor` : ''}</Badge></div></div>
       {selected ? (
-        <Card className="border-primary/30">
-          <CardHeader><CardTitle className="flex items-center gap-2 text-base">{selected.subject || '(konu yok)'} <Badge>{selected.report_type}</Badge></CardTitle><CardDescription>id {selected.id} · {selected.created_at?.slice(0,19)} · güven {selected.confidence}</CardDescription></CardHeader>
-          <CardContent className="space-y-3">
-            <div><span className="text-sm font-semibold">Özet</span><p className="text-sm text-muted-foreground">{selected.summary || '—'}</p></div>
-            <div><span className="text-sm font-semibold">Body</span><pre className="mt-1 max-h-64 overflow-auto rounded bg-muted p-3 text-xs">{selected.body ? JSON.stringify(selected.body, null, 2) : (selected.summary || '—')}</pre></div>
-            <div className="text-xs text-muted-foreground">report_type: {selected.report_type} · subject: {selected.subject} · confidence: {selected.confidence}</div>
+        <Card className="overflow-hidden border-violet-200/30">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
+          <CardHeader className="relative"><CardTitle className="flex items-center gap-2 text-base">{selected.subject || '(konu yok)'} <Badge className="rounded-full">{selected.report_type}</Badge></CardTitle><CardDescription className="font-mono text-xs">id {selected.id} · {selected.created_at?.slice(0,19)} · güven {selected.confidence}</CardDescription></CardHeader>
+          <CardContent className="relative space-y-4">
+            <div><span className="text-sm font-bold tracking-tight">Özet</span><p className="text-sm leading-relaxed text-muted-foreground mt-1">{selected.summary || '—'}</p></div>
+            <div><span className="text-sm font-bold tracking-tight">Body</span><pre className="mt-2 max-h-64 overflow-auto rounded-xl bg-zinc-950 text-zinc-100 p-4 text-xs font-mono leading-relaxed dark:bg-black/50">{selected.body ? JSON.stringify(selected.body, null, 2) : (selected.summary || '—')}</pre></div>
+            <div className="text-xs font-mono text-muted-foreground">report_type: {selected.report_type} · subject: {selected.subject} · confidence: {selected.confidence}</div>
           </CardContent>
         </Card>
-      ) : loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <Empty msg="rapor yok."/> : (
-        <div className="space-y-2">
-          {data.map(r=> (
-            <Card key={r.id} className="cursor-pointer transition-colors hover:bg-accent/30" onClick={()=>setSelected(r)}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2"><Badge variant="outline" className="text-[10px]">{r.report_type}</Badge><span className="font-medium">{r.subject || '(konu yok)'}</span><Badge variant="secondary" className="text-[10px]">güven {r.confidence}</Badge></div>
-                <div className="text-xs text-muted-foreground">{r.id.slice(0,8)} · {r.created_at?.slice(0,19)}</div>
-                <div className="mt-1 line-clamp-2 text-sm text-muted-foreground">{r.summary?.slice(0,200) || '—'}</div>
-                <Button size="sm" variant="ghost" className="mt-2 h-7 text-xs" onClick={(e)=>{e.stopPropagation(); setSelected(r)}}>Detay</Button>
+      ) : loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <PremiumEmpty msg="rapor yok." icon={FileText} /> : (
+        <div className="space-y-3">
+          {data.map((r, idx)=> (
+            <motion.div key={r.id} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay: idx*0.02 }}>
+            <Card className="group cursor-pointer hover:shadow-md hover:-translate-y-0.5 hover:border-violet-200/40 transition-all" onClick={()=>setSelected(r)}>
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2"><Badge variant="outline" className="text-[10px] rounded-full bg-white dark:bg-white/5">{r.report_type}</Badge><span className="font-bold tracking-tight truncate">{r.subject || '(konu yok)'}</span><Badge variant="violet" className="text-[10px] rounded-full">güven {r.confidence}</Badge></div>
+                <div className="text-xs font-mono text-muted-foreground mt-1">{r.id.slice(0,8)} · {r.created_at?.slice(0,19)}</div>
+                <div className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">{r.summary?.slice(0,200) || '—'}</div>
+                <Button size="sm" variant="ghost" className="mt-3 h-7 rounded-full text-xs font-semibold group-hover:bg-violet-50 group-hover:text-violet-700 dark:group-hover:bg-violet-950/30" onClick={(e)=>{e.stopPropagation(); setSelected(r)}}>Detay <ChevronRight className="h-3 w-3" /></Button>
               </CardContent>
             </Card>
+            </motion.div>
           ))}
         </div>
       )}
@@ -906,30 +997,33 @@ export function AuditPage() {
   const { data, err, loading, reload } = useFetch<Report[]>('/v1/reports?limit=50')
   const [selected, setSelected] = useState<Report | null>(null)
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold tracking-tight">📜 Audit</h1>
+    <div className="space-y-5">
+      <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-zinc-900 flex items-center justify-center text-white shadow-md dark:bg-white dark:text-zinc-900"><ScrollText className="h-4 w-4" /></span> Audit</h1>
       <p className="text-sm text-muted-foreground">GET /api/v1/reports — raporlar append-only listesi.</p>
-      <div className="flex gap-2"><Button variant="outline" size="sm" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>{selected && <Button variant="ghost" size="sm" onClick={()=>setSelected(null)}>← Listeye dön</Button>}<Badge variant="outline">{data ? `${data.length} rapor` : ''}</Badge></div>
+      <div className="flex gap-2"><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>{selected && <Button variant="ghost" size="sm" className="rounded-xl" onClick={()=>setSelected(null)}>← Listeye dön</Button>}<Badge variant="outline" className="rounded-full bg-white dark:bg-white/5">{data ? `${data.length} rapor` : ''}</Badge></div>
       {selected ? (
-        <Card className="border-primary/30">
-          <CardHeader><CardTitle className="flex items-center gap-2 text-base">{selected.subject || '(konu yok)'} <Badge>{selected.report_type}</Badge></CardTitle><CardDescription>id {selected.id} · {selected.created_at?.slice(0,19)} · güven {selected.confidence}</CardDescription></CardHeader>
-          <CardContent className="space-y-3">
-            <div><span className="text-sm font-semibold">Özet</span><p className="text-sm text-muted-foreground">{selected.summary || '—'}</p></div>
-            <div><span className="text-sm font-semibold">Body</span><pre className="mt-1 max-h-64 overflow-auto rounded bg-muted p-3 text-xs">{selected.body ? JSON.stringify(selected.body, null, 2) : (selected.summary || '—')}</pre></div>
-            <div className="text-xs text-muted-foreground">report_type: {selected.report_type} · subject: {selected.subject} · confidence: {selected.confidence}</div>
+        <Card className="overflow-hidden border-violet-200/30">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
+          <CardHeader className="relative"><CardTitle className="flex items-center gap-2 text-base">{selected.subject || '(konu yok)'} <Badge className="rounded-full">{selected.report_type}</Badge></CardTitle><CardDescription className="font-mono text-xs">id {selected.id} · {selected.created_at?.slice(0,19)} · güven {selected.confidence}</CardDescription></CardHeader>
+          <CardContent className="relative space-y-4">
+            <div><span className="text-sm font-bold">Özet</span><p className="text-sm leading-relaxed text-muted-foreground mt-1">{selected.summary || '—'}</p></div>
+            <div><span className="text-sm font-bold">Body</span><pre className="mt-2 max-h-64 overflow-auto rounded-xl bg-zinc-950 text-zinc-100 p-4 text-xs font-mono leading-relaxed dark:bg-black/50">{selected.body ? JSON.stringify(selected.body, null, 2) : (selected.summary || '—')}</pre></div>
+            <div className="text-xs font-mono text-muted-foreground">report_type: {selected.report_type} · subject: {selected.subject} · confidence: {selected.confidence}</div>
           </CardContent>
         </Card>
-      ) : loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <Empty msg="rapor yok."/> : (
-        <div className="space-y-2">
-          {data.map(r=> (
-            <Card key={r.id} className="cursor-pointer transition-colors hover:bg-accent/30" onClick={()=>setSelected(r)}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2"><Badge variant="outline" className="text-[10px]">{r.report_type}</Badge><span className="font-medium">{r.subject || '(konu yok)'}</span><Badge variant="secondary" className="text-[10px]">güven {r.confidence}</Badge></div>
-                <div className="text-xs text-muted-foreground">{r.id.slice(0,8)} · {r.created_at?.slice(0,19)}</div>
-                <div className="mt-1 text-sm text-muted-foreground">{r.summary?.slice(0,200) || '—'}</div>
-                <Button size="sm" variant="ghost" className="mt-2 h-7 text-xs" onClick={(e)=>{e.stopPropagation(); setSelected(r)}}>Detay</Button>
+      ) : loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <PremiumEmpty msg="rapor yok." icon={ScrollText} /> : (
+        <div className="space-y-3">
+          {data.map((r, idx)=> (
+            <motion.div key={r.id} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay: idx*0.02 }}>
+            <Card className="group cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all" onClick={()=>setSelected(r)}>
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2"><Badge variant="outline" className="text-[10px] rounded-full bg-white dark:bg-white/5">{r.report_type}</Badge><span className="font-bold tracking-tight truncate">{r.subject || '(konu yok)'}</span><Badge variant="violet" className="text-[10px] rounded-full">güven {r.confidence}</Badge></div>
+                <div className="text-xs font-mono text-muted-foreground mt-1">{r.id.slice(0,8)} · {r.created_at?.slice(0,19)}</div>
+                <div className="mt-2 text-sm leading-relaxed text-muted-foreground">{r.summary?.slice(0,200) || '—'}</div>
+                <Button size="sm" variant="ghost" className="mt-3 h-7 rounded-full text-xs font-semibold group-hover:bg-zinc-100 dark:group-hover:bg-white/10" onClick={(e)=>{e.stopPropagation(); setSelected(r)}}>Detay <ChevronRight className="h-3 w-3" /></Button>
               </CardContent>
             </Card>
+            </motion.div>
           ))}
         </div>
       )}

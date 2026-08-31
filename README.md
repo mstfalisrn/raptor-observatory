@@ -4,6 +4,33 @@
 [![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/your-owner/raptor-observatory/releases)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 
+## 🚀 Tek Komut Kurulum
+
+> 60 saniyede çalışan stack — her yerde aynı 3 adım. Kopyala: `cp .env.example .env — hiçbir gerçek token yazma`
+
+Kopyala: cp .env.example .env — hiçbir gerçek token yazma
+gizli bilgi repo'da yok — ./scripts/secret-scan.sh ile doğrula
+
+```bash
+# 1) klonla
+git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
+
+# 2) env — kopyala; mock ile anahtar gerekmez, openai_compatible için LLM_API_KEY doldur
+cp .env.example .env  # içi CHANGE_ME — LLM_API_KEY gerekirse düzenle, mock works with no key
+
+# 3) tek komut (idempotent) — CHANGE_ME'leri otomatik üretir ve ayağa kaldırır
+./scripts/quickstart.sh
+# veya: docker compose up -d --build
+
+# → http://localhost:3525
+```
+
+- **İlk giriş:** `ADMIN_EMAIL` (varsayılan `your-email@example.com` / `admin@raptor` alias) + `.env` → `ADMIN_PASSWORD_HASH` — quickstart.sh ilk kurulumda parola üretip log'da gösterir; `ADMIN_PASSWORD_HASH` boşsa `.env`'den oku
+- **Önkoşullar:** Docker 24+, Docker Compose v2.20+, 4 GB RAM (8 GB önerilir), 10 GB disk, port `3525` boş
+- **Gizli bilgi repo'da yok — `./scripts/secret-scan.sh` ile doğrula** — hiçbir gerçek token commit edilmez; doğrulama: `./scripts/secret-scan.sh .`
+- **LLM:** `mock` (ücretsiz, anahtarsız) · `openai_compatible` → OpenAI / OpenRouter / Ollama — bkz. [CONFIGURATION.md](docs/CONFIGURATION.md) matris
+- **Sorun mu?** `docker compose logs -f` · `curl -s http://localhost:3525/health/ready | jq` · [INSTALL.md Troubleshooting](docs/INSTALL.md#troubleshooting)
+
 Hermes'ten bağımsız çalışan, Telegram + Web UI üzerinden yönlendirilen, izlenebilir
 agent runtime altyapısı. Gözlem (Technocore + açık kaynak) odaklı; bağlam denetlenebilir,
 her eylem politikadan, hafıza kontrollü, çıktı kanıtlanabilir.
@@ -39,29 +66,33 @@ Tüm container'lar non-root, read-only rootfs, cap_drop ALL. Host'ta tek bind `1
 
 ## Hızlı başlangıç
 
+> Her yerde aynı 3 adım — aynı komutlar. Kopyala: `cp .env.example .env — hiçbir gerçek token yazma`
+
+Kopyala: cp .env.example .env — hiçbir gerçek token yazma
+gizli bilgi repo'da yok — ./scripts/secret-scan.sh ile doğrula
+
 ### Public Quickstart (60 sn) — önerilen
 
 ```bash
+# 1) klonla
 git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
-cp .env.example .env  # içi CHANGE_ME — doldur
 
-# LLM: mock (ücretsiz, anahtar gerekmez) veya OpenAI-compatible anahtarı gir:
-#   LLM_PROVIDER=openai_compatible  LLM_BASE_URL=https://api.openai.com/v1  LLM_MODEL=gpt-4o-mini  LLM_API_KEY=sk-...
+# 2) env — kopyala; mock ile anahtar gerekmez, openai_compatible için LLM_API_KEY doldur
+cp .env.example .env  # içi CHANGE_ME — LLM_API_KEY gerekirse düzenle, mock works with no key
 
-# .env içinden en az şunları doldur:
-#   POSTGRES_PASSWORD, JWT_SECRET, SESSION_ENCRYPTION_MASTER_KEY, TELEGRAM_WEBHOOK_SECRET
-#   LLM_PROVIDER=mock  # hızlı deneme için anahtar gerekmez
-#   LLM_API_KEY=sk-... # openai_compatible için zorunlu
+# 3) tek komut (idempotent) — CHANGE_ME'leri otomatik üretir ve ayağa kaldırır
+./scripts/quickstart.sh
+# veya: docker compose up -d --build
 
-docker compose up -d --build
-./scripts/secret-scan.sh .                   # secret taraması
-
-pytest                                       # test
+# → http://localhost:3525
+# ilk giriş: ADMIN_EMAIL (your-email@example.com) + .env → ADMIN_PASSWORD_HASH (quickstart log'da parola gösterilir)
 ```
 
 Tarayıcıda aç: **http://localhost:3525** — prod tünel (opsiyonel): `https://raptor.your-domain.example`
 
 > `LLM_PROVIDER=mock` ile API anahtarı olmadan da otonom loop çalışır (ücretsiz test).
+> gizli bilgi repo'da yok — `./scripts/secret-scan.sh` ile doğrula — `./scripts/secret-scan.sh .`
+> Önkoşullar: Docker 24+, 4 GB RAM, 10 GB disk, port 3525 boş — detay: [docs/INSTALL.md](docs/INSTALL.md)
 
 ### Production (managed) — `./secrets` ile
 
