@@ -24,25 +24,48 @@ free -h && df -h .
 
 ## Quick Start
 
-Three commands from a clean clone to a running stack:
+### Option A — Interactive wizard (recommended)
+
+Step-by-step in your terminal — you choose every value. Nothing is auto-filled silently.
 
 ```bash
 # 1) Clone
 git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
 
-# 2) Environment — copy the example (all values are CHANGE_ME placeholders)
-cp .env.example .env
-# Edit .env only if you need a real LLM key (optional — mock works with no key)
-# nano .env
+# 2) Run the wizard — it walks you through each step:
+./scripts/setup.sh
+# Step 1/4 — Admin account: prompts for ADMIN_EMAIL and ADMIN_PASSWORD (hidden)
+# Step 2/4 — LLM Provider: 1) Mock (free, no key) 2) OpenAI 3) OpenRouter 4) Ollama
+#            -> prompts for API key / base URL / model based on your choice
+# Step 3/4 — Telegram (optional): prompts for bot token + allowed user IDs (leave empty to skip)
+# Step 4/4 — Security secrets: auto-generates JWT/DB/webhook secrets if still CHANGE_ME
+# Summary -> masked preview + "Apply and start? [Y/n]" -> docker compose up -d --build
+# -> http://localhost:3525
 
-# 3) Start — idempotent; generates secrets for any remaining CHANGE_ME values
-./scripts/quickstart.sh
+# Re-run anytime to fix a value — current values shown as [defaults], Enter keeps them
+./scripts/setup.sh --reconfigure
+
+# Non-interactive (CI) — no prompts, auto-generate CHANGE_ME and start
+./scripts/setup.sh --yes
+# Manual edit without wizard
+nano .env && docker compose up -d --build
+
+# Help
+./scripts/setup.sh --help
+```
+
+### Option B — One-command (legacy, non-interactive)
+
+```bash
+# Auto-generates any remaining CHANGE_ME and starts the stack
+cp .env.example .env          # optional — created if missing
+./scripts/quickstart.sh       # same as: ./scripts/setup.sh --yes
 # or: docker compose up -d --build
 
 # -> http://localhost:3525
 ```
 
-The quickstart script generates secure random values for any `CHANGE_ME` placeholders that remain, waits for Postgres and Redis to become healthy, runs database migrations, and starts the full stack.
+The wizard and quickstart both: create `.env` if missing, sync `DATABASE_URL` with `POSTGRES_PASSWORD`, run `docker compose up -d --build` (which waits for Postgres/Redis health and runs Alembic migrations), then verify with `./scripts/secret-scan.sh`.
 
 ## First Login
 
@@ -58,9 +81,12 @@ On first run, `quickstart.sh` generates a random admin password if `ADMIN_PASSWO
 -> Save: admin email=admin@example.com password=<generated>
 ```
 
-Save that password immediately. Subsequent restarts validate against the stored `ADMIN_PASSWORD_HASH`. If you missed the log, generate a new hash:
+Save that password immediately. Subsequent restarts validate against the stored `ADMIN_PASSWORD_HASH`. If you missed the log or want to change the password, either re-run the wizard or generate a new hash:
 
 ```bash
+./scripts/setup.sh --reconfigure   # wizard will prompt for new password (hidden)
+
+# or manual:
 python3 -c "
 import hashlib, os, getpass
 pw = getpass.getpass('New password: ')
@@ -73,7 +99,9 @@ print(f'pbkdf2_sha256\$240000\${salt.hex()}\${h}')
 Then set `ADMIN_PASSWORD_HASH` in `.env` and restart:
 
 ```bash
+nano .env          # paste the hash
 docker compose up -d --build
+# or: ./scripts/setup.sh --reconfigure
 ```
 
 Verify the stack is healthy:
@@ -145,11 +173,14 @@ All configuration is via `.env` (see `.env.example`). Values shown as `CHANGE_ME
 Useful commands:
 
 ```bash
+./scripts/setup.sh --reconfigure  # re-run wizard to fix any value (shows current as defaults)
+nano .env && docker compose up -d --build  # manual edit
 docker compose logs -f                # all services
 docker compose logs -f raptor-api     # API only
 docker compose ps                     # container status
 curl -s http://localhost:3525/health/ready | jq   # readiness
 ./scripts/secret-scan.sh .            # secret scan — must be clean
+./scripts/setup.sh --help             # wizard help
 ```
 
 ## Next Steps

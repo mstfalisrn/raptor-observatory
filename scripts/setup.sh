@@ -1,0 +1,367 @@
+#!/usr/bin/env bash
+# RAPTOR Agentic Observatory — interactive setup wizard
+# Usage:
+#   ./scripts/setup.sh              # interactive, step-by-step
+#   ./scripts/setup.sh --reconfigure # re-run to edit existing .env
+#   ./scripts/setup.sh --help
+#   ./scripts/setup.sh --yes        # non-interactive (CI) — keep CHANGE_ME auto-generation
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${ROOT}"
+
+# ---- args ----
+RECONFIGURE=false
+NONINTERACTIVE=false
+for arg in "$@"; do
+  case "$arg" in
+    --reconfigure) RECONFIGURE=true ;;
+    --yes|--non-interactive) NONINTERACTIVE=true ;;
+    --help|-h)
+      echo "RAPTOR interactive setup wizard"
+      echo ""
+      echo "Usage:"
+      echo "  ./scripts/setup.sh                # step-by-step wizard (recommended)"
+      echo "  ./scripts/setup.sh --reconfigure  # edit existing .env again"
+      echo "  ./scripts/setup.sh --yes          # non-interactive (CI) — auto-generate CHANGE_ME"
+      echo "  ./scripts/setup.sh --help"
+      echo ""
+      echo "What it does:"
+      echo "  1) Creates .env from .env.example if missing"
+      echo "  2) Walks you through: Admin -> LLM Provider -> Telegram -> Security secrets"
+      echo "  3) Writes .env, runs docker compose up -d --build, and verifies with secret-scan"
+      echo ""
+      echo "Re-run anytime to fix a value:"
+      echo "  ./scripts/setup.sh --reconfigure"
+      echo "  nano .env && docker compose up -d --build   # manual edit"
+      exit 0
+      ;;
+  esac
+done
+
+# If not a TTY, force non-interactive
+if [ ! -t 0 ] && [ "$NONINTERACTIVE" = false ]; then
+  NONINTERACTIVE=true
+fi
+
+# ---- colors (disable if not tty) ----
+if [ -t 1 ]; then
+  BOLD="\033[1m"; DIM="\033[2m"; GREEN="\033[32m"; CYAN="\033[36m"; YELLOW="\033[33m"; RED="\033[31m"; RESET="\033[0m"
+else
+  BOLD=""; DIM=""; GREEN=""; CYAN=""; YELLOW=""; RED=""; RESET=""
+fi
+
+banner() {
+  echo ""
+  echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
+  echo -e "${BOLD}  RAPTOR Agentic Observatory — Setup Wizard${RESET}"
+  echo -e "${DIM}  Step-by-step: you choose every value. Re-run anytime with --reconfigure.${RESET}"
+  echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
+  echo ""
+}
+
+# ---- helpers ----
+gen_hex() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32
+  elif [ -r /dev/urandom ]; then
+    head -c 32 /dev/urandom | od -A n -t x1 | tr -d ' \n'
+  else
+    echo "ERROR: no openssl or /dev/urandom" >&2; exit 1
+  fi
+}
+
+hash_password() {
+  local pw="$1"
+  python3 -c "
+import hashlib, os
+pw = '''${pw}'''.replace(\"'\", \"''\")  # not perfect but pw from read is safe
+import sys
+pw = sys.argv[1]
+salt = os.urandom(16)
+dk = hashlib.pbkdf2_hmac('sha256', pw.encode(), salt, 240000)
+print(f'pbkdf2_sha256\$240000\${salt.hex()}\${dk.hex()}')
+" "$pw"
+}
+
+get_env_val() {
+  local key="$1"
+  if [ -f .env ]; then
+    grep -E "^${key}=" .env 2>/dev/null | tail -n1 | cut -d= -f2- | sed 's/ #.*//' | tr -d '\r' | xargs 2>/dev/null || true
+  fi
+}
+
+set_env_val() {
+  local key="$1" val="$2"
+  # Use python for safe replacement (handles $ and special chars)
+  python3 - "$key" "$val" <<'PY'
+import pathlib, sys, re
+k, v = sys.argv[1], sys.argv[2]
+p = pathlib.Path(".env")
+t = p.read_text() if p.exists() else ""
+# escape $ for regex replacement? we build literal line
+new_line = f"{k}={v}"
+if re.search(rf'^{re.escape(k)}=.*$', t, flags=re.MULTILINE):
+    t = re.sub(rf'^{re.escape(k)}=.*$', new_line, t, flags=re.MULTILINE)
+else:
+    t = t.rstrip() + f"\n{new_line}\n"
+p.write_text(t)
+PY
+}
+
+mask() {
+  local v="$1"
+  if [ -z "$v" ] || [ "$v" = "CHANGE_ME" ]; then echo "CHANGE_ME"; return; fi
+  local len=${#v}
+  if [ "$len" -le 8 ]; then echo "***"; else echo "${v:0:4}****${v: -4}"; fi
+}
+
+ask() {
+  local prompt="$1" default="$2" varname="$3"
+  local answer
+  if [ "$NONINTERACTIVE" = true ]; then
+    printf -v "$varname" "%s" "$default"
+    return
+  fi
+  if [ -n "$default" ] && [ "$default" != "CHANGE_ME" ]; then
+    echo -ne "${CYAN}${prompt} ${DIM}[${default}]${RESET}: "
+  else
+    echo -ne "${CYAN}${prompt}${RESET}: "
+  fi
+  read -r answer || true
+  if [ -z "$answer" ]; then
+    answer="$default"
+  fi
+  printf -v "$varname" "%s" "$answer"
+}
+
+ask_secret() {
+  local prompt="$1" varname="$2"
+  local answer
+  if [ "$NONINTERACTIVE" = true ]; then
+    printf -v "$varname" "%s" ""
+    return
+  fi
+  echo -ne "${CYAN}${prompt} ${DIM}(hidden, leave empty to keep)${RESET}: "
+  read -rs answer || true
+  echo ""
+  printf -v "$varname" "%s" "$answer"
+}
+
+# ---- ensure .env ----
+if [ ! -f .env ]; then
+  if [ ! -f .env.example ]; then
+    echo -e "${RED}ERROR: .env.example not found${RESET}" >&2; exit 1
+  fi
+  cp .env.example .env
+  echo -e "${GREEN}✓ Created .env from .env.example${RESET}"
+else
+  if [ "$RECONFIGURE" = true ]; then
+    echo -e "${YELLOW}↻ Reconfiguring existing .env — current values shown as [defaults]. Press Enter to keep, or type a new value.${RESET}"
+  else
+    echo -e "${DIM}Found existing .env — will show current values as defaults. Use --reconfigure to edit explicitly.${RESET}"
+  fi
+fi
+
+if [ "$NONINTERACTIVE" = true ]; then
+  echo -e "${YELLOW}Non-interactive mode — will auto-generate any remaining CHANGE_ME and start the stack.${RESET}"
+  exec ./scripts/quickstart.sh
+fi
+
+banner
+
+# ---- Step 1: Admin ----
+echo -e "${BOLD}Step 1/4 — Admin account${RESET}  ${DIM}(used for Web UI login)${RESET}"
+CUR_EMAIL="$(get_env_val ADMIN_EMAIL)"
+[ -z "$CUR_EMAIL" ] || [ "$CUR_EMAIL" = "CHANGE_ME" ] && CUR_EMAIL="admin@example.com"
+ask "Admin email" "$CUR_EMAIL" IN_EMAIL
+set_env_val "ADMIN_EMAIL" "$IN_EMAIL"
+
+# Password: only if user provides one, otherwise keep existing hash
+CUR_HASH="$(get_env_val ADMIN_PASSWORD_HASH)"
+if [ -n "$CUR_HASH" ] && [ "$CUR_HASH" != "CHANGE_ME" ]; then
+  echo -e "${DIM}  Current ADMIN_PASSWORD_HASH is set (${CUR_HASH:0:20}...). Leave empty to keep it.${RESET}"
+fi
+ask_secret "Admin password" IN_PW
+if [ -n "$IN_PW" ]; then
+  if command -v python3 >/dev/null 2>&1; then
+    NEW_HASH="$(python3 -c "
+import hashlib, os, sys
+pw = sys.argv[1]
+salt = os.urandom(16)
+dk = hashlib.pbkdf2_hmac('sha256', pw.encode(), salt, 240000)
+print(f'pbkdf2_sha256\$240000\${salt.hex()}\${dk.hex()}')
+" "$IN_PW")"
+    set_env_val "ADMIN_PASSWORD_HASH" "$NEW_HASH"
+    echo -e "${GREEN}✓ Admin password hash updated${RESET}  ${DIM}(password: you just typed)${RESET}"
+  else
+    echo -e "${RED}python3 not found — cannot hash password${RESET}" >&2; exit 1
+  fi
+else
+  if [ -z "$CUR_HASH" ] || [ "$CUR_HASH" = "CHANGE_ME" ]; then
+    # generate random password and hash it
+    RAND_PW="$(openssl rand -hex 8 2>/dev/null || head -c 8 /dev/urandom | od -A n -t x1 | tr -d ' \n')"
+    NEW_HASH="$(python3 -c "
+import hashlib, os, sys
+pw = sys.argv[1]
+salt = os.urandom(16)
+dk = hashlib.pbkdf2_hmac('sha256', pw.encode(), salt, 240000)
+print(f'pbkdf2_sha256\$240000\${salt.hex()}\${dk.hex()}')
+" "$RAND_PW")"
+    set_env_val "ADMIN_PASSWORD_HASH" "$NEW_HASH"
+    echo -e "${GREEN}✓ Generated admin password:${RESET} ${BOLD}${RAND_PW}${RESET}  ${DIM}(email: ${IN_EMAIL} — save now, shown once)${RESET}"
+  else
+    echo -e "${DIM}  Keeping existing ADMIN_PASSWORD_HASH${RESET}"
+  fi
+fi
+echo ""
+
+# ---- Step 2: LLM Provider ----
+echo -e "${BOLD}Step 2/4 — LLM Provider${RESET}  ${DIM}(mock = free, no key; openai_compatible = OpenAI / OpenRouter / Ollama)${RESET}"
+CUR_PROVIDER="$(get_env_val LLM_PROVIDER)"; [ -z "$CUR_PROVIDER" ] && CUR_PROVIDER="mock"
+echo -e "  ${DIM}Current: ${CUR_PROVIDER}${RESET}"
+echo "  1) Mock (free, no API key) — full loop with fixtures"
+echo "  2) OpenAI (api.openai.com)"
+echo "  3) OpenRouter (openrouter.ai)"
+echo "  4) Ollama (local)"
+ask "Choose LLM [1-4]" "1" LLM_CHOICE
+case "$LLM_CHOICE" in
+  2)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://api.openai.com/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="gpt-4o-mini"
+    ask "Model" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "OpenAI API key (sk-...)" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — you can set LLM_API_KEY in .env later and re-run with --reconfigure${RESET}"; fi
+    ;;
+  3)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://openrouter.ai/api/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="openai/gpt-4o-mini"
+    ask "Model" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "OpenRouter API key (sk-or-...)" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
+    ;;
+  4)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    CUR_URL="$(get_env_val LLM_BASE_URL)"; [ -z "$CUR_URL" ] && CUR_URL="http://host.docker.internal:11434/v1"
+    ask "Ollama base URL" "$CUR_URL" IN_URL
+    set_env_val "LLM_BASE_URL" "$IN_URL"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="llama3.1"
+    ask "Model" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    set_env_val "LLM_API_KEY" "ollama"
+    echo -e "${DIM}  Note: run 'ollama serve && ollama pull ${IN_MODEL}' on host if needed.${RESET}"
+    ;;
+  *)
+    set_env_val "LLM_PROVIDER" "mock"
+    set_env_val "LLM_BASE_URL" "https://api.openai.com/v1"
+    set_env_val "LLM_MODEL" "gpt-4o-mini"
+    echo -e "${GREEN}✓ LLM set to mock (no key needed)${RESET}"
+    ;;
+esac
+echo ""
+
+# ---- Step 3: Telegram (optional) ----
+echo -e "${BOLD}Step 3/4 — Telegram (optional)${RESET}  ${DIM}(leave empty to skip)${RESET}"
+CUR_TOK="$(get_env_val TELEGRAM_BOT_TOKEN)"
+if [ -n "$CUR_TOK" ] && [ "$CUR_TOK" != "CHANGE_ME" ]; then
+  echo -e "${DIM}  Current bot token: $(mask "$CUR_TOK") — leave empty to keep, type 'clear' to disable${RESET}"
+fi
+ask "Telegram bot token (from @BotFather, e.g. 123456:ABC...)" "" IN_TOK
+if [ "$IN_TOK" = "clear" ]; then
+  set_env_val "TELEGRAM_BOT_TOKEN" "CHANGE_ME"
+  set_env_val "TELEGRAM_ALLOWED_USER_IDS" ""
+  echo -e "${YELLOW}  Telegram disabled${RESET}"
+elif [ -n "$IN_TOK" ]; then
+  set_env_val "TELEGRAM_BOT_TOKEN" "$IN_TOK"
+  CUR_IDS="$(get_env_val TELEGRAM_ALLOWED_USER_IDS)"
+  ask "Allowed user IDs (comma-separated, e.g. 12345678,87654321)" "$CUR_IDS" IN_IDS
+  set_env_val "TELEGRAM_ALLOWED_USER_IDS" "$IN_IDS"
+  echo -e "${GREEN}✓ Telegram configured${RESET}"
+else
+  if [ -z "$CUR_TOK" ] || [ "$CUR_TOK" = "CHANGE_ME" ]; then
+    echo -e "${DIM}  Skipped — Telegram disabled (set later via --reconfigure)${RESET}"
+  else
+    echo -e "${DIM}  Keeping existing Telegram token${RESET}"
+  fi
+fi
+echo ""
+
+# ---- Step 4: Security secrets (auto-generated, not prompted) ----
+echo -e "${BOLD}Step 4/4 — Security secrets${RESET}  ${DIM}(auto-generated if still CHANGE_ME)${RESET}"
+for var in JWT_SECRET SESSION_ENCRYPTION_MASTER_KEY TELEGRAM_WEBHOOK_SECRET POSTGRES_PASSWORD; do
+  cur="$(get_env_val "$var")"
+  if [ -z "$cur" ] || [ "$cur" = "CHANGE_ME" ]; then
+    val="$(gen_hex)"
+    set_env_val "$var" "$val"
+    echo -e "${GREEN}✓ Generated ${var}${RESET}"
+  else
+    echo -e "${DIM}  ${var} already set — kept${RESET}"
+  fi
+done
+# Sync DATABASE_URL with POSTGRES_PASSWORD if it still has CHANGE_ME
+if grep -q "DATABASE_URL=.*CHANGE_ME" .env 2>/dev/null; then
+  _pw="$(get_env_val POSTGRES_PASSWORD)"
+  if [ -n "$_pw" ] && [ "$_pw" != "CHANGE_ME" ]; then
+    # replace CHANGE_ME in DATABASE_URL — use plain replace to avoid regex group reference issues when pw starts with digit
+    python3 - "$_pw" <<'PY'
+import pathlib, sys
+pw=sys.argv[1]
+p=pathlib.Path(".env")
+t=p.read_text()
+# Only touch DATABASE_URL line, preserve other CHANGE_ME (e.g. LLM_API_KEY)
+lines=[]
+for line in t.splitlines():
+    if line.startswith("DATABASE_URL=") and "CHANGE_ME" in line:
+        line=line.replace("CHANGE_ME", pw)
+    lines.append(line)
+p.write_text("\n".join(lines)+"\n")
+PY
+    echo -e "${GREEN}✓ Synced DATABASE_URL with POSTGRES_PASSWORD${RESET}"
+  fi
+fi
+echo ""
+
+# ---- Summary ----
+echo -e "${BOLD}Summary — will be written to .env:${RESET}"
+echo -e "  ADMIN_EMAIL=${GREEN}$(get_env_val ADMIN_EMAIL)${RESET}"
+echo -e "  LLM_PROVIDER=$(get_env_val LLM_PROVIDER)  LLM_MODEL=$(get_env_val LLM_MODEL)  LLM_BASE_URL=$(get_env_val LLM_BASE_URL)"
+echo -e "  LLM_API_KEY=$(mask "$(get_env_val LLM_API_KEY)")"
+echo -e "  TELEGRAM_BOT_TOKEN=$(mask "$(get_env_val TELEGRAM_BOT_TOKEN)")  ALLOWED_IDS=$(get_env_val TELEGRAM_ALLOWED_USER_IDS)"
+echo -e "  JWT_SECRET=$(mask "$(get_env_val JWT_SECRET)")  POSTGRES_PASSWORD=$(mask "$(get_env_val POSTGRES_PASSWORD)")"
+echo ""
+if [ "$RECONFIGURE" = false ]; then
+  echo -e "${DIM}Tip: re-run to fix any value:  ./scripts/setup.sh --reconfigure${RESET}"
+  echo -e "${DIM}     or edit manually:       nano .env && docker compose up -d --build${RESET}"
+fi
+echo ""
+echo -ne "${BOLD}Apply and start the stack now? [Y/n]: ${RESET}"
+read -r CONFIRM || true
+CONFIRM="${CONFIRM:-Y}"
+if [[ "$CONFIRM" =~ ^[nN] ]]; then
+  echo -e "${YELLOW}Aborted — .env was updated but stack not started. Run: docker compose up -d --build${RESET}"
+  exit 0
+fi
+
+echo ""
+echo -e "${CYAN}→ docker compose up -d --build${RESET}"
+docker compose up -d --build
+
+if [ -x ./scripts/secret-scan.sh ]; then
+  echo ""
+  ./scripts/secret-scan.sh . || true
+fi
+
+FINAL_EMAIL="$(get_env_val ADMIN_EMAIL)"
+echo ""
+echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
+echo -e "${GREEN}✅ RAPTOR ready!${RESET}"
+echo -e "  ${BOLD}http://localhost:3525${RESET}  admin: ${GREEN}${FINAL_EMAIL}${RESET}  ${DIM}(password: you set in Step 1)${RESET}"
+echo -e "  Logs:   ${CYAN}docker compose logs -f${RESET}"
+echo -e "  Health: ${CYAN}curl -s http://localhost:3525/health/ready | jq${RESET}"
+echo -e "  Fix:    ${CYAN}./scripts/setup.sh --reconfigure${RESET}  ${DIM}or  nano .env && docker compose up -d --build${RESET}"
+echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"

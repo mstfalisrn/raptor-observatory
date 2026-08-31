@@ -84,26 +84,48 @@ All runtime containers run as non-root, read-only filesystem, `cap_drop: ALL`, `
 
 **Prerequisites:** Docker Engine 24+, Compose v2.20+, 4 GB RAM (8 GB recommended), 10 GB disk, port `3525` free. See [docs/INSTALL.md](./docs/INSTALL.md) for details.
 
+### Option A — Interactive wizard (recommended)
+
+Step-by-step in your terminal — you choose every value. Nothing is auto-filled behind your back.
+
 ```bash
 # 1) Clone
 git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
 
-# 2) Environment -- copy the example (placeholders only, never commit real secrets)
-cp .env.example .env
-# Edit .env only if you use an external LLM provider (see Configuration below).
-# With LLM_PROVIDER=mock the stack runs with no API key.
+# 2) Run the wizard — walks you through Admin -> LLM -> Telegram -> Security
+./scripts/setup.sh
+# The wizard: asks for Admin email/password, lets you pick LLM (Mock/OpenAI/OpenRouter/Ollama
+# and prompts for the matching API key/URL/model), asks for Telegram token (optional),
+# auto-generates JWT/DB secrets if still CHANGE_ME, shows a masked summary, then starts the stack.
+# -> http://localhost:3525
 
-# 3) Start -- generates secrets if CHANGE_ME remains, runs migrations, builds and starts the stack
-./scripts/quickstart.sh
+# Fix a value later — re-run the wizard (shows current values as defaults)
+./scripts/setup.sh --reconfigure
+
+# Or edit manually
+nano .env && docker compose up -d --build
+```
+
+### Option B — One-command (non-interactive, CI)
+
+Auto-generates any remaining `CHANGE_ME` placeholders and starts the stack without prompts:
+
+```bash
+git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
+cp .env.example .env          # optional — quickstart.sh creates it if missing
+./scripts/quickstart.sh       # legacy alias; same as: ./scripts/setup.sh --yes
 # Alternative: docker compose up -d --build
 ```
 
 Open **http://localhost:3525**
 
-- First login: `ADMIN_EMAIL` (default `admin@example.com`) + password derived from `ADMIN_PASSWORD_HASH` in `.env`. On first run, `quickstart.sh` generates a random password if the hash is still `CHANGE_ME` and prints it once to the log -- save it.
+- First login: `ADMIN_EMAIL` (default `admin@example.com`) + password you set in the wizard (Step 1). If you used `quickstart.sh`/`--yes`, it generated a random password and printed it once — save it.
 - Verify: `curl -s http://localhost:3525/health/ready | jq` should return `{"status":"ready"}`.
 - Logs: `docker compose logs -f`
+- Fix: `./scripts/setup.sh --reconfigure` or `nano .env && docker compose up -d --build`
 - Secret hygiene: `./scripts/secret-scan.sh .` must be clean -- real secrets live outside the repo.
+
+All terminal commands are documented in [docs/INSTALL.md](./docs/INSTALL.md) (Prerequisites, Quick Start, First Login, LLM matrix, Telegram, Troubleshooting).
 
 ---
 

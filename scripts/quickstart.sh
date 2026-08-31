@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# RAPTOR Agentic Observatory — one-command quickstart
+# RAPTOR Agentic Observatory — one-command quickstart (legacy, non-interactive)
 # Usage: ./scripts/quickstart.sh  (run from repo root or via path)
 # Idempotent: existing .env is preserved; only CHANGE_ME placeholders are replaced.
+# Note: for step-by-step choice, use ./scripts/setup.sh (interactive wizard)
+#       Re-run wizard anytime: ./scripts/setup.sh --reconfigure
 set -euo pipefail
 
 # Resolve repo root (script is at <root>/scripts/quickstart.sh)
