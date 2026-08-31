@@ -39,13 +39,41 @@ Tüm container'lar non-root, read-only rootfs, cap_drop ALL. Host'ta tek bind `1
 
 ## Hızlı başlangıç
 
+### Public Quickstart (60 sn) — önerilen
+
+```bash
+git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
+cp .env.example .env  # içi CHANGE_ME — doldur
+
+# LLM: mock (ücretsiz, anahtar gerekmez) veya OpenAI-compatible anahtarı gir:
+#   LLM_PROVIDER=openai_compatible  LLM_BASE_URL=https://api.openai.com/v1  LLM_MODEL=gpt-4o-mini  LLM_API_KEY=sk-...
+
+# .env içinden en az şunları doldur:
+#   POSTGRES_PASSWORD, JWT_SECRET, SESSION_ENCRYPTION_MASTER_KEY, TELEGRAM_WEBHOOK_SECRET
+#   LLM_PROVIDER=mock  # hızlı deneme için anahtar gerekmez
+#   LLM_API_KEY=sk-... # openai_compatible için zorunlu
+
+docker compose up -d --build
+./scripts/secret-scan.sh .                   # secret taraması
+
+pytest                                       # test
+```
+
+Tarayıcıda aç: **http://localhost:3525** — prod tünel (opsiyonel): `https://raptor.your-domain.example`
+
+> `LLM_PROVIDER=mock` ile API anahtarı olmadan da otonom loop çalışır (ücretsiz test).
+
+### Production (managed) — `./secrets` ile
+
+Sunucuda Hermes-managed kurulum için secret'lar `./secrets/raptor-observatory/app.env` içinde tutulur:
+
 ```bash
 # 1) secret'lar (root-only)
 ./scripts/configure-secrets.sh --gen        # otomatik üret
 ./scripts/configure-secrets.sh              # interaktif (TG bot + LLM key)
 
 # 2) compose env
-cp .env.example .env                         # üretimde değerleri secret'tan aktar
+cp .env.example .env                         # üretimde değerleri ./secrets/raptor-observatory/app.env dosyasından aktar
 # POSTGRES_PASSWORD, JWT_SECRET, SESSION_ENCRYPTION_MASTER_KEY, TELEGRAM_WEBHOOK_SECRET ...
 
 # 3) stack
@@ -55,6 +83,48 @@ docker compose up -d --build
 # 4) test
 pytest
 ```
+
+## AI API Bağlama (LLM Provider)
+
+Tek env seti — `mock` veya herhangi bir OpenAI-compatible sağlayıcı:
+
+| Alan | Env Değişkeni | Açıklama |
+|---|---|---|
+| Provider | `LLM_PROVIDER` | `mock` (ücretsiz / test) veya `openai_compatible` |
+| Base URL | `LLM_BASE_URL` | OpenAI-compatible endpoint |
+| Model | `LLM_MODEL` | Kullanılacak model adı |
+| API Key | `LLM_API_KEY` | Sağlayıcı API anahtarı (`mock` için `CHANGE_ME` kalabilir) |
+
+### Örnekler
+
+| Sağlayıcı | `LLM_PROVIDER` | `LLM_BASE_URL` | `LLM_MODEL` | `LLM_API_KEY` |
+|---|---|---|---|---|
+| **Mock (ücretsiz)** | `mock` | `https://api.openai.com/v1` | `gpt-4o-mini` | `CHANGE_ME` |
+| **OpenAI** | `openai_compatible` | `https://api.openai.com/v1` | `gpt-4o-mini` | `sk-...` |
+| **OpenRouter** | `openai_compatible` | `https://openrouter.ai/api/v1` | `openai/gpt-4o-mini` | `sk-or-...` |
+| **Ollama (local)** | `openai_compatible` | `http://localhost:11434/v1` | `llama3.1` | `ollama` veya `CHANGE_ME` |
+
+```bash
+# .env — OpenAI örneği
+LLM_PROVIDER=openai_compatible
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-4o-mini
+LLM_API_KEY=sk-...
+
+# .env — OpenRouter örneği
+LLM_PROVIDER=openai_compatible
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL=openai/gpt-4o-mini
+LLM_API_KEY=sk-or-...
+
+# .env — Ollama (yerel) örneği
+LLM_PROVIDER=openai_compatible
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_MODEL=llama3.1
+LLM_API_KEY=ollama
+```
+
+> Bağlantıyı test et: `curl -s http://localhost:3525/health/ready | jq` ve UI → Settings → LLM Test (`POST /api/v1/settings/llm/test`).
 
 ## Yönetim
 
