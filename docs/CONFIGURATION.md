@@ -29,7 +29,7 @@ cp .env.example .env
 
 ## LLM Provider Matrix
 
-RAPTOR speaks the **OpenAI Chat Completions API** (`POST {base_url}/chat/completions` + `Bearer` key). Every provider below maps to `LLM_PROVIDER=openai_compatible` with a different `LLM_BASE_URL` (except `mock` which needs no key). The wizard offers 14 presets; `Custom` accepts any other OpenAI-compatible URL.
+RAPTOR speaks the **OpenAI Chat Completions API** (`POST {base_url}/chat/completions` + `Bearer` key). Every provider below maps to `LLM_PROVIDER=openai_compatible` with a different `LLM_BASE_URL` (except `mock` which needs no key). The wizard offers 18 presets (checkbox menu via whiptail radiolist — incl. OpenCode Free/Go/Zen); `Custom` accepts any other OpenAI-compatible URL.
 
 ### Common presets (14 wizard options + Custom)
 

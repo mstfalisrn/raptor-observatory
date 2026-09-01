@@ -220,26 +220,89 @@ echo ""
 # ---- Step 2: LLM Provider ----
 # Covers the full Hermes provider ecosystem via OpenAI-compatible presets.
 # See docs/CONFIGURATION.md for the complete 40+ provider mapping.
-echo -e "${BOLD}Step 2/4 — LLM Provider${RESET}  ${DIM}(14 presets + Custom; all OpenAI-compatible; mock = free)${RESET}"
+echo -e "${BOLD}Step 2/4 — LLM Provider${RESET}  ${DIM}(18 presets incl. OpenCode Free/Go/Zen + Custom; all OpenAI-compatible; mock = free)${RESET}"
 CUR_PROVIDER="$(get_env_val LLM_PROVIDER)"; [ -z "$CUR_PROVIDER" ] && CUR_PROVIDER="mock"
 CUR_BASE="$(get_env_val LLM_BASE_URL)"; CUR_MODEL_DISP="$(get_env_val LLM_MODEL)"
 echo -e "  ${DIM}Current: provider=${CUR_PROVIDER}  base=${CUR_BASE:- -}  model=${CUR_MODEL_DISP:- -}${RESET}"
-echo "  1) Mock (free, no API key) — fixtures, no network"
-echo "  2) OpenAI (api.openai.com) — gpt-4o-mini, gpt-4o"
-echo "  3) OpenRouter (openrouter.ai) — 300+ models aggregator"
-echo "  4) DeepSeek (api.deepseek.com) — deepseek-chat / deepseek-reasoner"
-echo "  5) xAI Grok (api.x.ai) — grok-3-mini, grok-4"
-echo "  6) Google Gemini (generativelanguage.googleapis.com) — gemini-2.0-flash"
-echo "  7) Alibaba Qwen / DashScope — qwen-plus, qwen-max"
-echo "  8) MiniMax (api.minimax.chat) — MiniMax-M2, MiniMax-Text-01"
-echo "  9) Kimi / Moonshot (api.moonshot.cn) — moonshot-v1-8k/32k"
-echo " 10) Fireworks AI (api.fireworks.ai) — Llama, Mixtral, etc."
-echo " 11) Hugging Face Inference (router.huggingface.co)"
-echo " 12) Ollama (local) — http://host.docker.internal:11434/v1"
-echo " 13) LM Studio (local) — http://host.docker.internal:1234/v1"
-echo " 14) vLLM / SGLang / llama.cpp (self-hosted) — :8000/v1"
-echo " 15) Custom — enter any OpenAI-compatible base URL"
-ask "Choose LLM [1-15]" "1" LLM_CHOICE
+
+# Checkbox-style selector: whiptail radiolist (SPACE to select, ENTER to confirm)
+# Falls back to numeric input if whiptail not available or not a TTY.
+choose_llm_with_checkbox() {
+  local _cur="$1" _out
+  # map current provider+base to preset number for pre-selection
+  local _def="1"
+  case "${CUR_PROVIDER}:${CUR_BASE}" in
+    mock:*) _def="1" ;;
+    *:api.openai.com/v1) _def="2" ;;
+    *:openrouter.ai*) _def="3" ;;
+    *:api.deepseek.com*) _def="4" ;;
+    *:api.x.ai*) _def="5" ;;
+    *:generativelanguage.googleapis.com*) _def="6" ;;
+    *:dashscope*.aliyuncs.com*) _def="7" ;;
+    *:api.minimax.chat*) _def="8" ;;
+    *:api.moonshot.cn*) _def="9" ;;
+    *:api.fireworks.ai*) _def="10" ;;
+    *:router.huggingface.co*|*:huggingface.co*) _def="11" ;;
+    *:11434/v1) _def="12" ;;
+    *:1234/v1) _def="13" ;;
+    *:8000/v1) _def="14" ;;
+    *:opencode.ai*free*|*:opencode-free*) _def="15" ;;
+    *:opencode.ai*go*|*:opencode-go*) _def="16" ;;
+    *:opencode.ai*zen*|*:opencode-zen*) _def="17" ;;
+  esac
+  _is_on() { [ "$_def" = "$1" ] && echo ON || echo OFF; }
+  if command -v whiptail >/dev/null 2>&1 && [ -t 0 ] && [ -t 1 ]; then
+    _out=$(whiptail --title "RAPTOR — LLM Provider" --radiolist "↑↓ to move  SPACE to select  ENTER to confirm" 22 78 11 \
+      "1"  "Mock (free, no key) — fixtures" "$(_is_on 1)" \
+      "2"  "OpenAI (api.openai.com)" "$(_is_on 2)" \
+      "3"  "OpenRouter (300+ models)" "$(_is_on 3)" \
+      "4"  "DeepSeek (api.deepseek.com)" "$(_is_on 4)" \
+      "5"  "xAI Grok (api.x.ai)" "$(_is_on 5)" \
+      "6"  "Google Gemini (generativelanguage)" "$(_is_on 6)" \
+      "7"  "Alibaba Qwen / DashScope" "$(_is_on 7)" \
+      "8"  "MiniMax (api.minimax.chat)" "$(_is_on 8)" \
+      "9"  "Kimi / Moonshot (api.moonshot.cn)" "$(_is_on 9)" \
+      "10"  "Fireworks AI (api.fireworks.ai)" "$(_is_on 10)" \
+      "11"  "Hugging Face (router.huggingface.co)" "$(_is_on 11)" \
+      "12"  "Ollama (local :11434/v1)" "$(_is_on 12)" \
+      "13"  "LM Studio (local :1234/v1)" "$(_is_on 13)" \
+      "14"  "vLLM / SGLang / llama.cpp (:8000/v1)" "$(_is_on 14)" \
+      "15"  "OpenCode Free (keyless, opencode.ai)" "$(_is_on 15)" \
+      "16"  "OpenCode Go (opencode.ai/zen/go)" "$(_is_on 16)" \
+      "17"  "OpenCode Zen (opencode.ai/zen)" "$(_is_on 17)" \
+      "18"  "Custom — any OpenAI-compatible URL" "$(_is_on 18)" \
+      3>&1 1>&2 2>&3) || _out=""
+    # whiptail returns with quotes, strip
+    _out=$(echo "$_out" | tr -d '"')
+    # pre-select default if user didn't change? whiptail needs default ON, we set via sed trick: if empty, use _def
+    if [ -z "$_out" ]; then _out="$_def"; fi
+    # map empty cancel to default
+    echo "$_out"
+  else
+    echo "  1) Mock (free, no API key) — fixtures, no network"
+    echo "  2) OpenAI (api.openai.com) — gpt-4o-mini, gpt-4o"
+    echo "  3) OpenRouter (openrouter.ai) — 300+ models aggregator"
+    echo "  4) DeepSeek (api.deepseek.com) — deepseek-chat / deepseek-reasoner"
+    echo "  5) xAI Grok (api.x.ai) — grok-3-mini, grok-4"
+    echo "  6) Google Gemini (generativelanguage.googleapis.com) — gemini-2.0-flash"
+    echo "  7) Alibaba Qwen / DashScope — qwen-plus, qwen-max"
+    echo "  8) MiniMax (api.minimax.chat) — MiniMax-M2, MiniMax-Text-01"
+    echo "  9) Kimi / Moonshot (api.moonshot.cn) — moonshot-v1-8k/32k"
+    echo " 10) Fireworks AI (api.fireworks.ai) — Llama, Mixtral, etc."
+    echo " 11) Hugging Face Inference (router.huggingface.co)"
+    echo " 12) Ollama (local) — http://host.docker.internal:11434/v1"
+    echo " 13) LM Studio (local) — http://host.docker.internal:1234/v1"
+    echo " 14) vLLM / SGLang / llama.cpp (self-hosted) — :8000/v1"
+    echo " 15) OpenCode Free (keyless) — opencode.ai free tier"
+    echo " 16) OpenCode Go (opencode.ai/zen/go) — go plan"
+    echo " 17) OpenCode Zen (opencode.ai/zen) — zen plan"
+    echo " 18) Custom — enter any OpenAI-compatible base URL"
+    local _choice=""
+    ask "Choose LLM [1-18]" "$_def" _choice
+    echo "$_choice"
+  fi
+}
+LLM_CHOICE="$(choose_llm_with_checkbox)" 
 case "$LLM_CHOICE" in
   2)
     set_env_val "LLM_PROVIDER" "openai_compatible"
@@ -368,6 +431,35 @@ case "$LLM_CHOICE" in
     echo -e "${DIM}  Start with: vLLM --enable-auto-tool-choice --tool-call-parser hermes  or  llama-server --jinja${RESET}"
     ;;
   15)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://opencode.ai/api/free/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="muse-spark-1.2-contributor-free"
+    ask "Model (muse-spark-1.2-contributor-free, deepseek-v4-flash-free, mimo-v2.5-free)" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    set_env_val "LLM_API_KEY" "opencode-free"
+    echo -e "${DIM}  Note: keyless — no API key needed. Live free catalog at opencode.ai (rotating promotions).${RESET}"
+    ;;
+  16)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://opencode.ai/zen/go/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="glm-5"
+    ask "Model (glm-5, deepseek-v4-pro, qwen3.7-max, kimi-k2.5, etc.)" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "OpenCode Go API key (OPENCODE_GO_API_KEY)" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
+    echo -e "${DIM}  Get key at https://opencode.ai — Go plan. Also supports hermes model → opencode-go.${RESET}"
+    ;;
+  17)
+    set_env_val "LLM_PROVIDER" "openai_compatible"
+    set_env_val "LLM_BASE_URL" "https://opencode.ai/zen/v1"
+    CUR_MODEL="$(get_env_val LLM_MODEL)"; [ -z "$CUR_MODEL" ] && CUR_MODEL="glm-5"
+    ask "Model" "$CUR_MODEL" IN_MODEL
+    set_env_val "LLM_MODEL" "$IN_MODEL"
+    ask_secret "OpenCode Zen API key (OPENCODE_ZEN_API_KEY)" IN_KEY
+    if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
+    echo -e "${DIM}  Get key at https://opencode.ai — Zen plan.${RESET}"
+    ;;
+  18)
     CUR_URL="$(get_env_val LLM_BASE_URL)"; [ -z "$CUR_URL" ] && CUR_URL="https://api.openai.com/v1"
     ask "Custom base URL (must speak OpenAI Chat Completions)" "$CUR_URL" IN_URL
     set_env_val "LLM_PROVIDER" "openai_compatible"
@@ -378,7 +470,7 @@ case "$LLM_CHOICE" in
     CUR_KEY="$(get_env_val LLM_API_KEY)"; [ -z "$CUR_KEY" ] && CUR_KEY="CHANGE_ME"
     ask "API key" "$CUR_KEY" IN_KEY
     set_env_val "LLM_API_KEY" "$IN_KEY"
-    echo -e "${DIM}  Covers: Novita, GMI, Nebius, Arcee, Tencent, StepFun, NVIDIA Build, Kilo, Xiaomi, Actual Computer, etc. — see docs/CONFIGURATION.md${RESET}"
+    echo -e "${DIM}  Covers: Novita, GMI, Nebius, Arcee, Tencent, StepFun, NVIDIA Build, Kilo, Xiaomi, Actual Computer, CommandCode, etc. — see docs/CONFIGURATION.md${RESET}"
     ;;
   *)
     set_env_val "LLM_PROVIDER" "mock"

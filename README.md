@@ -94,9 +94,10 @@ git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-obse
 
 # 2) Run the wizard — walks you through Admin -> LLM -> Telegram -> Security
 ./scripts/setup.sh
-# The wizard: asks for Admin email/password, lets you pick LLM from 14 presets
-# (Mock / OpenAI / OpenRouter / DeepSeek / Grok / Gemini / Alibaba Qwen /
-#  MiniMax / Kimi / Fireworks / HuggingFace / Ollama / LM Studio / vLLM or Custom)
+# The wizard: shows a checkbox menu (whiptail radiolist — SPACE to select, arrows to move).
+# Pick LLM from 18 presets (Mock / OpenAI / OpenRouter / DeepSeek / Grok / Gemini / Qwen /
+#  MiniMax / Kimi / Fireworks / HuggingFace / Ollama / LM Studio / vLLM /
+#  OpenCode Free (keyless) / OpenCode Go / OpenCode Zen / Custom)
 # and prompts for the matching API key/URL/model, asks for Telegram token (optional),
 # auto-generates JWT/DB secrets if still CHANGE_ME, shows a masked summary, then starts the stack.
 # -> http://localhost:3525
@@ -137,9 +138,9 @@ Full reference: [docs/CONFIGURATION.md](./docs/CONFIGURATION.md)
 
 Secrets are placeholders in `.env.example` (`CHANGE_ME`). Copy to `.env` and fill only what you need. Never commit `.env`.
 
-### LLM providers -- one env set, 15+ presets (OpenAI-compatible) -- full Hermes coverage
+### LLM providers -- one env set, 18 presets (OpenAI-compatible) -- full Hermes coverage
 
-RAPTOR uses a single `LLM_PROVIDER` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY` set that speaks the OpenAI Chat Completions API. Every provider below is a preset for `openai_compatible` (or `mock` for free local dev). The wizard (`./scripts/setup.sh`) offers 14 named presets; `Custom` covers any other OpenAI-compatible endpoint.
+RAPTOR uses a single `LLM_PROVIDER` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY` set that speaks the OpenAI Chat Completions API. Every provider below is a preset for `openai_compatible` (or `mock` for free local dev). The wizard (`./scripts/setup.sh`) offers 18 presets (incl. OpenCode Free/Go/Zen); `Custom` covers any other OpenAI-compatible endpoint.
 
 **Common presets (quick reference):**
 
