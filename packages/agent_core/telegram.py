@@ -80,6 +80,54 @@ class TelegramService:
             log.warning("allowlist DB kontrol hatası: %s", redact(str(e)))
         return False
 
+    async def send_to_allowed(self, text: str) -> bool:
+        """Tüm allowed kullanıcılara mesaj gönder (risk alert vs). Token yoksa False."""
+        if not self.token or not text:
+            log.warning("send_to_allowed: token yok veya metin boş")
+            return False
+        if self._app is None:
+            try:
+                await self.build()
+            except Exception as e:
+                log.warning("send_to_allowed build hata: %s", e)
+                return False
+        recipients: set[int] = set()
+        try:
+            recipients.update(settings.allowed_user_ids)
+        except Exception:
+            pass
+        try:
+            async with async_session_factory() as s:
+                from sqlalchemy import select as _select
+
+                res = await s.execute(_select(models.TelegramIdentity.telegram_user_id).where(models.TelegramIdentity.is_allowed == True))  # noqa: E712
+                for row in res.scalars().all():
+                    try:
+                        recipients.add(int(row))
+                    except Exception:
+                        pass
+        except Exception as e:
+            log.warning("send_to_allowed DB toplama hata: %s", redact(str(e)))
+        if not recipients:
+            log.warning("send_to_allowed: alıcı yok (allowlist boş)")
+            return False
+        bot = None
+        try:
+            bot = self._app.bot if self._app else None
+        except Exception:
+            bot = None
+        if bot is None:
+            log.warning("send_to_allowed: bot yok")
+            return False
+        ok_any = False
+        for uid in recipients:
+            try:
+                await bot.send_message(chat_id=int(uid), text=text, parse_mode="Markdown", disable_web_page_preview=True)
+                ok_any = True
+            except Exception as e:
+                log.warning("send_to_allowed uid=%s hata: %s", uid, redact(str(e)))
+        return ok_any
+
     async def _require(self, update: Update, ctx) -> bool:
         uid = update.effective_user.id if update.effective_user else None
         if not uid:

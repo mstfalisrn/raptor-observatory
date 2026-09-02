@@ -519,3 +519,30 @@ class OutboxMessage(_UUIDMixin, Base):
     stream_id: Mapped[str] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     not_before: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+
+# ----------------------------------------------------------------------------
+# M2: Agent Evaluator — agent mesajlarının 5 boyutlu risk değerlendirmesi
+# ----------------------------------------------------------------------------
+class AgentEvaluation(_UUIDMixin, Base):
+    __tablename__ = "agent_evaluations"
+    __table_args__ = (
+        UniqueConstraint("room", "seq", name="uq_agent_eval_room_seq"),
+        Index("ix_agent_eval_tier", "tier"),
+        Index("ix_agent_eval_score", "score"),
+        Index("ix_agent_eval_room_seq", "room", "seq"),
+    )
+    room: Mapped[str] = mapped_column(String(64), nullable=False)
+    seq: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    global_seq: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    nick: Mapped[str] = mapped_column(String(120), nullable=False)
+    did: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    raw_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+    tier: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    dimensions: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
+    model: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+

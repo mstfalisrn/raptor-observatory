@@ -13,6 +13,16 @@ from observability.config import settings
 from observability.db import async_session_factory
 from observability.events import append_run_event_in_session
 
+# M3: AgentScorer hook — import hatasız (apps.scheduler vs scheduler)
+try:
+    from scheduler.agent_scorer import AgentScorer, _AGENT_SCORER_TASK  # type: ignore  # noqa: I001
+except ImportError:
+    try:
+        from apps.scheduler.agent_scorer import AgentScorer, _AGENT_SCORER_TASK  # type: ignore  # noqa: I001
+    except ImportError:
+        AgentScorer = None  # type: ignore
+        _AGENT_SCORER_TASK = []  # type: ignore
+
 app = FastAPI(title="RAPTOR Scheduler", version="1.0.0")
 
 
@@ -24,6 +34,7 @@ async def health_live():
 class SchedulerLoop:
     def __init__(self, interval_seconds: int = 60) -> None:
         import redis as redis_lib
+
         self.redis = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
         self.interval = interval_seconds
         self._stuck_threshold = timedelta(minutes=15)
@@ -56,6 +67,7 @@ class SchedulerLoop:
                         pass
                 try:
                     from observability.queue import ensure_stream_group, publish_to_stream
+
                     try:
                         ensure_stream_group(self.redis)
                     except Exception:
@@ -104,16 +116,23 @@ class SchedulerLoop:
                     r.error = "stuck_run_recovered"
                     r.finished_at = datetime.now(UTC)
                     r.heartbeat_at = datetime.now(UTC)
-                    await append_run_event_in_session(s, r.id, "STUCK_RECOVERED", {"reason": "lease_expired", "worker_id": r.worker_id})
+                    await append_run_event_in_session(
+                        s, r.id, "STUCK_RECOVERED", {"reason": "lease_expired", "worker_id": r.worker_id}
+                    )
                     retry = (r.retry_count or 0) + 1
                     r.retry_count = retry
                     if retry > 3:
                         try:
                             from observability.queue import publish_to_dlq
-                            publish_to_dlq(self.redis, {"run_id": str(r.id), "task_id": str(r.task_id), "retry_of": str(r.id)},
-                                           reason="max_retries_exceeded")
+
+                            publish_to_dlq(
+                                self.redis,
+                                {"run_id": str(r.id), "task_id": str(r.task_id), "retry_of": str(r.id)},
+                                reason="max_retries_exceeded",
+                            )
                         except Exception as e:
                             import logging as _log
+
                             _log.getLogger("raptor.scheduler").warning("DLQ publish failed %s", type(e).__name__)
                         await append_run_event_in_session(s, r.id, "DLQ", {"retry_count": retry})
                     else:
@@ -136,7 +155,9 @@ class SchedulerLoop:
                             not_before=not_before,
                         )
                         s.add(ob)
-                        await append_run_event_in_session(s, new_run.id, "RETRY_QUEUED", {"from_run": str(r.id), "backoff_sec": backoff_sec})
+                        await append_run_event_in_session(
+                            s, new_run.id, "RETRY_QUEUED", {"from_run": str(r.id), "backoff_sec": backoff_sec}
+                        )
                     recovered += 1
         return recovered
 
@@ -146,11 +167,13 @@ class SchedulerLoop:
             async with async_session_factory() as s:
                 async with s.begin():
                     from memory.service import MemoryService
+
                     svc = MemoryService(s)
                     n = await svc.auto_promote_candidates()
                     return n
         except Exception as e:
             import logging as _log2
+
             _log2.getLogger("raptor.scheduler").warning("auto_promote failed %s", type(e).__name__)
             return 0
 
@@ -172,6 +195,7 @@ class SchedulerLoop:
                         if dt is None:
                             return None
                         return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
                     bu = _aware(src.backoff_until)
                     if bu and bu > datetime.now(UTC):
                         continue
@@ -192,9 +216,12 @@ class SchedulerLoop:
                         )
                         s.add(task)
                         await s.flush()
-                        run = models.Run(task_id=task.id, status=models.RunStatus.QUEUED.value,
-                                         token_budget=settings.RUN_MAX_TOKEN_BUDGET,
-                                         cost_budget=settings.RUN_MAX_COST_BUDGET)
+                        run = models.Run(
+                            task_id=task.id,
+                            status=models.RunStatus.QUEUED.value,
+                            token_budget=settings.RUN_MAX_TOKEN_BUDGET,
+                            cost_budget=settings.RUN_MAX_COST_BUDGET,
+                        )
                         s.add(run)
                         await s.flush()
                         ob = models.OutboxMessage(
@@ -215,6 +242,7 @@ class SchedulerLoop:
                 await self.check_sources()
             except Exception as e:
                 import logging as _log2
+
                 _log2.getLogger("raptor.scheduler").warning("scheduler loop failed %s", type(e).__name__)
             await asyncio.sleep(self.interval)
 
@@ -222,7 +250,28 @@ class SchedulerLoop:
 _BG_TASKS: list = []
 
 
+async def _agent_scorer_loop() -> None:
+    """M3: 15 sn interval'de AgentScorer.poll_once döngüsü."""
+    if AgentScorer is None:
+        return
+    scorer = AgentScorer(interval=15)
+    while True:
+        try:
+            async with async_session_factory() as _s:
+                await scorer.poll_once(_s)
+        except Exception as e:
+            import logging as _lg
+
+            _lg.getLogger("raptor.scheduler").warning("agent_scorer poll hata: %s", type(e).__name__)
+        await asyncio.sleep(15)
+
+
 @app.on_event("startup")
 async def _start():
     loop = SchedulerLoop(interval_seconds=60)
     _BG_TASKS.append(asyncio.create_task(loop.run()))
+    # M3: AgentScorer 15sn poller
+    try:
+        _AGENT_SCORER_TASK.append(asyncio.create_task(_agent_scorer_loop()))
+    except Exception:
+        pass

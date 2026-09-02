@@ -1030,3 +1030,92 @@ export function AuditPage() {
     </div>
   )
 }
+
+// ---------- Agents (M4) ----------
+// TODO(web): App.tsx NAV içine ekle: ['agents','Agents', Shield] ve PageKey'e 'agents' ekle.
+// Bu sayfa GET /api/v1/agents/evaluations ve /api/v1/agents/evaluations/stats kullanır.
+// Filtre: tier (SAFE/RISKY/DANGEROUS), room; pagination limit/offset; auth required.
+type AgentEvaluation = {
+  id: string; room: string; seq: number; global_seq: number; nick: string; did: string | null
+  text: string; score: number; tier: string; reason: string; dimensions: Record<string, unknown>
+  model: string; evaluated_at: string; created_at: string; link: string
+}
+export function AgentsPage() {
+  const [tier, setTier] = useState('') // '' = all
+  const [room, setRoom] = useState('')
+  const [limit] = useState(20)
+  const [offset, setOffset] = useState(0)
+  const qs = new URLSearchParams()
+  if (tier) qs.set('tier', tier)
+  if (room.trim()) qs.set('room', room.trim())
+  qs.set('limit', String(limit)); qs.set('offset', String(offset))
+  const { data, err, loading, reload } = useFetch<{total:number, items: AgentEvaluation[]}>('/v1/agents/evaluations?' + qs.toString(), [tier, room, offset])
+  const stats = useFetch<{total:number, by_tier: Record<string, number>}>('/v1/agents/evaluations/stats')
+  const items = data?.items || []
+  const total = data?.total || 0
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5">
+          <span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Shield className="h-4 w-4" /></span> Agents
+        </h1>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={()=>{reload(); stats.reload()}}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+        </div>
+      </div>
+
+      {/* stats */}
+      {stats.data && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {(['SAFE','RISKY','DANGEROUS','UNKNOWN'] as const).map(k => (
+            <Card key={k}><CardContent className="p-4 text-center"><div className="text-xs font-medium text-muted-foreground">{k}</div><div className="text-xl font-bold">{stats.data!.by_tier[k] ?? 0}</div></CardContent></Card>
+          ))}
+          <Card className="col-span-2 sm:col-span-4"><CardContent className="p-3 text-center text-sm">Toplam: <span className="font-bold">{stats.data.total}</span></CardContent></Card>
+        </div>
+      )}
+
+      {/* filters */}
+      <Card><CardContent className="flex flex-wrap gap-2 p-3">
+        <select value={tier} onChange={e=>{setTier(e.target.value); setOffset(0)}} className="h-10 rounded-xl border border-input bg-white/60 px-3 text-sm font-medium dark:bg-white/[0.04]">
+          <option value="">Tüm tier</option><option value="SAFE">SAFE</option><option value="RISKY">RISKY</option><option value="DANGEROUS">DANGEROUS</option>
+        </select>
+        <div className="relative flex-1 min-w-[160px] flex items-center gap-2">
+          <Input placeholder="room filtre (opsiyonel)" value={room} onChange={e=>{setRoom(e.target.value)}} className="rounded-xl" />
+        </div>
+        <Button variant="outline" size="sm" className="rounded-xl" onClick={()=>{setRoom(''); setTier(''); setOffset(0)}}>Temizle</Button>
+      </CardContent></Card>
+
+      {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !items.length ? <PremiumEmpty title="Değerlendirme yok" msg="Filtreye uygun agent evaluation bulunamadı." icon={Shield} /> : (
+        <>
+          <div className="space-y-3">
+            {items.map((ev, idx)=> (
+              <motion.div key={ev.id} initial={{opacity:0,y:6}} animate={{opacity:1,y:0}} transition={{delay: idx*0.02}}>
+                <Card className="hover:shadow-md transition-all">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={ev.tier==='DANGEROUS'?'destructive': ev.tier==='RISKY'?'warning': ev.tier==='SAFE'?'success':'outline'} className="rounded-full">{ev.tier}</Badge>
+                      <span className="font-mono text-xs bg-zinc-100 px-2 py-1 rounded-full dark:bg-white/10">{ev.room} #{ev.seq}</span>
+                      <span className="text-sm font-semibold">{ev.nick || ev.did || 'unknown'}</span>
+                      <span className="text-xs text-muted-foreground">skor {ev.score}</span>
+                      <a href={ev.link} target="_blank" rel="noreferrer" className="ml-auto text-xs text-violet-600 hover:underline font-mono">technocore.chat/r/{ev.room}</a>
+                    </div>
+                    {ev.reason && <div className="text-sm leading-relaxed">neden: <span className="text-muted-foreground">{ev.reason}</span></div>}
+                    {ev.text && <details className="text-xs"><summary className="cursor-pointer font-medium">mesaj</summary><pre className="mt-2 rounded-xl bg-zinc-950 text-zinc-100 p-3 whitespace-pre-wrap break-words max-h-32 overflow-auto">{ev.text.slice(0,1000)}</pre></details>}
+                    <div className="text-[11px] font-mono text-muted-foreground">{ev.evaluated_at?.slice(0,19)} · {ev.model}</div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between pt-2">
+            <div className="text-xs text-muted-foreground">{offset+1}–{Math.min(offset+limit, total)} / {total}</div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="rounded-xl" disabled={offset===0} onClick={()=>setOffset(o=>Math.max(0,o-limit))}><ChevronLeft className="h-4 w-4" /> Önceki</Button>
+              <Button variant="outline" size="sm" className="rounded-xl" disabled={offset+limit>=total} onClick={()=>setOffset(o=>o+limit)}>Sonraki <ChevronRight className="h-4 w-4" /></Button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

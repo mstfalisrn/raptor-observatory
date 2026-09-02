@@ -777,6 +777,82 @@ async def root():
     """)
 
 
+# ---------------------------------------------------------------------------
+# M4: Agent Evaluations — auth required, tier/room filtresi + pagination
+# ---------------------------------------------------------------------------
+@app.get("/api/v1/agents/evaluations/stats")
+async def agent_evaluations_stats(user: dict = Depends(get_current_user)):
+    _ = user
+    from sqlalchemy import func
+
+    async with async_session_factory() as s:
+        total = (await s.execute(select(func.count()).select_from(models.AgentEvaluation))).scalar() or 0
+        rows = (await s.execute(select(models.AgentEvaluation.tier, func.count()).group_by(models.AgentEvaluation.tier))).all()
+        by_tier = {str(r[0]): int(r[1]) for r in rows}
+        # normalize expected tiers
+        for k in ("SAFE", "RISKY", "DANGEROUS", "UNKNOWN"):
+            by_tier.setdefault(k, 0)
+        # include any extra tier keys already counted
+        return {"total": int(total), "by_tier": by_tier}
+
+
+@app.get("/api/v1/agents/evaluations")
+async def agent_evaluations(
+    tier: str | None = None,
+    room: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+    user: dict = Depends(get_current_user),
+):
+    _ = user
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+    async with async_session_factory() as s:
+        stmt = select(models.AgentEvaluation).order_by(models.AgentEvaluation.evaluated_at.desc())
+        if tier:
+            # case-insensitive tier filter, normalize upper
+            t = tier.strip().upper()
+            if t:
+                stmt = stmt.where(models.AgentEvaluation.tier == t)
+        if room:
+            r = room.strip()
+            if r:
+                stmt = stmt.where(models.AgentEvaluation.room == r)
+        # count for pagination header
+        from sqlalchemy import func
+
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total = (await s.execute(count_stmt)).scalar() or 0
+        stmt = stmt.limit(limit).offset(offset)
+        res = await s.execute(stmt)
+        items = res.scalars().all()
+        return {
+            "total": int(total),
+            "limit": limit,
+            "offset": offset,
+            "items": [
+                {
+                    "id": str(e.id),
+                    "room": e.room,
+                    "seq": e.seq,
+                    "global_seq": e.global_seq,
+                    "nick": e.nick,
+                    "did": e.did,
+                    "text": e.text,
+                    "score": e.score,
+                    "tier": e.tier,
+                    "reason": e.reason,
+                    "dimensions": e.dimensions,
+                    "model": e.model,
+                    "evaluated_at": e.evaluated_at.isoformat() if e.evaluated_at else None,
+                    "created_at": e.created_at.isoformat() if e.created_at else None,
+                    "link": f"https://technocore.chat/r/{e.room}",
+                }
+                for e in items
+            ],
+        }
+
+
 @app.get("/assets/{path:path}")
 async def assets(path: str):
     import os as _os
