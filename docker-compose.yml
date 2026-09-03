@@ -210,6 +210,10 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
       REDIS_URL: redis://raptor-redis:6379/0
       SESSION_ENCRYPTION_MASTER_KEY: ${SESSION_ENCRYPTION_MASTER_KEY}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ALLOWED_USER_IDS: ${TELEGRAM_ALLOWED_USER_IDS:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      TELEGRAM_GROUP_ENABLED: ${TELEGRAM_GROUP_ENABLED:-false}
       TECHNOCORE_BASE_URL: ${TECHNOCORE_BASE_URL:-https://technocore.chat}
     depends_on:
       raptor-migrate: { condition: service_completed_successfully }
