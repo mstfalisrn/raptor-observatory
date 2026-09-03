@@ -197,7 +197,7 @@ export default function App() {
       <div className="flex min-h-screen items-center justify-center bg-background">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-[0_4px_14px_rgba(99,102,241,0.3)]">
-            <img src="/logo.png" alt="LUMI" className="h-7 w-7 rounded-xl object-cover animate-pulse" />
+            <img src="/logo.png?v=5" alt="LUMI" className="h-7 w-7 rounded-xl object-cover animate-pulse" />
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-500 shadow-[0_0_8px_theme(colors.violet.500)]" />
@@ -213,7 +213,7 @@ export default function App() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.32,0.72,0,1] }} className="w-full max-w-[420px]">
           <div className="mb-6 flex flex-col items-center gap-3 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_8px_24px_rgba(99,102,241,0.35)]">
-              <img src="/logo.png" alt="LUMI" className="h-8 w-8 rounded-xl object-cover" />
+              <img src="/logo.png?v=5" alt="LUMI" className="h-8 w-8 rounded-xl object-cover" />
             </div>
             <div>
               <div className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-base font-bold tracking-tight text-transparent">LUMI OBSERVATORY</div>
@@ -247,7 +247,7 @@ export default function App() {
             <div className="flex h-full flex-col">
               <div className="flex h-[60px] items-center gap-3 border-b border-white/10 px-4 bg-white/30 dark:bg-white/[0.02]">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-md">
-                  <img src="/logo.png" alt="LUMI" className="h-6 w-6 rounded-xl object-cover" />
+                  <img src="/logo.png?v=5" alt="LUMI" className="h-6 w-6 rounded-xl object-cover" />
                 </div>
                 <div>
                   <div className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-sm font-bold leading-none tracking-tight text-transparent">LUMI</div>
@@ -288,7 +288,7 @@ export default function App() {
         {/* brand — gradient text */}
         <div className="flex items-center gap-3">
           <div className="hidden h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_4px_14px_rgba(99,102,241,0.35)] ring-1 ring-white/15 md:flex">
-            <img src="/logo.png" alt="LUMI" className="h-6 w-6 rounded-xl object-cover" />
+            <img src="/logo.png?v=5" alt="LUMI" className="h-6 w-6 rounded-xl object-cover" />
           </div>
           <div className="hidden md:block">
             <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-700 bg-clip-text text-[15px] font-extrabold leading-none tracking-tight text-transparent">LUMI</div>
@@ -296,7 +296,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-1.5 md:hidden">
             <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-sm">
-              <img src="/logo.png" alt="LUMI" className="h-5 w-5 rounded-lg object-cover" />
+              <img src="/logo.png?v=5" alt="LUMI" className="h-5 w-5 rounded-lg object-cover" />
             </div>
             <span className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-sm font-bold tracking-tight text-transparent">LUMI</span>
           </div>
