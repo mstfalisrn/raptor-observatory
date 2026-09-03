@@ -165,7 +165,7 @@ function Err({msg, onRetry}:{msg:string, onRetry?:()=>void}){
     <Card className="border-red-200/50 bg-gradient-to-br from-red-50/80 to-rose-50/40 dark:border-red-900/30 dark:from-red-950/20 dark:to-zinc-900">
       <CardContent className="flex items-center justify-between gap-3 p-4">
         <span className="flex items-center gap-2.5 text-sm font-medium text-red-700 dark:text-red-300"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40"><AlertCircle className="h-4 w-4" /></span> {msg}</span>
-        {onRetry && <Button variant="outline" size="sm" className="rounded-xl border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20" onClick={onRetry}><RefreshCw className="h-3.5 w-3.5" /> Yeniden dene</Button>}
+        {onRetry && <Button variant="outline" size="sm" className="rounded-xl border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/20" onClick={onRetry}><RefreshCw className="h-3.5 w-3.5" /> Retry</Button>}
       </CardContent>
     </Card>
   )
@@ -216,7 +216,7 @@ export function LoginPage({ onLogin }: { onLogin:(u:{email:string, role:string})
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   async function submit() {
-    if (!email.trim() || !password) { setErr('email ve parola gerekli'); return }
+    if (!email.trim() || !password) { setErr('email and password required'); return }
     setBusy(true); setErr('')
     try {
       const r = await api<LoginResponse>('/v1/auth/login', { method:'POST', body: JSON.stringify({ email, password }) })
@@ -227,13 +227,13 @@ export function LoginPage({ onLogin }: { onLogin:(u:{email:string, role:string})
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-bold tracking-tight flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-violet-600" />Giriş</h2>
-        <p className="text-sm text-muted-foreground">Yerel kimlik doğrulama — oturum aç.</p>
+        <h2 className="text-lg font-bold tracking-tight flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-violet-600" />Sign in</h2>
+        <p className="text-sm text-muted-foreground">Local authentication — sign in.</p>
       </div>
       <div className="flex flex-col gap-3">
         <Input placeholder="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username" />
-        <Input placeholder="parola" type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" onKeyDown={e=> e.key==='Enter' && submit()} />
-        <Button onClick={submit} disabled={busy || !email.trim() || !password} className="w-full rounded-xl h-10 font-semibold">{busy ? 'giriş…' : 'Giriş'}</Button>
+        <Input placeholder="password" type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" onKeyDown={e=> e.key==='Enter' && submit()} />
+        <Button onClick={submit} disabled={busy || !email.trim() || !password} className="w-full rounded-xl h-10 font-semibold">{busy ? 'signing in…' : 'Sign in'}</Button>
       </div>
       {err && <div className="flex items-center gap-2 rounded-xl border border-red-200/50 bg-red-50/80 px-3 py-2.5 text-sm font-medium text-red-700 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-300"><AlertCircle className="h-4 w-4" /> {err}</div>}
     </div>
@@ -248,12 +248,12 @@ export function CommandCenter({ onCreated, compact }: { onCreated?:(runId:string
   const [err, setErr] = useState('')
   const [ok, setOk] = useState('')
   async function submit() {
-    if (!prompt.trim()) { setErr('prompt gerekli'); return }
+    if (!prompt.trim()) { setErr('prompt is required'); return }
     setBusy(true); setErr(''); setOk('')
     try {
       const r = await api<TaskCreateResponse>('/v1/tasks', { method:'POST', body: JSON.stringify({ title: title||prompt.slice(0,60), prompt }) })
       const id = r.run_id || r.runId || r.id || ''
-      setOk(`Run kuyruğa alındı: ${String(id).slice(0,8)}`)
+      setOk(`Run queued: ${String(id).slice(0,8)}`)
       setPrompt(''); setTitle('')
       onCreated?.(String(id))
     } catch(e){ setErr(errMsg(e)) } finally { setBusy(false) }
@@ -264,15 +264,15 @@ export function CommandCenter({ onCreated, compact }: { onCreated?:(runId:string
         <div className={compact ? "flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-sm" : "flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_4px_14px_rgba(99,102,241,0.3)]"}>
           <Sparkles className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
         </div>
-        <h3 className="text-sm font-bold tracking-tight">{compact ? 'Komut' : 'Command Center'}</h3>
-        {!compact && <Badge variant="violet" className="text-[10px]">SSE canlı</Badge>}
-        {!compact && <span className="ml-auto hidden items-center gap-1 text-xs text-muted-foreground sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_theme(colors.emerald.500)]" /> hazır</span>}
+        <h3 className="text-sm font-bold tracking-tight">{compact ? 'Command' : 'Command Center'}</h3>
+        {!compact && <Badge variant="violet" className="text-[10px]">Live SSE</Badge>}
+        {!compact && <span className="ml-auto hidden items-center gap-1 text-xs text-muted-foreground sm:flex"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_theme(colors.emerald.500)]" /> ready</span>}
       </div>
-      {!compact && <p className="mb-3 text-sm text-muted-foreground leading-relaxed">Prompt gir, run oluştur. SSE ile canlı takip.</p>}
+      {!compact && <p className="mb-3 text-sm text-muted-foreground leading-relaxed">Enter a prompt to create a run. Follow it live via SSE.</p>}
       <div className="flex flex-wrap gap-2">
-        <Input placeholder="başlık (opsiyonel)" value={title} onChange={e=>setTitle(e.target.value)} className="flex-none sm:w-[200px]" />
-        <Input placeholder="prompt — ne yapsın?" value={prompt} onChange={e=>setPrompt(e.target.value)} className="min-w-[220px] flex-1" onKeyDown={e=> e.key==='Enter' && submit()} />
-        <Button onClick={submit} disabled={busy || !prompt.trim()} className="rounded-xl px-5 font-semibold">{busy?'gönderiliyor…':'▶️ Çalıştır'}</Button>
+        <Input placeholder="title (optional)" value={title} onChange={e=>setTitle(e.target.value)} className="flex-none sm:w-[200px]" />
+        <Input placeholder="prompt — what should it do?" value={prompt} onChange={e=>setPrompt(e.target.value)} className="min-w-[220px] flex-1" onKeyDown={e=> e.key==='Enter' && submit()} />
+        <Button onClick={submit} disabled={busy || !prompt.trim()} className="rounded-xl px-5 font-semibold">{busy?'sending…':'▶ Run'}</Button>
       </div>
       {err && <motion.div initial={{ opacity:0, y:4 }} animate={{opacity:1, y:0}} className="mt-3 flex items-center gap-2 rounded-xl border border-red-200/50 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-300">⚠ {err}</motion.div>}
       {ok && <motion.div initial={{ opacity:0, y:4 }} animate={{opacity:1, y:0}} className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200/50 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-300">✓ {ok}</motion.div>}
@@ -312,10 +312,10 @@ export function Dashboard({ live, sseState, lastId, onOpen, onOpenRun }: Dashboa
   }
 
   const kpiCards = [
-    { title: 'Toplam Run', icon: Layers, value: total, sub: `${running} aktif · ${completed} tamamlandı`, accent: 'from-violet-600 to-indigo-600', light: 'from-violet-50 to-indigo-50', spark: 'violet' as const, action: ()=>onOpen('runs'), actionLabel: "Run'ları gör →" },
-    { title: 'Başarı %', icon: TrendingUp, value: `${successPct}%`, sub: `${completed}/${total} tamamlandı`, accent: 'from-emerald-500 to-teal-600', light: 'from-emerald-50 to-teal-50', spark: 'emerald' as const },
-    { title: 'Kuyruk derinliği', icon: Activity, value: running, sub: 'QUEUED + EXECUTING', accent: 'from-amber-500 to-orange-500', light: 'from-amber-50 to-orange-50', spark: 'amber' as const, badge: running ? 'aktif iş var' : 'boşta' },
-    { title: 'Ort. Token', icon: Zap, value: avgTokens, sub: 'run başına ortalama', accent: 'from-indigo-600 to-violet-600', light: 'from-indigo-50 to-violet-50', spark: 'indigo' as const, extra: health?.status ? `sağlık: ${health.status}` : 'sağlık kontrol…' },
+    { title: 'Total Runs', icon: Layers, value: total, sub: `${running} aktif · ${completed} completed`, accent: 'from-violet-600 to-indigo-600', light: 'from-violet-50 to-indigo-50', spark: 'violet' as const, action: ()=>onOpen('runs'), actionLabel: "Run'ları gör →" },
+    { title: 'Success %', icon: TrendingUp, value: `${successPct}%`, sub: `${completed}/${total} completed`, accent: 'from-emerald-500 to-teal-600', light: 'from-emerald-50 to-teal-50', spark: 'emerald' as const },
+    { title: 'Queue depth', icon: Activity, value: running, sub: 'QUEUED + EXECUTING', accent: 'from-amber-500 to-orange-500', light: 'from-amber-50 to-orange-50', spark: 'amber' as const, badge: running ? 'active jobs' : 'idle' },
+    { title: 'Avg. tokens', icon: Zap, value: avgTokens, sub: 'avg per run', accent: 'from-indigo-600 to-violet-600', light: 'from-indigo-50 to-violet-50', spark: 'indigo' as const, extra: health?.status ? `health: ${health.status}` : 'checking health…' },
   ]
 
   return (
@@ -365,7 +365,7 @@ export function Dashboard({ live, sseState, lastId, onOpen, onOpenRun }: Dashboa
                 )}
                 {k.badge && <Badge variant={running ? 'warning' : 'secondary'} className="text-[11px] rounded-full mt-1">{k.badge}</Badge>}
                 {k.extra && <span className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3" /> {k.extra}</span>}
-                {k.title === 'Başarı %' && !l1 && (
+                {k.title === 'Success %' && !l1 && (
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/5 dark:bg-white/10 mt-1">
                     <motion.div initial={{ width: 0 }} animate={{ width: total ? `${(completed/total)*100}%` : '0%' }} transition={{ duration: 0.8, ease: [0.32,0.72,0,1], delay: 0.3 }} className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full" />
                   </div>
@@ -383,13 +383,13 @@ export function Dashboard({ live, sseState, lastId, onOpen, onOpenRun }: Dashboa
           <CardHeader className="relative pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm flex items-center gap-2"><span className="h-6 w-6 rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 flex items-center justify-center"><Activity className="h-3.5 w-3.5" /></span> Son Run&apos;lar — timeline</CardTitle>
-              <Button variant="ghost" size="sm" className="h-7 rounded-full text-xs font-semibold" onClick={()=>onOpen('runs')}>Tümü</Button>
+              <Button variant="ghost" size="sm" className="h-7 rounded-full text-xs font-semibold" onClick={()=>onOpen('runs')}>View all</Button>
             </div>
-            <CardDescription>En son 5 run · SSE canlı akış ile senkron</CardDescription>
+            <CardDescription>Last 5 runs · synced via live SSE</CardDescription>
           </CardHeader>
           <CardContent className="relative">
             {(e1||e2) && <div className="mb-3"><Err msg={(e1||e2) as string} onRetry={()=>{r1();r2()}} /></div>}
-            {l1 ? <TableSkeleton rows={5} /> : !runs?.length ? <PremiumEmpty title="Henüz run yok" msg="Command Center'dan ilk run'ını oluştur ve canlı timeline'de takip et." icon={Sparkles} action={<Button size="sm" className="rounded-xl" onClick={()=>onOpen('runs')}>Run oluştur</Button>} /> : (
+            {l1 ? <TableSkeleton rows={5} /> : !runs?.length ? <PremiumEmpty title="No runs yet" msg="Create your first run from Command Center and follow it live." icon={Sparkles} action={<Button size="sm" className="rounded-xl" onClick={()=>onOpen('runs')}>Create run</Button>} /> : (
               <div className="relative">
                 <div className="absolute bottom-0 left-[11px] top-2 w-px bg-gradient-to-b from-violet-200 via-border to-transparent dark:from-violet-800/30" />
                 <div className="space-y-3">
@@ -432,11 +432,11 @@ export function Dashboard({ live, sseState, lastId, onOpen, onOpenRun }: Dashboa
         <motion.div initial={{ opacity:0, y: 8 }} animate={{ opacity:1, y:0 }} transition={{ delay: 0.32, duration: 0.35 }}>
         <Card className="h-full">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm"><span className="h-7 w-7 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-sm"><CheckCircle2 className="h-4 w-4" /></span> Onaylar</CardTitle>
-            <CardDescription>{pending} bekleyen · hızlı bakış</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-sm"><span className="h-7 w-7 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-sm"><CheckCircle2 className="h-4 w-4" /></span> Approvals</CardTitle>
+            <CardDescription>{pending} pending · quick view</CardDescription>
           </CardHeader>
           <CardContent>
-            {l2 ? <div className="space-y-2"><Skeleton className="h-14 w-full rounded-xl"/><Skeleton className="h-14 w-full rounded-xl"/></div> : !approvals?.length ? <PremiumEmpty msg="Bekleyen onay yok — her şey yolunda." icon={Shield} /> : (
+            {l2 ? <div className="space-y-2"><Skeleton className="h-14 w-full rounded-xl"/><Skeleton className="h-14 w-full rounded-xl"/></div> : !approvals?.length ? <PremiumEmpty msg="No pending approvals — all clear." icon={Shield} /> : (
               <div className="space-y-2.5">
                 {approvals!.slice(0,4).map(a=> (
                   <div key={a.id} className="group rounded-2xl border bg-white/40 p-3.5 backdrop-blur-sm hover:bg-white hover:shadow-md hover:border-violet-200/40 transition-all duration-200 dark:bg-white/[0.02] dark:hover:bg-white/[0.04] dark:hover:border-white/10">
@@ -447,7 +447,7 @@ export function Dashboard({ live, sseState, lastId, onOpen, onOpenRun }: Dashboa
                     <div className="truncate text-xs text-muted-foreground mt-1">{a.target.slice(0,80)}</div>
                   </div>
                 ))}
-                <Button variant="outline" size="sm" className="w-full rounded-xl font-semibold mt-1" onClick={()=>onOpen('approvals')}>Onaylara git {pending>0 && <Badge variant="destructive" className="ml-2 h-5 rounded-full text-[10px]">{pending}</Badge>}</Button>
+                <Button variant="outline" size="sm" className="w-full rounded-xl font-semibold mt-1" onClick={()=>onOpen('approvals')}>Go to Approvals {pending>0 && <Badge variant="destructive" className="ml-2 h-5 rounded-full text-[10px]">{pending}</Badge>}</Button>
               </div>
             )}
             <div className="mt-4 rounded-2xl border bg-gradient-to-br from-violet-50/60 to-indigo-50/40 p-3.5 dark:from-violet-950/10 dark:to-indigo-950/10 border-violet-100/50 dark:border-violet-900/20">
@@ -496,12 +496,12 @@ export function RunsPage({ onOpenDetail }: { onOpenDetail?:(id:string)=>void }) 
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="relative flex-1 min-w-[180px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="filtre (id/durum)" value={q} onChange={e=>setQ(e.target.value)} className="pl-9 rounded-xl" />
+              <Input placeholder="filter (id/status)" value={q} onChange={e=>setQ(e.target.value)} className="pl-9 rounded-xl" />
             </div>
             <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="h-10 rounded-xl border border-input bg-white/60 backdrop-blur-sm px-3 text-sm font-medium shadow-sm hover:border-violet-200 focus:border-violet-300 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all dark:bg-white/[0.04] dark:hover:border-white/10">
               {statuses.map(s=> <option key={s} value={s}>{s==='ALL' ? 'Tüm durumlar' : s}</option>)}
             </select>
-            <Button variant="outline" size="sm" className="rounded-xl" onClick={()=>reload()}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+            <Button variant="outline" size="sm" className="rounded-xl" onClick={()=>reload()}><RefreshCw className="h-4 w-4" /> Refresh</Button>
             <select value={String(limit)} onChange={e=>onLimitChange(parseInt(e.target.value))} className="h-10 rounded-xl border border-input bg-white/60 backdrop-blur-sm px-2.5 text-sm font-medium shadow-sm hover:border-violet-200 focus:border-violet-300 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all dark:bg-white/[0.04]">
               <option value="10">10</option><option value="20">20</option><option value="50">50</option>
             </select>
@@ -509,7 +509,7 @@ export function RunsPage({ onOpenDetail }: { onOpenDetail?:(id:string)=>void }) 
         </CardContent>
       </Card>
 
-      {loading ? <TableSkeleton rows={5} /> : err ? <Err msg={err} onRetry={reload}/> : !filtered?.length ? <PremiumEmpty title="Run bulunamadı" msg={data?.length? 'Filtreye uygun run yok — filtreyi temizlemeyi dene.':'Henüz run yok — Command Center ile ilk run\'ını oluştur.'} icon={FileSearch} action={data?.length ? <Button size="sm" variant="outline" className="rounded-xl" onClick={()=>{setQ(''); setStatusFilter('ALL')}}>Filtreyi temizle</Button> : undefined} /> : (
+      {loading ? <TableSkeleton rows={5} /> : err ? <Err msg={err} onRetry={reload}/> : !filtered?.length ? <PremiumEmpty title="No runs found" msg={data?.length? 'No runs match the filter — try clearing it.':'No runs yet — Command Center ile ilk run\'ını oluştur.'} icon={FileSearch} action={data?.length ? <Button size="sm" variant="outline" className="rounded-xl" onClick={()=>{setQ(''); setStatusFilter('ALL')}}>Clear filter</Button> : undefined} /> : (
         <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -536,7 +536,7 @@ export function RunsPage({ onOpenDetail }: { onOpenDetail?:(id:string)=>void }) 
             </table>
           </div>
           <div className="flex items-center justify-between border-t bg-zinc-50/50 p-3 dark:bg-white/[0.02]">
-            <span className="text-xs font-medium text-muted-foreground">{filtered.length} gösteriliyor{data && statusFilter!=='ALL' ? ` (filtreli)`:''}</span>
+            <span className="text-xs font-medium text-muted-foreground">{filtered.length} shown{data && statusFilter!=='ALL' ? ` (filtered)`:''}</span>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" className="rounded-xl" disabled={!hasPrev} onClick={goPrev}><ChevronLeft className="h-4 w-4" /> Geri</Button>
               <Button variant="outline" size="sm" className="rounded-xl" disabled={!hasNext} onClick={goNext}>İleri <ChevronRight className="h-4 w-4" /></Button>
@@ -647,9 +647,9 @@ export function RunDetailPage({ runId, onBack }: { runId:string, onBack:()=>void
           <div className="mb-4 flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="event tipi filtre" value={filter} onChange={e=>setFilter(e.target.value)} className="pl-9 rounded-xl" />
+              <Input placeholder="filter by event type" value={filter} onChange={e=>setFilter(e.target.value)} className="pl-9 rounded-xl" />
             </div>
-            <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+            <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Refresh</Button>
           </div>
 
           {tab==='overview' && (
@@ -726,7 +726,7 @@ export function ApprovalsPage() {
   }
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-md"><Clock className="h-4 w-4" /></span> Approvals</h1><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button></div>
+      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-md"><Clock className="h-4 w-4" /></span> Approvals</h1><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Refresh</Button></div>
       {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <PremiumEmpty title="Onay beklemiyor" msg="Şu anda bekleyen onay yok. Yeni işlemler burada görünecek." icon={Shield} /> : data.map((a, idx) => (
         <motion.div key={a.id} initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay: idx*0.04 }}>
         <Card className="group hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-200">
@@ -780,7 +780,7 @@ export function ContextPage({ initialRunId }: { initialRunId?:string }) {
             <Card className="border-l-2 border-l-violet-500 hover:shadow-md hover:-translate-y-0.5 transition-all">
               <CardContent className="p-4">
                 <div className="flex flex-wrap items-center gap-2"><Badge className="rounded-full">{s.segment_type}</Badge><span className="text-xs font-medium text-muted-foreground bg-zinc-100 px-2 py-1 rounded-full dark:bg-white/10">{s.token_count} tok · güv {s.confidence}</span><Badge variant="outline" className="text-[10px] rounded-full bg-white dark:bg-white/5 font-mono">{s._event} #{s._seq}</Badge> {s.contains_untrusted_input && <Badge variant="destructive" className="text-[10px] rounded-full">UNTRUSTED</Badge>}</div>
-                <div className="mt-2 text-xs font-medium text-muted-foreground">neden: {s.included_reason}</div>
+                <div className="mt-2 text-xs font-medium text-muted-foreground">reason: {s.included_reason}</div>
                 {s.preview && <pre className="mt-3 max-h-32 overflow-auto rounded-xl bg-zinc-950 text-zinc-100 p-3 text-xs font-mono leading-relaxed dark:bg-black/40">{String(s.preview).slice(0,800)}</pre>}
                 {s.content_preview && <pre className="mt-3 max-h-32 overflow-auto rounded-xl bg-zinc-950 text-zinc-100 p-3 text-xs font-mono leading-relaxed dark:bg-black/40">{String(s.content_preview).slice(0,800)}</pre>}
               </CardContent>
@@ -853,7 +853,7 @@ export function MemoryPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="ara..." value={q} onChange={e=>setQ(e.target.value)} className="pl-9 rounded-xl" />
           </div>
-          <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Refresh</Button>
         </CardContent>
       </Card>
 
@@ -885,7 +885,7 @@ export function SourcesPage() {
   const { data, err, loading, reload } = useFetch<SourceItem[]>('/v1/sources')
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Radio className="h-4 w-4" /></span> Sources</h1><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button></div>
+      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Radio className="h-4 w-4" /></span> Sources</h1><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Refresh</Button></div>
       {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <PremiumEmpty msg="kaynak yok. Teknolojik İlk Önce connector ile eklenir." title="Kaynak bulunamadı" /> : data.map((s, idx)=> (
         <motion.div key={s.id} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay: idx*0.04 }}>
         <Card className="group hover:shadow-md hover:-translate-y-0.5 transition-all">
@@ -909,7 +909,7 @@ export function TechnocorePage() {
     <div className="space-y-5">
       <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Satellite className="h-4 w-4" /></span> Technocore</h1>
       {data && <Card className="overflow-hidden"><div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.04] to-indigo-500/[0.02] pointer-events-none" /><CardContent className="relative space-y-3 p-5"><div className="font-mono text-sm font-semibold">{data.base_url || '—'}</div><div className="text-sm text-muted-foreground">Oda: <span className="font-mono bg-zinc-100 px-2 py-1 rounded-full text-xs dark:bg-white/10">{data.room_claim || '—'}</span></div><div className="flex items-center gap-2 text-sm">Kayıt: {data.registered ? <Badge variant="success">✓ kayıtlı</Badge> : <Badge variant="secondary">henüz değil (Faz 7)</Badge>}</div></CardContent></Card>}
-      <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+      <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Refresh</Button>
     </div>
   )
 }
@@ -927,7 +927,7 @@ export function TelegramPage() {
         <div className="text-sm">Allowlist kullanıcı: <span className="font-bold bg-zinc-100 px-2 py-1 rounded-full text-xs dark:bg-white/10">{data.telegram_allowed_user_ids_count}</span></div>
         <div className="text-sm">Grup: <Badge variant={data.telegram_group_enabled ? 'success' : 'secondary'} className="rounded-full text-xs">{data.telegram_group_enabled ? 'açık' : 'kapalı'}</Badge></div>
       </CardContent></Card>)}
-      <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+      <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Refresh</Button>
     </div>
   )
 }
@@ -940,17 +940,31 @@ export function SettingsPage() {
   return (
     <div className="space-y-5">
       <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-zinc-900 flex items-center justify-center text-white shadow-md dark:bg-white dark:text-zinc-900"><Settings className="h-4 w-4" /></span> Settings</h1>
+
+      <Card className="border-white/10 bg-white/40 backdrop-blur-sm dark:bg-white/[0.02]">
+        <CardContent className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold tracking-tight">About</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                RAPTOR — Standalone, observation-focused, Telegram + web managed agent runtime (evidence-based + DID signed reports).
+              </p>
+            </div>
+            <Settings className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+          </div>
+        </CardContent>
+      </Card>
       {data && (<Card><CardContent className="space-y-2.5 p-5 text-sm">
-        <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Ortam</span> <Badge variant="outline" className="rounded-full font-mono">{data.app_env}</Badge></div>
+        <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Environment</span> <Badge variant="outline" className="rounded-full font-mono">{data.app_env}</Badge></div>
         <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Provider</span> <Badge variant="violet" className="rounded-full">{data.llm_provider}</Badge></div>
         <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Model</span> <span className="font-mono text-xs bg-zinc-100 px-2 py-1 rounded-full dark:bg-white/10">{data.llm_model || '-'}</span></div>
         <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Base URL</span> <span className="font-mono text-xs truncate max-w-[200px]">{data.llm_base_url || '-'}</span></div>
         <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">LLM key</span> <Badge variant={data.llm_key_configured ? 'success' : 'outline'} className="rounded-full">{data.llm_key_configured ? '✓' : '✗'}</Badge></div>
-        <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Max iterasyon</span> <span className="font-bold">{data.run_max_iterations}</span></div>
-        <div className="flex items-center justify-between py-1.5"><span className="text-muted-foreground">Max wall s</span> <span className="font-bold">{data.run_max_wall_seconds}</span></div>
+        <div className="flex items-center justify-between py-1.5 border-b border-zinc-100 dark:border-white/5"><span className="text-muted-foreground">Max iterations</span> <span className="font-bold">{data.run_max_iterations}</span></div>
+        <div className="flex items-center justify-between py-1.5"><span className="text-muted-foreground">Max wall (s)</span> <span className="font-bold">{data.run_max_wall_seconds}</span></div>
       </CardContent></Card>)}
-      <div className="rounded-2xl border border-amber-200/50 bg-gradient-to-br from-amber-50 to-orange-50/40 px-4 py-3 text-sm font-medium text-amber-800 dark:border-amber-900/30 dark:from-amber-950/20 dark:to-orange-950/10 dark:text-amber-200">🔒 Secret değerleri asla gösterilmez.</div>
-      <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+      <div className="rounded-2xl border border-amber-200/50 bg-gradient-to-br from-amber-50 to-orange-50/40 px-4 py-3 text-sm font-medium text-amber-800 dark:border-amber-900/30 dark:from-amber-950/20 dark:to-orange-950/10 dark:text-amber-200">🔒 Secret values are never displayed.</div>
+      <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Refresh</Button>
     </div>
   )
 }
@@ -961,7 +975,7 @@ export function ReportsPage() {
   const [selected, setSelected] = useState<Report | null>(null)
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><FileText className="h-4 w-4" /></span> Reports</h1><div className="flex gap-2"><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>{selected && <Button variant="ghost" size="sm" className="rounded-xl" onClick={()=>setSelected(null)}>← Listeye dön</Button>}<Badge variant="outline" className="rounded-full bg-white dark:bg-white/5">{data ? `${data.length} rapor` : ''}</Badge></div></div>
+      <div className="flex items-center justify-between"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><FileText className="h-4 w-4" /></span> Reports</h1><div className="flex gap-2"><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Refresh</Button>{selected && <Button variant="ghost" size="sm" className="rounded-xl" onClick={()=>setSelected(null)}>← Back to list</Button>}<Badge variant="outline" className="rounded-full bg-white dark:bg-white/5">{data ? `${data.length} reports` : ''}</Badge></div></div>
       {selected ? (
         <Card className="overflow-hidden border-violet-200/30">
           <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
@@ -972,7 +986,7 @@ export function ReportsPage() {
             <div className="text-xs font-mono text-muted-foreground">report_type: {selected.report_type} · subject: {selected.subject} · confidence: {selected.confidence}</div>
           </CardContent>
         </Card>
-      ) : loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <PremiumEmpty msg="rapor yok." icon={FileText} /> : (
+      ) : loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <PremiumEmpty msg="reports yok." icon={FileText} /> : (
         <div className="space-y-3">
           {data.map((r, idx)=> (
             <motion.div key={r.id} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay: idx*0.02 }}>
@@ -999,8 +1013,8 @@ export function AuditPage() {
   return (
     <div className="space-y-5">
       <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-zinc-900 flex items-center justify-center text-white shadow-md dark:bg-white dark:text-zinc-900"><ScrollText className="h-4 w-4" /></span> Audit</h1>
-      <p className="text-sm text-muted-foreground">GET /api/v1/reports — raporlar append-only listesi.</p>
-      <div className="flex gap-2"><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Yenile</Button>{selected && <Button variant="ghost" size="sm" className="rounded-xl" onClick={()=>setSelected(null)}>← Listeye dön</Button>}<Badge variant="outline" className="rounded-full bg-white dark:bg-white/5">{data ? `${data.length} rapor` : ''}</Badge></div>
+      <p className="text-sm text-muted-foreground">GET /api/v1/reports — reportslar append-only listesi.</p>
+      <div className="flex gap-2"><Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Refresh</Button>{selected && <Button variant="ghost" size="sm" className="rounded-xl" onClick={()=>setSelected(null)}>← Back to list</Button>}<Badge variant="outline" className="rounded-full bg-white dark:bg-white/5">{data ? `${data.length} reports` : ''}</Badge></div>
       {selected ? (
         <Card className="overflow-hidden border-violet-200/30">
           <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
@@ -1011,7 +1025,7 @@ export function AuditPage() {
             <div className="text-xs font-mono text-muted-foreground">report_type: {selected.report_type} · subject: {selected.subject} · confidence: {selected.confidence}</div>
           </CardContent>
         </Card>
-      ) : loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <PremiumEmpty msg="rapor yok." icon={ScrollText} /> : (
+      ) : loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !data?.length ? <PremiumEmpty msg="reports yok." icon={ScrollText} /> : (
         <div className="space-y-3">
           {data.map((r, idx)=> (
             <motion.div key={r.id} initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} transition={{ delay: idx*0.02 }}>
@@ -1060,7 +1074,7 @@ export function AgentsPage() {
           <span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Shield className="h-4 w-4" /></span> Agents
         </h1>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="rounded-xl" onClick={()=>{reload(); stats.reload()}}><RefreshCw className="h-4 w-4" /> Yenile</Button>
+          <Button variant="outline" size="sm" className="rounded-xl" onClick={()=>{reload(); stats.reload()}}><RefreshCw className="h-4 w-4" /> Refresh</Button>
         </div>
       </div>
 
@@ -1070,22 +1084,22 @@ export function AgentsPage() {
           {(['SAFE','RISKY','DANGEROUS','UNKNOWN'] as const).map(k => (
             <Card key={k}><CardContent className="p-4 text-center"><div className="text-xs font-medium text-muted-foreground">{k}</div><div className="text-xl font-bold">{stats.data!.by_tier[k] ?? 0}</div></CardContent></Card>
           ))}
-          <Card className="col-span-2 sm:col-span-4"><CardContent className="p-3 text-center text-sm">Toplam: <span className="font-bold">{stats.data.total}</span></CardContent></Card>
+          <Card className="col-span-2 sm:col-span-4"><CardContent className="p-3 text-center text-sm">Total: <span className="font-bold">{stats.data.total}</span></CardContent></Card>
         </div>
       )}
 
       {/* filters */}
       <Card><CardContent className="flex flex-wrap gap-2 p-3">
         <select value={tier} onChange={e=>{setTier(e.target.value); setOffset(0)}} className="h-10 rounded-xl border border-input bg-white/60 px-3 text-sm font-medium dark:bg-white/[0.04]">
-          <option value="">Tüm tier</option><option value="SAFE">SAFE</option><option value="RISKY">RISKY</option><option value="DANGEROUS">DANGEROUS</option>
+          <option value="">All tiers</option><option value="SAFE">SAFE</option><option value="RISKY">RISKY</option><option value="DANGEROUS">DANGEROUS</option>
         </select>
         <div className="relative flex-1 min-w-[160px] flex items-center gap-2">
-          <Input placeholder="room filtre (opsiyonel)" value={room} onChange={e=>{setRoom(e.target.value)}} className="rounded-xl" />
+          <Input placeholder="filter by room (optional)" value={room} onChange={e=>{setRoom(e.target.value)}} className="rounded-xl" />
         </div>
-        <Button variant="outline" size="sm" className="rounded-xl" onClick={()=>{setRoom(''); setTier(''); setOffset(0)}}>Temizle</Button>
+        <Button variant="outline" size="sm" className="rounded-xl" onClick={()=>{setRoom(''); setTier(''); setOffset(0)}}>Clear</Button>
       </CardContent></Card>
 
-      {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !items.length ? <PremiumEmpty title="Değerlendirme yok" msg="Filtreye uygun agent evaluation bulunamadı." icon={Shield} /> : (
+      {loading ? <TableSkeleton/> : err ? <Err msg={err} onRetry={reload}/> : !items.length ? <PremiumEmpty title="No evaluations" msg="No agent evaluations match the filter." icon={Shield} /> : (
         <>
           <div className="space-y-3">
             {items.map((ev, idx)=> (
@@ -1096,11 +1110,11 @@ export function AgentsPage() {
                       <Badge variant={ev.tier==='DANGEROUS'?'destructive': ev.tier==='RISKY'?'warning': ev.tier==='SAFE'?'success':'outline'} className="rounded-full">{ev.tier}</Badge>
                       <span className="font-mono text-xs bg-zinc-100 px-2 py-1 rounded-full dark:bg-white/10">{ev.room} #{ev.seq}</span>
                       <span className="text-sm font-semibold">{ev.nick || ev.did || 'unknown'}</span>
-                      <span className="text-xs text-muted-foreground">skor {ev.score}</span>
+                      <span className="text-xs text-muted-foreground">score {ev.score}</span>
                       <a href={ev.link} target="_blank" rel="noreferrer" className="ml-auto text-xs text-violet-600 hover:underline font-mono">technocore.chat/r/{ev.room}</a>
                     </div>
-                    {ev.reason && <div className="text-sm leading-relaxed">neden: <span className="text-muted-foreground">{ev.reason}</span></div>}
-                    {ev.text && <details className="text-xs"><summary className="cursor-pointer font-medium">mesaj</summary><pre className="mt-2 rounded-xl bg-zinc-950 text-zinc-100 p-3 whitespace-pre-wrap break-words max-h-32 overflow-auto">{ev.text.slice(0,1000)}</pre></details>}
+                    {ev.reason && <div className="text-sm leading-relaxed">reason: <span className="text-muted-foreground">{ev.reason}</span></div>}
+                    {ev.text && <details className="text-xs"><summary className="cursor-pointer font-medium">message</summary><pre className="mt-2 rounded-xl bg-zinc-950 text-zinc-100 p-3 whitespace-pre-wrap break-words max-h-32 overflow-auto">{ev.text.slice(0,1000)}</pre></details>}
                     <div className="text-[11px] font-mono text-muted-foreground">{ev.evaluated_at?.slice(0,19)} · {ev.model}</div>
                   </CardContent>
                 </Card>
@@ -1110,8 +1124,8 @@ export function AgentsPage() {
           <div className="flex items-center justify-between pt-2">
             <div className="text-xs text-muted-foreground">{offset+1}–{Math.min(offset+limit, total)} / {total}</div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="rounded-xl" disabled={offset===0} onClick={()=>setOffset(o=>Math.max(0,o-limit))}><ChevronLeft className="h-4 w-4" /> Önceki</Button>
-              <Button variant="outline" size="sm" className="rounded-xl" disabled={offset+limit>=total} onClick={()=>setOffset(o=>o+limit)}>Sonraki <ChevronRight className="h-4 w-4" /></Button>
+              <Button variant="outline" size="sm" className="rounded-xl" disabled={offset===0} onClick={()=>setOffset(o=>Math.max(0,o-limit))}><ChevronLeft className="h-4 w-4" /> Previous</Button>
+              <Button variant="outline" size="sm" className="rounded-xl" disabled={offset+limit>=total} onClick={()=>setOffset(o=>o+limit)}>Next <ChevronRight className="h-4 w-4" /></Button>
             </div>
           </div>
         </>

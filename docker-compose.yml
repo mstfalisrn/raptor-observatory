@@ -1,4 +1,4 @@
-# RAPTOR Agentic Observatory — Docker Compose (pinned, Hermes'ten bağımsız)
+# RAPTOR Agentic Observatory — Docker Compose (pinned, standalone)
 # Yalnız raptor-gateway host'ta 127.0.0.1:<GATEWAY_PORT>'e bind eder.
 # PostgreSQL/Redis host portu AÇILMAZ (internal network). Web UI, api image'ına gömülüdür (tek origin).
 name: raptor-observatory

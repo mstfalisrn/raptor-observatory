@@ -35,7 +35,7 @@ export default function Onboarding({ onDone }: Props) {
 
   async function handleStep1() {
     if (!email.trim() || !password) {
-      setPwErr('email ve parola gerekli')
+      setPwErr('email ve password required')
       return
     }
     setPwBusy(true)
@@ -47,7 +47,7 @@ export default function Onboarding({ onDone }: Props) {
         method: 'POST',
         body: JSON.stringify({ email: email.trim(), password }),
       })
-      setPwMsg('✓ giriş doğrulandı — admin hazır')
+      setPwMsg('✓ signed in — admin ready')
       setTimeout(() => setStep(2), 600)
     } catch (e) {
       setPwErr(errMsg(e))
@@ -81,8 +81,8 @@ export default function Onboarding({ onDone }: Props) {
         method: 'POST',
         body: JSON.stringify({ provider: p, base_url: url, model: mdl, api_key: apiKey }),
       })
-      if (r.ok) setTestResult({ ok: true, msg: `✓ bağlantı OK (${r.provider})` })
-      else setTestResult({ ok: false, msg: r.detail || 'test başarısız' })
+      if (r.ok) setTestResult({ ok: true, msg: `✓ connection OK (${r.provider})` })
+      else setTestResult({ ok: false, msg: r.detail || 'test failed' })
     } catch (e) {
       setTestResult({ ok: false, msg: errMsg(e) })
     } finally {
@@ -101,8 +101,8 @@ export default function Onboarding({ onDone }: Props) {
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_8px_24px_rgba(99,102,241,0.3)]">
           <span className="text-lg font-bold">R</span>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">RAPTOR Kurulum Sihirbazı</h1>
-        <p className="mt-1 text-sm text-muted-foreground">3 adımda çalışmaya hazır — mock ile anında, API anahtarıyla tam otonom.</p>
+        <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">RAPTOR Setup Wizard</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Get started in 3 steps — instant with mock, fully autonomous with an API key.</p>
       </div>
 
       <div className="flex items-center justify-center gap-2">
@@ -128,19 +128,19 @@ export default function Onboarding({ onDone }: Props) {
       {step === 1 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">Adım 1 — Admin hesabı <Badge variant="secondary">gerekli</Badge></CardTitle>
-            <CardDescription>Yerel admin email + parola ile giriş yap. İlk kurulumda .env ADMIN_PASSWORD_HASH ile oluşturulur.</CardDescription>
+            <CardTitle className="flex items-center gap-2">Step 1 — Admin account <Badge variant="secondary">required</Badge></CardTitle>
+            <CardDescription>Sign in with your local admin email and password. On first setup it is created via .env ADMIN_PASSWORD_HASH.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input placeholder="admin email (örn. your-email@example.com)" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
-            <Input placeholder="parola" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+            <Input placeholder="admin email (e.g. your-email@example.com)" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
+            <Input placeholder="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
             {pwErr && <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">⚠ {pwErr}</div>}
             {pwMsg && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{pwMsg}</div>}
           </CardContent>
           <CardFooter className="flex justify-between">
-            <span className="text-xs text-muted-foreground">POST /api/v1/auth/login ile doğrulanır</span>
+            <span className="text-xs text-muted-foreground">Verified via POST /api/v1/auth/login</span>
             <Button onClick={handleStep1} disabled={pwBusy || !email.trim() || !password}>
-              {pwBusy ? 'doğrulanıyor…' : 'Doğrula ve devam →'}
+              {pwBusy ? 'verifying…' : 'Verify & continue →'}
             </Button>
           </CardFooter>
         </Card>
@@ -149,8 +149,8 @@ export default function Onboarding({ onDone }: Props) {
       {step === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">Adım 2 — LLM sağlayıcı <Badge variant="outline">Mock ücretsiz</Badge></CardTitle>
-            <CardDescription>Mock hiç anahtar istemez. OpenAI / OpenRouter / Ollama için base_url, model ve api_key gir.</CardDescription>
+            <CardTitle className="flex items-center gap-2">Step 2 — LLM provider <Badge variant="outline">Mock free</Badge></CardTitle>
+            <CardDescription>Mock needs no key. For OpenAI / OpenRouter / Ollama, enter base_url, model and api_key.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -164,19 +164,19 @@ export default function Onboarding({ onDone }: Props) {
                   }
                 >
                   {p === 'mock' ? 'Mock' : p === 'openai' ? 'OpenAI' : p === 'openrouter' ? 'OpenRouter' : 'Ollama'}
-                  {p === 'mock' && <span className="ml-1 text-xs opacity-80">(ücretsiz)</span>}
+                  {p === 'mock' && <span className="ml-1 text-xs opacity-80">(free)</span>}
                 </button>
               ))}
             </div>
 
             {provider !== 'mock' && (
               <div className="space-y-3">
-                <Input placeholder={provider === 'ollama' ? 'base_url (örn. http://localhost:11434/v1)' : 'base_url (örn. https://api.openai.com/v1)'} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-                <Input placeholder={provider === 'ollama' ? 'model (örn. llama3.1)' : 'model (örn. gpt-4o-mini)'} value={model} onChange={(e) => setModel(e.target.value)} />
-                <Input placeholder="api_key (gizli — sunucuda saklanır, UI'da gösterilmez)" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+                <Input placeholder={provider === 'ollama' ? 'base_url (e.g. http://localhost:11434/v1)' : 'base_url (e.g. https://api.openai.com/v1)'} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+                <Input placeholder={provider === 'ollama' ? 'model (e.g. llama3.1)' : 'model (e.g. gpt-4o-mini)'} value={model} onChange={(e) => setModel(e.target.value)} />
+                <Input placeholder="api_key (secret — stored on server, never shown in UI)" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
                 <div className="flex items-center gap-2">
                   <Button variant="secondary" onClick={handleTestLLM} disabled={testBusy}>
-                    {testBusy ? 'test ediliyor…' : '🔌 Bağlantıyı test et'}
+                    {testBusy ? 'testing…' : '🔌 Test connection'}
                   </Button>
                   {testResult && (
                     <Badge variant={testResult.ok ? 'default' : 'destructive'} className={testResult.ok ? 'bg-emerald-600' : ''}>
@@ -184,21 +184,21 @@ export default function Onboarding({ onDone }: Props) {
                     </Badge>
                   )}
                 </div>
-                {!testResult && <p className="text-xs text-muted-foreground">Test → POST /api/v1/settings/llm/test (auth gerekli)</p>}
+                {!testResult && <p className="text-xs text-muted-foreground">Test → POST /api/v1/settings/llm/test (auth required)</p>}
               </div>
             )}
 
             {provider === 'mock' && (
               <div className="rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-800 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-200">
-                Mock seçildi — anahtar gerekmez. Scheduler ve worker mock provider ile tam loop döner.
+                Mock selected — no key needed. Scheduler and worker run the full loop with the mock provider.
               </div>
             )}
           </CardContent>
           <CardFooter className="flex justify-between">
-            <Button variant="ghost" onClick={() => setStep(1)}>← Geri</Button>
+            <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(3)}>Atla →</Button>
-              <Button onClick={() => setStep(3)}>Devam →</Button>
+              <Button variant="outline" onClick={() => setStep(3)}>Skip →</Button>
+              <Button onClick={() => setStep(3)}>Continue →</Button>
             </div>
           </CardFooter>
         </Card>
@@ -207,19 +207,19 @@ export default function Onboarding({ onDone }: Props) {
       {step === 3 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">Adım 3 — Telegram <Badge variant="outline">opsiyonel</Badge></CardTitle>
-            <CardDescription>Bot token varsa gir; yoksa atla. Token .env TELEGRAM_BOT_TOKEN içinde saklanır.</CardDescription>
+            <CardTitle className="flex items-center gap-2">Step 3 — Telegram <Badge variant="outline">optional</Badge></CardTitle>
+            <CardDescription>Enter a bot token if you have one, otherwise skip. The token is stored in .env TELEGRAM_BOT_TOKEN.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input placeholder="Telegram bot token (opsiyonel,örn. 123456:ABC...)" type="password" value={tgToken} onChange={(e) => setTgToken(e.target.value)} />
-            <p className="text-xs text-muted-foreground">Token boş bırakılırsa Telegram kapalı kalır — daha sonra Settings’ten eklenir.</p>
-            {tgDone && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">✓ kurulum tamamlandı</div>}
+            <Input placeholder="Telegram bot token (optional,örn. 123456:ABC...)" type="password" value={tgToken} onChange={(e) => setTgToken(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Leave empty to keep Telegram disabled — you can add it later in Settings.</p>
+            {tgDone && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">✓ setup complete</div>}
           </CardContent>
           <CardFooter className="flex justify-between">
-            <Button variant="ghost" onClick={() => setStep(2)}>← Geri</Button>
+            <Button variant="ghost" onClick={() => setStep(2)}>← Back</Button>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleStep3Done}>Atla ve bitir</Button>
-              <Button onClick={handleStep3Done}>Bitir ✓</Button>
+              <Button variant="outline" onClick={handleStep3Done}>Skip and finish</Button>
+              <Button onClick={handleStep3Done}>Finish ✓</Button>
             </div>
           </CardFooter>
         </Card>

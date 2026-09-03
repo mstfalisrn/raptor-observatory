@@ -1,6 +1,6 @@
 # RAPTOR pinned Python bağımlılıkları — API, worker, scheduler ortak çekirdeği
 # Sürümler sabittir; otomatik yükseltme/`latest` yok.
-# Host'ta Hermes venv kullanılmaz; her servis kendi image'ında build edilir.
+# No host venv is used; each service builds in its own image.
 
 # web/API framework
 fastapi==0.115.6

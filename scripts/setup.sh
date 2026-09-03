@@ -218,7 +218,7 @@ fi
 echo ""
 
 # ---- Step 2: LLM Provider ----
-# Covers the full Hermes provider ecosystem via OpenAI-compatible presets.
+# Covers the full provider ecosystem via OpenAI-compatible presets.
 # See docs/CONFIGURATION.md for the complete 40+ provider mapping.
 echo -e "${BOLD}Step 2/4 — LLM Provider${RESET}  ${DIM}(18 presets incl. OpenCode Free/Go/Zen + Custom; all OpenAI-compatible; mock = free)${RESET}"
 CUR_PROVIDER="$(get_env_val LLM_PROVIDER)"; [ -z "$CUR_PROVIDER" ] && CUR_PROVIDER="mock"

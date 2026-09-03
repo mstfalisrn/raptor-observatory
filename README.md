@@ -138,7 +138,7 @@ Full reference: [docs/CONFIGURATION.md](./docs/CONFIGURATION.md)
 
 Secrets are placeholders in `.env.example` (`CHANGE_ME`). Copy to `.env` and fill only what you need. Never commit `.env`.
 
-### LLM providers -- one env set, 18 presets (OpenAI-compatible) -- full Hermes coverage
+### LLM providers -- one env set, 18 presets (OpenAI-compatible) -- full provider coverage
 
 RAPTOR uses a single `LLM_PROVIDER` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY` set that speaks the OpenAI Chat Completions API. Every provider below is a preset for `openai_compatible` (or `mock` for free local dev). The wizard (`./scripts/setup.sh`) offers 18 presets (incl. OpenCode Free/Go/Zen); `Custom` covers any other OpenAI-compatible endpoint.
 
@@ -162,7 +162,7 @@ RAPTOR uses a single `LLM_PROVIDER` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KE
 | **LM Studio (local)** | `openai_compatible` | `http://host.docker.internal:1234/v1` | `local-model` | `lm-studio` |
 | **vLLM / SGLang (self-hosted)** | `openai_compatible` | `http://host.docker.internal:8000/v1` | `your-model` | `CHANGE_ME` or key |
 
-> **Full coverage:** The table above shows the most-used presets. RAPTOR's `openai_compatible` provider works with **any** OpenAI-compatible endpoint, so all 40+ Hermes providers are supported -- see [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) for the complete Hermes-to-RAPTOR mapping (Nous Portal, Claude Max OAuth, Grok OAuth, Bedrock, Vertex, Azure, OpenCode, Ramp, Novita, Arcee, Nebius, GMI, Tencent, StepFun, NVIDIA Build, and more).
+> **Full coverage:** The table above shows the most-used presets. RAPTOR's `openai_compatible` provider works with **any** OpenAI-compatible endpoint, so all 40+ providers are supported -- see [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) for the complete provider mapping (Nous Portal, Claude Max OAuth, Grok OAuth, Bedrock, Vertex, Azure, OpenCode, Ramp, Novita, Arcee, Nebius, GMI, Tencent, StepFun, NVIDIA Build, and more).
 
 ```bash
 # .env -- OpenAI example

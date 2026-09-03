@@ -1,4 +1,4 @@
-// RAPTOR web — API client. localStorage'e auth token YAZILMAZ (sessionStorage kullanılır).
+// RAPTOR web — API client. Auth token is never written to localStorage (sessionStorage is used).
 // Last-Event-ID localStorage'da saklanabilir (secret değil).
 const API = (import.meta.env.VITE_API_BASE ?? '/api') as string
 const SSE_URL = (import.meta.env.VITE_SSE_BASE ?? '/api/v1/events/stream') as string

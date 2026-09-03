@@ -53,13 +53,13 @@ RAPTOR speaks the **OpenAI Chat Completions API** (`POST {base_url}/chat/complet
 
 > `mock` runs the entire agentic loop (Planner -> Coordinator -> ToolExecutor -> Verifier -> Reporter) with deterministic fixtures. Tests and CI use `mock` by default.
 
-### Full Hermes-to-RAPTOR mapping (40+ providers)
+### Full provider mapping (40+ providers)
 
-Hermes Agent supports 40+ inference providers. RAPTOR's `openai_compatible` covers every provider that exposes an OpenAI-compatible `/chat/completions` endpoint. OAuth-only providers (portal/broker) do not expose a raw API key — use their API-key alternative or proxy via OpenRouter / a custom gateway.
+RAPTOR supports 40+ inference providers via `openai_compatible`, which covers every provider that exposes an OpenAI-compatible `/chat/completions` endpoint. OAuth-only providers (portal/broker) do not expose a raw API key — use their API-key alternative or proxy via OpenRouter / a custom gateway.
 
-| Hermes Provider | RAPTOR mode | How to configure in RAPTOR |
+| Provider | RAPTOR mode | How to configure in RAPTOR |
 |---|---|---|
-| **Nous Portal** (OAuth, subscription) | `openai_compatible` | No direct key — get an API key from portal or proxy via OpenRouter. Hermes `hermes model` OAuth does not apply to RAPTOR. |
+| **Nous Portal** (OAuth, subscription) | `openai_compatible` | No direct key — get an API key from portal or proxy via OpenRouter. `hermes model` OAuth does not apply to RAPTOR. |
 | **OpenAI Codex** (OAuth, ChatGPT plan) | `openai_compatible` | Use `OPENAI_API_KEY` (`sk-...`) from platform.openai.com instead of Codex OAuth. |
 | **GitHub Copilot** (OAuth device code) | `openai_compatible` | No raw key — use OpenRouter proxy for Copilot models or any `openai_compatible` provider. |
 | **GitHub Copilot ACP** (local `copilot --acp`) | — | Not applicable (ACP transport). Use Ollama/LM Studio/vLLM locally instead. |

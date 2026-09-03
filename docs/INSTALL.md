@@ -131,7 +131,7 @@ You can also verify from the UI: log in and open **Settings -> LLM Test**.
 | **vLLM / Self-hosted** | `openai_compatible` | `http://host.docker.internal:8000/v1` | `your-model` | `CHANGE_ME` |
 
 `LLM_PROVIDER=mock` runs the full agentic loop with deterministic fixtures and requires no API key. Ideal for local development and CI.
-Wizard also offers **MiniMax**, **Kimi/Moonshot**, **Fireworks AI**, **Hugging Face** and **Custom** URL presets — full 40+ Hermes mapping: [CONFIGURATION.md](CONFIGURATION.md).
+Wizard also offers **MiniMax**, **Kimi/Moonshot**, **Fireworks AI**, **Hugging Face** and **Custom** URL presets — full 40+ provider mapping: [CONFIGURATION.md](CONFIGURATION.md).
 
 ## Environment Variables
 

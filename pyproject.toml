@@ -20,9 +20,9 @@ ignore = [
     "S110",    # try-except-pass: resilience
     "S112",    # try-except-continue
     "S101",    # assert: prod doğrulama + testlerde kullanılır
-    "RUF001",  # Türkçe string literal'lardaki ı/İ (API mesajları, hata mesajları)
-    "RUF002",  # Türkçe docstring'lerdeki ı/İ
-    "RUF003",  # Türkçe yorumlardaki ı/İ karakterleri (kod tabanı Türkçe)
+    "RUF001",  # non-ASCII string literals (API messages)
+    "RUF002",  # non-ASCII docstrings
+    "RUF003",  # non-ASCII comments
     "S104",    # bind-all-interfaces: yalnız container içi uvicorn (host portu kapalı)
     "TRY002",  # raise-vanilla-class
     "TRY003",  # raise-vanilla-args: HTTPException(detail="...") standart

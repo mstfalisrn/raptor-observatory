@@ -79,7 +79,7 @@ function SSEDot({ state }: { state: SSEState }) {
 }
 
 function SSEBadge({ state, lastId }: { state: SSEState; lastId: string }) {
-  const label = state === 'open' ? 'canlı' : state === 'connecting' ? 'bağlanıyor' : state === 'error' ? 'yeniden bağlanıyor' : 'kapalı'
+  const label = state === 'open' ? 'live' : state === 'connecting' ? 'connecting' : state === 'error' ? 'yeniden connecting' : 'offline'
   const variant: 'default' | 'secondary' | 'destructive' | 'outline' =
     state === 'open' ? 'default' : state === 'error' ? 'destructive' : 'secondary'
   return (
@@ -201,7 +201,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-500 shadow-[0_0_8px_theme(colors.violet.500)]" />
-            yükleniyor…
+            loading…
           </div>
         </motion.div>
       </div>
@@ -217,7 +217,7 @@ export default function App() {
             </div>
             <div>
               <div className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-base font-bold tracking-tight text-transparent">RAPTOR OBSERVATORY</div>
-              <div className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Gözlem ve orkestrasyon</div>
+              <div className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Observation & orchestration</div>
             </div>
           </div>
           <Card className="shadow-[0_16px_40px_rgba(0,0,0,0.1),0_4px_12px_rgba(0,0,0,0.06)] border-white/20 dark:border-white/5">
@@ -239,7 +239,7 @@ export default function App() {
         {/* mobile menu */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="shrink-0 rounded-xl md:hidden" aria-label="Menüyü aç">
+            <Button variant="ghost" size="icon" className="shrink-0 rounded-xl md:hidden" aria-label="Open menu">
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
@@ -278,7 +278,7 @@ export default function App() {
                   {session.role}
                 </Badge>
                 <Button variant="outline" size="sm" className="w-full justify-start gap-2 rounded-xl" onClick={logout}>
-                  <LogOut className="h-4 w-4" /> Çıkış
+                  <LogOut className="h-4 w-4" /> Sign out
                 </Button>
               </div>
             </div>
@@ -311,7 +311,7 @@ export default function App() {
           {/* desktop SSE compact */}
           <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/60 px-3 py-1.5 backdrop-blur-xl dark:bg-white/[0.04] sm:flex lg:hidden">
             <SSEDot state={sseState} />
-            <span className="text-xs font-semibold capitalize text-muted-foreground">{sseState === 'open' ? 'canlı' : sseState}</span>
+            <span className="text-xs font-semibold capitalize text-muted-foreground">{sseState === 'open' ? 'live' : sseState}</span>
           </div>
 
           <div className="hidden items-center gap-3 sm:flex">
@@ -325,9 +325,9 @@ export default function App() {
           </div>
 
           <Button variant="ghost" size="sm" className="hidden gap-1.5 rounded-xl md:inline-flex" onClick={logout}>
-            <LogOut className="h-4 w-4" /> Çıkış
+            <LogOut className="h-4 w-4" /> Sign out
           </Button>
-          <Button variant="ghost" size="icon" className="rounded-xl md:hidden" onClick={logout} aria-label="Çıkış">
+          <Button variant="ghost" size="icon" className="rounded-xl md:hidden" onClick={logout} aria-label="Sign out">
             <LogOut className="h-4 w-4" />
           </Button>
 
@@ -336,7 +336,7 @@ export default function App() {
             size="icon"
             className="hidden h-8 w-8 rounded-xl border border-black/[0.04] bg-white/40 backdrop-blur-sm hover:bg-white/70 dark:bg-white/[0.04] dark:border-white/5 dark:hover:bg-white/10 md:inline-flex"
             onClick={() => setCollapsed((v) => !v)}
-            aria-label={collapsed ? 'Kenar çubuğunu genişlet' : 'Kenar çubuğunu daralt'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </Button>
@@ -355,7 +355,7 @@ export default function App() {
           <div className={cn('flex h-11 items-center border-b border-black/[0.04] dark:border-white/[0.05] px-2 bg-white/20 dark:bg-white/[0.015]', collapsed ? 'justify-center' : 'justify-between gap-2 px-3')}>
             {!collapsed && (
               <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
-                <PanelLeft className="h-3.5 w-3.5" /> Menü
+                <PanelLeft className="h-3.5 w-3.5" /> Menu
               </span>
             )}
             {!collapsed && (
