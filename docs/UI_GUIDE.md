@@ -1,11 +1,11 @@
-# UI Guide — RAPTOR Observatory
+# UI Guide — LUMI Observatory
 
-The Web UI is a single-origin React SPA served from `raptor-api` (same origin as `/api`). This guide covers navigation, design system, onboarding, and live updates.
+The Web UI is a single-origin React SPA served from `lumi-api` (same origin as `/api`). This guide covers navigation, design system, onboarding, and live updates.
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
+git clone https://github.com/your-owner/lumi-observatory.git && cd lumi-observatory
 cp .env.example .env
 ./scripts/quickstart.sh
 # -> http://localhost:3525
@@ -116,7 +116,7 @@ Session state is stored as an API token in `localStorage`; logout clears the tok
 |---|---|
 | `3525 in use` | `ss -tlnp | grep 3525` then stop the holder, or `GATEWAY_PORT=3526 docker compose up -d` |
 | Login failed | `grep ADMIN .env` — verify email and hash; use the password from the quickstart log or generate a new hash |
-| UI empty / SSE stuck on `connecting` | `curl -s http://localhost:3525/health/ready | jq` and `docker compose logs -f raptor-api` |
+| UI empty / SSE stuck on `connecting` | `curl -s http://localhost:3525/health/ready | jq` and `docker compose logs -f lumi-api` |
 | LLM test returns 401 | Check `LLM_API_KEY` / `LLM_BASE_URL` — try `mock` first to isolate the issue |
 
 ```bash

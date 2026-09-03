@@ -1,4 +1,4 @@
-# RAPTOR — FastAPI uygulaması
+# LUMI — FastAPI uygulaması
 # Endpoint grupları: /health, /api/v1/*, /webhooks/telegram/<opaque_path>, /events/stream (SSE)
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from observability.config import settings
 from observability.db import async_session_factory
 from observability.security import redact
 
-log = logging.getLogger("raptor.api")
+log = logging.getLogger("lumi.api")
 
 
 # --- Lifespan: admin kullanıcısını seed et ---
@@ -57,7 +57,7 @@ async def _lifespan(_app: FastAPI):
         await _tg.shutdown()
 
 
-app = FastAPI(title="RAPTOR Agentic Observatory", version=__version__, lifespan=_lifespan)
+app = FastAPI(title="LUMI Agentic Observatory", version=__version__, lifespan=_lifespan)
 
 # --- Fail-fast: production'da eksik/placeholder secret ile boot etme (P58) ---
 import os as _os
@@ -69,12 +69,12 @@ if _os.getenv("APP_ENV") == "production":
         if not _v or _v in ("CHANGE_ME", "dev-only-change-me") or len(str(_v)) < 16:
             _missing.append(_k)
     if _missing:
-        raise RuntimeError(f"RAPTOR fail-fast: eksik/placeholder secret: {', '.join(_missing)}")
+        raise RuntimeError(f"LUMI fail-fast: eksik/placeholder secret: {', '.join(_missing)}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://raptor.your-domain.example",
+        "https://lumi.your-domain.example",
         "http://127.0.0.1:3525",
         "http://localhost:3525",
     ],
@@ -188,7 +188,7 @@ async def login(req: LoginRequest):
 @app.post("/api/v1/auth/logout")
 async def logout():
     resp = JSONResponse({"ok": True})
-    resp.delete_cookie("raptor_session", path="/")
+    resp.delete_cookie("lumi_session", path="/")
     return resp
 
 
@@ -242,7 +242,7 @@ async def create_task(t: TaskCreate, user: dict = Depends(require_role("operator
         await s.flush()
         # outbox transactional
         ob = models.OutboxMessage(
-            topic="raptor.run_queued",
+            topic="lumi.run_queued",
             payload={"run_id": str(run.id), "task_id": str(task.id)},
             idempotency_key=outbox_key,
             processed=False,
@@ -361,7 +361,7 @@ async def retry_run(request: Request, run_id: str, user: dict = Depends(require_
         # flush to get id; outbox add must be inside same transaction and commit together
         await s.flush()
         out = models.OutboxMessage(
-            topic="raptor.run_queued",
+            topic="lumi.run_queued",
             payload={"run_id": str(new_run.id), "source_run_id": str(run.id)},
             idempotency_key=idem_key,
         )
@@ -754,7 +754,7 @@ async def telegram_webhook(opaque_path: str, request: Request):
 async def root():
     # UI build varsa onu servis et; yoksa basit durum sayfası
     import os as _os
-    dist_index = "/srv/raptor/apps/web/dist/index.html"
+    dist_index = "/srv/lumi/apps/web/dist/index.html"
     candidate = "apps/web/dist/index.html"
     built = _os.path.exists(dist_index) or _os.path.exists(candidate)
     if built:
@@ -766,10 +766,10 @@ async def root():
         except Exception:
             pass
     return HTMLResponse("""
-    <html><head><title>RAPTOR Agentic Observatory</title></head>
+    <html><head><title>LUMI Agentic Observatory</title></head>
     <body style="font-family:sans-serif;background:#0d1421;color:#e8eefc;display:flex;align-items:center;justify-content:center;height:100vh">
       <div style="text-align:center">
-        <h1>🐦 RAPTOR Agentic Observatory</h1>
+        <h1>🐦 LUMI Agentic Observatory</h1>
         <p>API çalışıyor. UI build'i dist'te değil.</p>
         <p><code>/health/live</code> · <code>/health/ready</code> · <code>/docs</code></p>
       </div>
@@ -858,7 +858,7 @@ async def assets(path: str):
     import os as _os
 
     from fastapi.responses import FileResponse
-    for base in ("apps/web/dist", "/srv/raptor/apps/web/dist"):
+    for base in ("apps/web/dist", "/srv/lumi/apps/web/dist"):
         p = f"{base}/assets/{path}"
         if _os.path.exists(p):
             return FileResponse(p)

@@ -1,4 +1,4 @@
-# RAPTOR — LLM provider arayüzü + OpenAI-compatible + mock
+# LUMI — LLM provider arayüzü + OpenAI-compatible + mock
 # Provider bağımsız; env ile base_url/model/api_key seçilir. Does not touch host env.
 from __future__ import annotations
 

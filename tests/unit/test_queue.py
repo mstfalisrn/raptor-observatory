@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 6 queue testleri (DLQ, stream publish, group)
+# LUMI — AŞAMA 6 queue testleri (DLQ, stream publish, group)
 
 from observability.queue import (
     DLQ_STREAM,

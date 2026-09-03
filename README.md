@@ -1,6 +1,6 @@
-# RAPTOR Agentic Observatory
+# LUMI Agentic Observatory
 
-[![CI](https://github.com/your-owner/raptor-observatory/actions/workflows/ci.yml/badge.svg)](https://github.com/your-owner/raptor-observatory/actions/workflows/ci.yml)
+[![CI](https://github.com/your-owner/lumi-observatory/actions/workflows/ci.yml/badge.svg)](https://github.com/your-owner/lumi-observatory/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-1.0.0-blue)](./CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
@@ -8,13 +8,13 @@
 
 > **Observable, policy-gated agentic runtime over Telegram + Web UI** -- verifiable context, auditable tool execution, and human-in-the-loop approvals.
 
-RAPTOR is a self-hosted agentic runtime for observable, policy-controlled automation. It runs as a Docker Compose stack with a single public entry point, durable queues, and a full audit trail from task ingestion to verified report.
+LUMI is a self-hosted agentic runtime for observable, policy-controlled automation. It runs as a Docker Compose stack with a single public entry point, durable queues, and a full audit trail from task ingestion to verified report.
 
 ---
 
 ## Highlights
 
-- **Why RAPTOR:** Every agent step is assembled from auditable context, checked against policy, executed through declared tools, and verified against expected evidence before a report is persisted.
+- **Why LUMI:** Every agent step is assembled from auditable context, checked against policy, executed through declared tools, and verified against expected evidence before a report is persisted.
 - **Single-command local run:** `quickstart.sh` generates secrets, runs migrations, and starts the stack idempotently.
 - **Single origin:** The Web UI is served by the API behind a single gateway -- one host bind, no CORS sprawl.
 
@@ -68,15 +68,15 @@ Context is assembled in 7 layers (`system_policy`, `task_goal`, `conversation_wi
 
 | Service | Role | External port |
 |---|---|---|
-| `raptor-gateway` | Caddy reverse proxy -- single host entry point for UI + API | `127.0.0.1:3525` |
-| `raptor-api` | FastAPI -- REST API, SSE stream, Telegram webhook, embedded UI static | internal |
-| `raptor-worker` | Agent execution -- dequeues runs, drives the coordinator loop | internal |
-| `raptor-scheduler` | Scheduling -- periodic reads, deferred delivery (`not_before`), maintenance | internal |
-| `raptor-migrate` | One-shot Alembic migration -- runs once, API/worker/scheduler depend on it | internal |
-| `raptor-postgres` | PostgreSQL 16 + pgvector -- durable state, vectors, append-only events | internal |
-| `raptor-redis` | Redis 7 -- Streams queue/DLQ, coordination, cursors | internal |
+| `lumi-gateway` | Caddy reverse proxy -- single host entry point for UI + API | `127.0.0.1:3525` |
+| `lumi-api` | FastAPI -- REST API, SSE stream, Telegram webhook, embedded UI static | internal |
+| `lumi-worker` | Agent execution -- dequeues runs, drives the coordinator loop | internal |
+| `lumi-scheduler` | Scheduling -- periodic reads, deferred delivery (`not_before`), maintenance | internal |
+| `lumi-migrate` | One-shot Alembic migration -- runs once, API/worker/scheduler depend on it | internal |
+| `lumi-postgres` | PostgreSQL 16 + pgvector -- durable state, vectors, append-only events | internal |
+| `lumi-redis` | Redis 7 -- Streams queue/DLQ, coordination, cursors | internal |
 
-All runtime containers run as non-root, read-only filesystem, `cap_drop: ALL`, `no-new-privileges`. Only `raptor-gateway` is bound to the host.
+All runtime containers run as non-root, read-only filesystem, `cap_drop: ALL`, `no-new-privileges`. Only `lumi-gateway` is bound to the host.
 
 ---
 
@@ -90,7 +90,7 @@ Step-by-step in your terminal — you choose every value. Nothing is auto-filled
 
 ```bash
 # 1) Clone
-git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
+git clone https://github.com/your-owner/lumi-observatory.git && cd lumi-observatory
 
 # 2) Run the wizard — walks you through Admin -> LLM -> Telegram -> Security
 ./scripts/setup.sh
@@ -114,7 +114,7 @@ nano .env && docker compose up -d --build
 Auto-generates any remaining `CHANGE_ME` placeholders and starts the stack without prompts:
 
 ```bash
-git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
+git clone https://github.com/your-owner/lumi-observatory.git && cd lumi-observatory
 cp .env.example .env          # optional — quickstart.sh creates it if missing
 ./scripts/quickstart.sh       # legacy alias; same as: ./scripts/setup.sh --yes
 # Alternative: docker compose up -d --build
@@ -140,7 +140,7 @@ Secrets are placeholders in `.env.example` (`CHANGE_ME`). Copy to `.env` and fil
 
 ### LLM providers -- one env set, 18 presets (OpenAI-compatible) -- full provider coverage
 
-RAPTOR uses a single `LLM_PROVIDER` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY` set that speaks the OpenAI Chat Completions API. Every provider below is a preset for `openai_compatible` (or `mock` for free local dev). The wizard (`./scripts/setup.sh`) offers 18 presets (incl. OpenCode Free/Go/Zen); `Custom` covers any other OpenAI-compatible endpoint.
+LUMI uses a single `LLM_PROVIDER` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY` set that speaks the OpenAI Chat Completions API. Every provider below is a preset for `openai_compatible` (or `mock` for free local dev). The wizard (`./scripts/setup.sh`) offers 18 presets (incl. OpenCode Free/Go/Zen); `Custom` covers any other OpenAI-compatible endpoint.
 
 **Common presets (quick reference):**
 
@@ -162,7 +162,7 @@ RAPTOR uses a single `LLM_PROVIDER` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KE
 | **LM Studio (local)** | `openai_compatible` | `http://host.docker.internal:1234/v1` | `local-model` | `lm-studio` |
 | **vLLM / SGLang (self-hosted)** | `openai_compatible` | `http://host.docker.internal:8000/v1` | `your-model` | `CHANGE_ME` or key |
 
-> **Full coverage:** The table above shows the most-used presets. RAPTOR's `openai_compatible` provider works with **any** OpenAI-compatible endpoint, so all 40+ providers are supported -- see [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) for the complete provider mapping (Nous Portal, Claude Max OAuth, Grok OAuth, Bedrock, Vertex, Azure, OpenCode, Ramp, Novita, Arcee, Nebius, GMI, Tencent, StepFun, NVIDIA Build, and more).
+> **Full coverage:** The table above shows the most-used presets. LUMI's `openai_compatible` provider works with **any** OpenAI-compatible endpoint, so all 40+ providers are supported -- see [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) for the complete provider mapping (Nous Portal, Claude Max OAuth, Grok OAuth, Bedrock, Vertex, Azure, OpenCode, Ramp, Novita, Arcee, Nebius, GMI, Tencent, StepFun, NVIDIA Build, and more).
 
 ```bash
 # .env -- OpenAI example
@@ -226,11 +226,11 @@ curl -s http://localhost:3525/health/ready | jq  # readiness (DB + deps)
 
 # Logs
 docker compose logs -f
-docker compose logs raptor-api --tail 100
+docker compose logs lumi-api --tail 100
 
 # Backup / restore (restore targets a separate test DB, never overwrites production)
 ./scripts/backup-restore.sh backup
-./scripts/backup-restore.sh restore /var/backups/raptor-observatory/raptor-<timestamp>.dump
+./scripts/backup-restore.sh restore /var/backups/lumi-observatory/lumi-<timestamp>.dump
 
 # Secret check
 ./scripts/secret-scan.sh .

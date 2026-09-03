@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 12 auth unit testleri (parola, session, RBAC, rate limit)
+# LUMI — AŞAMA 12 auth unit testleri (parola, session, RBAC, rate limit)
 import time
 
 import pytest

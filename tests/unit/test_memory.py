@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 8 memory testleri (lifecycle, DLP, verified/active retrieval)
+# LUMI — AŞAMA 8 memory testleri (lifecycle, DLP, verified/active retrieval)
 
 import pytest
 import pytest_asyncio

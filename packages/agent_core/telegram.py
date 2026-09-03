@@ -1,4 +1,4 @@
-# RAPTOR — Telegram bot (Faz 6 tam kontrol)
+# LUMI — Telegram bot (Faz 6 tam kontrol)
 # Yalnız onaylı numeric user ID'ye yanıt; '*' / allow-all YASAK.
 # Polling (ilk kurulum) + webhook (production). update_id ile idempotent (BIGINT).
 # 11+ komut + approval inline callback + getMe doğrulama + DB allowlist + BIGINT.
@@ -17,7 +17,7 @@ from observability.config import settings
 from observability.db import async_session_factory
 from observability.security import redact
 
-log = logging.getLogger("raptor.telegram")
+log = logging.getLogger("lumi.telegram")
 
 # Opaque path: sha256(secret)[:32] — webhook URL brute-force'a dayanıklı
 def webhook_opaque_path(secret: str) -> str:
@@ -172,7 +172,7 @@ class TelegramService:
     # --- handlers ---
     async def cmd_start(self, update: Update, context: CallbackContext) -> None:
         text = (
-            "🐦 RAPTOR Observatory — tam kontrol\n"
+            "🐦 LUMI Observatory — tam kontrol\n"
             "/help — komut listesi\n"
             "/status — sistem durumu\n"
             "/ask <soru> — hızlı soru/task oluştur\n"
@@ -202,7 +202,7 @@ class TelegramService:
             runs_cnt = (await sess.execute(select(func.count()).select_from(models.Run))).scalar() or 0
             appr_cnt = (await sess.execute(select(func.count()).select_from(models.Approval).where(models.Approval.status == models.ApprovalStatus.PENDING.value))).scalar() or 0
         await update.effective_message.reply_text(
-            f"ℹ️ RAPTOR durumu\n"
+            f"ℹ️ LUMI durumu\n"
             f"Provider: {s.LLM_PROVIDER}\n"
             f"LLM: {s.LLM_MODEL or '-'}\n"
             f"Env allowlist: {len(s.allowed_user_ids)} kullanıcı\n"

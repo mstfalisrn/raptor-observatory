@@ -1,4 +1,4 @@
-# RAPTOR — RunEvent tek yazma yolu
+# LUMI — RunEvent tek yazma yolu
 # Tüm production RunEvent insertleri bu modül üzerinden gitmeli.
 # - PostgreSQL: pg_advisory_xact_lock(727271) ZORUNLU (commit order serialization)
 # - Run satırı FOR UPDATE

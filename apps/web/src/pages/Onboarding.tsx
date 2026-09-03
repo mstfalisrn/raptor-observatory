@@ -101,7 +101,7 @@ export default function Onboarding({ onDone }: Props) {
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-[0_8px_24px_rgba(99,102,241,0.3)]">
           <span className="text-lg font-bold">R</span>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">RAPTOR Setup Wizard</h1>
+        <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">LUMI Setup Wizard</h1>
         <p className="mt-1 text-sm text-muted-foreground">Get started in 3 steps — instant with mock, fully autonomous with an API key.</p>
       </div>
 

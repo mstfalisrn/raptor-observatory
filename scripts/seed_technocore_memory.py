@@ -52,7 +52,7 @@ async def fetch_text(client: httpx.AsyncClient, url: str) -> str:
 
 
 async def seed() -> None:
-    async with httpx.AsyncClient(headers={"User-Agent": "raptor-seed/1.0"}) as client:
+    async with httpx.AsyncClient(headers={"User-Agent": "lumi-seed/1.0"}) as client:
         fetched: dict[str, str] = {}
         for url, source in DOCS:
             print(f"fetch {url} ...", flush=True)

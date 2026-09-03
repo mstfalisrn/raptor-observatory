@@ -1,4 +1,4 @@
-# RAPTOR — P0-R2 regression tests
+# LUMI — P0-R2 regression tests
 # Hata 1: Approval continuation (web+Telegram aynı atomik servis, replay/expiry/crash)
 # Hata 2: RunEvent seq 0,1,2 + concurrency + sessiz yutma yok
 # Hata 3: Retry source_run_id idempotency + unique constraint race
@@ -105,7 +105,7 @@ class TestApprovalContinuation:
         # outbox var mı
         res = await session.execute(select(models.OutboxMessage).where(models.OutboxMessage.idempotency_key == f"approve:{appr.id}"))
         ob = res.scalar_one_or_none()
-        assert ob is not None and ob.topic == "raptor.run_queued"
+        assert ob is not None and ob.topic == "lumi.run_queued"
 
     @pytest.mark.asyncio
     async def test_approve_replay_second_decide_blocked(self, session):
@@ -752,7 +752,7 @@ class TestSSEAuth:
             r = await client.get(f"/api/v1/events/stream?token={token}")
             assert r.status_code == 401, "query ?token must not be accepted"
             # cookie alone must also be 401 (Bearer-only)
-            r_cookie = await client.get("/api/v1/events/stream", cookies={"raptor_session": token})
+            r_cookie = await client.get("/api/v1/events/stream", cookies={"lumi_session": token})
             assert r_cookie.status_code == 401, "cookie must not be accepted"
             # without any token must be 401
             r2 = await client.get("/api/v1/events/stream")

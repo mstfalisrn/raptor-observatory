@@ -89,7 +89,7 @@ Notlar:
 # DB'ye 3 dökümanı ACTIVE olarak yaz (truncate yok)
 python scripts/seed_technocore_memory.py
 # veya
-DATABASE_URL=postgresql+asyncpg://raptor:pass@host:5432/raptor python scripts/seed_technocore_memory.py
+DATABASE_URL=postgresql+asyncpg://lumi:pass@host:5432/lumi python scripts/seed_technocore_memory.py
 ```
 
 Tablo: `memory_items` (`packages/observability/models.py` — ek tablo yok).  

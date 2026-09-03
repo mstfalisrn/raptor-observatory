@@ -1,4 +1,4 @@
-# RAPTOR — Tool executor (yalnız kayıtlı ve şemalı araçları kullanır; keyfi shell/docker yok)
+# LUMI — Tool executor (yalnız kayıtlı ve şemalı araçları kullanır; keyfi shell/docker yok)
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -94,7 +94,7 @@ def build_default_registry(
     reg.register(
         "internal_health",
         lambda: health.check(),
-        {"name": "internal_health", "description": "RAPTOR container sağlık bilgisi",
+        {"name": "internal_health", "description": "LUMI container sağlık bilgisi",
          "parameters": {"type": "object", "properties": {}}},
     )
     reg.register(

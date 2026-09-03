@@ -1,10 +1,10 @@
-// RAPTOR web — API client. Auth token is never written to localStorage (sessionStorage is used).
+// LUMI web — API client. Auth token is never written to localStorage (sessionStorage is used).
 // Last-Event-ID localStorage'da saklanabilir (secret değil).
 const API = (import.meta.env.VITE_API_BASE ?? '/api') as string
 const SSE_URL = (import.meta.env.VITE_SSE_BASE ?? '/api/v1/events/stream') as string
 
 // ---- session token (sessionStorage; localStorage'a auth token YAZILMAZ) ----
-const TOKEN_KEY = 'raptor:session'
+const TOKEN_KEY = 'lumi:session'
 
 export function getToken(): string {
   try { return sessionStorage.getItem(TOKEN_KEY) || '' } catch { return '' }
@@ -40,7 +40,7 @@ export const sseUrl = SSE_URL
 
 // ---- SSE with Last-Event-ID (fetch streaming + EventSource fallback) ----
 export type SSEState = 'connecting' | 'open' | 'closed' | 'error'
-const LS_KEY = 'raptor:lastEventId'
+const LS_KEY = 'lumi:lastEventId'
 
 function getLastId() { try { return localStorage.getItem(LS_KEY) || '' } catch { return '' } }
 function setLastId(v: string) { try { if (v) localStorage.setItem(LS_KEY, v) } catch {} }

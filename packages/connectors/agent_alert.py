@@ -1,11 +1,11 @@
-# RAPTOR — Agent risk alert -> Telegram (M4)
+# LUMI — Agent risk alert -> Telegram (M4)
 # RISKY / DANGEROUS tier için format: room, nick/did, skor, neden, link
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-log = logging.getLogger("raptor.agent_alert")
+log = logging.getLogger("lumi.agent_alert")
 
 # tiers that trigger alert
 _ALERT_TIERS = {"RISKY", "DANGEROUS"}
@@ -40,7 +40,7 @@ def _format_msg(ev: Any) -> str:
     icon = "🔴" if tier == "DANGEROUS" else "🟠" if tier == "RISKY" else "⚪"
 
     msg = (
-        f"{icon} *RAPTOR risk alert — {tier}*\n"
+        f"{icon} *LUMI risk alert — {tier}*\n"
         f"• *room*: `{room}`\n"
         f"• *agent*: `{who}`\n"
         f"• *skor*: `{score}`\n"

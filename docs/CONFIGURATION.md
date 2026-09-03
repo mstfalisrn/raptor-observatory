@@ -8,7 +8,7 @@ All runtime configuration is via environment variables in `.env` (see `.env.exam
 
 ```bash
 # 1) Clone
-git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
+git clone https://github.com/your-owner/lumi-observatory.git && cd lumi-observatory
 
 # 2) Environment — copy the template (all values are CHANGE_ME placeholders)
 cp .env.example .env
@@ -29,7 +29,7 @@ cp .env.example .env
 
 ## LLM Provider Matrix
 
-RAPTOR speaks the **OpenAI Chat Completions API** (`POST {base_url}/chat/completions` + `Bearer` key). Every provider below maps to `LLM_PROVIDER=openai_compatible` with a different `LLM_BASE_URL` (except `mock` which needs no key). The wizard offers 18 presets (checkbox menu via whiptail radiolist — incl. OpenCode Free/Go/Zen); `Custom` accepts any other OpenAI-compatible URL.
+LUMI speaks the **OpenAI Chat Completions API** (`POST {base_url}/chat/completions` + `Bearer` key). Every provider below maps to `LLM_PROVIDER=openai_compatible` with a different `LLM_BASE_URL` (except `mock` which needs no key). The wizard offers 18 presets (checkbox menu via whiptail radiolist — incl. OpenCode Free/Go/Zen); `Custom` accepts any other OpenAI-compatible URL.
 
 ### Common presets (14 wizard options + Custom)
 
@@ -55,11 +55,11 @@ RAPTOR speaks the **OpenAI Chat Completions API** (`POST {base_url}/chat/complet
 
 ### Full provider mapping (40+ providers)
 
-RAPTOR supports 40+ inference providers via `openai_compatible`, which covers every provider that exposes an OpenAI-compatible `/chat/completions` endpoint. OAuth-only providers (portal/broker) do not expose a raw API key — use their API-key alternative or proxy via OpenRouter / a custom gateway.
+LUMI supports 40+ inference providers via `openai_compatible`, which covers every provider that exposes an OpenAI-compatible `/chat/completions` endpoint. OAuth-only providers (portal/broker) do not expose a raw API key — use their API-key alternative or proxy via OpenRouter / a custom gateway.
 
-| Provider | RAPTOR mode | How to configure in RAPTOR |
+| Provider | LUMI mode | How to configure in LUMI |
 |---|---|---|
-| **Nous Portal** (OAuth, subscription) | `openai_compatible` | No direct key — get an API key from portal or proxy via OpenRouter. `hermes model` OAuth does not apply to RAPTOR. |
+| **Nous Portal** (OAuth, subscription) | `openai_compatible` | No direct key — get an API key from portal or proxy via OpenRouter. `hermes model` OAuth does not apply to LUMI. |
 | **OpenAI Codex** (OAuth, ChatGPT plan) | `openai_compatible` | Use `OPENAI_API_KEY` (`sk-...`) from platform.openai.com instead of Codex OAuth. |
 | **GitHub Copilot** (OAuth device code) | `openai_compatible` | No raw key — use OpenRouter proxy for Copilot models or any `openai_compatible` provider. |
 | **GitHub Copilot ACP** (local `copilot --acp`) | — | Not applicable (ACP transport). Use Ollama/LM Studio/vLLM locally instead. |
@@ -234,8 +234,8 @@ LLM_MODEL=your-model
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `POSTGRES_PASSWORD` | yes | `CHANGE_ME` | Must match `DATABASE_URL` |
-| `DATABASE_URL` | yes | `postgresql+psycopg://raptor:CHANGE_ME@raptor-postgres:5432/raptor` | Async variant uses `postgresql+asyncpg://` |
-| `REDIS_URL` | no | `redis://raptor-redis:6379/0` | Redis Streams queue |
+| `DATABASE_URL` | yes | `postgresql+psycopg://lumi:CHANGE_ME@lumi-postgres:5432/lumi` | Async variant uses `postgresql+asyncpg://` |
+| `REDIS_URL` | no | `redis://lumi-redis:6379/0` | Redis Streams queue |
 | `JWT_SECRET` | yes | `CHANGE_ME` | 64 hex chars — `openssl rand -hex 32` |
 | `SESSION_ENCRYPTION_MASTER_KEY` | yes | `CHANGE_ME` | Session cookie encryption |
 | `RUN_MAX_ITERATIONS` | no | `40` | Agentic loop iteration budget |

@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 4 approval testleri (hash bağlama + HMAC token + consume mantığı)
+# LUMI — AŞAMA 4 approval testleri (hash bağlama + HMAC token + consume mantığı)
 import hashlib
 import hmac
 

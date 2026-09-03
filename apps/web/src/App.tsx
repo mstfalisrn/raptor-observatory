@@ -216,7 +216,7 @@ export default function App() {
               <Bird className="h-6 w-6" />
             </div>
             <div>
-              <div className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-base font-bold tracking-tight text-transparent">RAPTOR OBSERVATORY</div>
+              <div className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-base font-bold tracking-tight text-transparent">LUMI OBSERVATORY</div>
               <div className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Observation & orchestration</div>
             </div>
           </div>
@@ -250,7 +250,7 @@ export default function App() {
                   <Bird className="h-4 w-4" />
                 </div>
                 <div>
-                  <div className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-sm font-bold leading-none tracking-tight text-transparent">RAPTOR</div>
+                  <div className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-sm font-bold leading-none tracking-tight text-transparent">LUMI</div>
                   <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Observatory</div>
                 </div>
               </div>
@@ -291,14 +291,14 @@ export default function App() {
             <Bird className="h-5 w-5" />
           </div>
           <div className="hidden md:block">
-            <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-700 bg-clip-text text-[15px] font-extrabold leading-none tracking-tight text-transparent">RAPTOR</div>
+            <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-violet-700 bg-clip-text text-[15px] font-extrabold leading-none tracking-tight text-transparent">LUMI</div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground flex items-center gap-1">Observatory <Sparkles className="h-2.5 w-2.5 text-violet-500/70" /></div>
           </div>
           <div className="flex items-center gap-1.5 md:hidden">
             <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-sm">
               <Bird className="h-3.5 w-3.5" />
             </div>
-            <span className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-sm font-bold tracking-tight text-transparent">RAPTOR</span>
+            <span className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-sm font-bold tracking-tight text-transparent">LUMI</span>
           </div>
         </div>
 

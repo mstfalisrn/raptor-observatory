@@ -1,4 +1,4 @@
-# RAPTOR Gateway — Caddy (Faz 6: Telegram secure webhook)
+# LUMI Gateway — Caddy (Faz 6: Telegram secure webhook)
 # Yalnız host bind 127.0.0.1:<port> (docker-compose), tek origin altında API+UI.
 
 :80 {
@@ -9,7 +9,7 @@
     path /api/* /health/* /webhooks/* /events*
   }
   handle @api {
-    reverse_proxy raptor-api:8000 {
+    reverse_proxy lumi-api:8000 {
       flush_interval -1
       # Telegram webhook header'ını ilet, buffering kapat
       header_up X-Real-IP {remote_host}
@@ -19,7 +19,7 @@
 
   # UI (api container'ındaki statik dist)
   handle {
-    reverse_proxy raptor-api:8000 {
+    reverse_proxy lumi-api:8000 {
       flush_interval -1
     }
   }

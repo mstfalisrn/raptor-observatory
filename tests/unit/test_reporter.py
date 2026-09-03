@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 12 Reporter testleri
+# LUMI — AŞAMA 12 Reporter testleri
 from agent_core.reporter import Reporter, build_public_report
 
 

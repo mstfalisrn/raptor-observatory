@@ -70,7 +70,7 @@ def upgrade() -> None:
 
     # --- append-only triggers: prevent UPDATE/DELETE on run_events and audit_events ---
     op.execute("""
-        CREATE OR REPLACE FUNCTION raptor_prevent_update_delete() RETURNS trigger AS $$
+        CREATE OR REPLACE FUNCTION lumi_prevent_update_delete() RETURNS trigger AS $$
         BEGIN
             RAISE EXCEPTION 'append-only table: % UPDATE/DELETE not allowed', TG_TABLE_NAME;
             RETURN NULL;
@@ -80,20 +80,20 @@ def upgrade() -> None:
     op.execute("""
         CREATE TRIGGER trg_run_events_append_only
         BEFORE UPDATE OR DELETE ON run_events
-        FOR EACH ROW EXECUTE FUNCTION raptor_prevent_update_delete();
+        FOR EACH ROW EXECUTE FUNCTION lumi_prevent_update_delete();
     """)
     op.execute("DROP TRIGGER IF EXISTS trg_audit_events_append_only ON audit_events;")
     op.execute("""
         CREATE TRIGGER trg_audit_events_append_only
         BEFORE UPDATE OR DELETE ON audit_events
-        FOR EACH ROW EXECUTE FUNCTION raptor_prevent_update_delete();
+        FOR EACH ROW EXECUTE FUNCTION lumi_prevent_update_delete();
     """)
 
 
 def downgrade() -> None:
     op.execute("DROP TRIGGER IF EXISTS trg_audit_events_append_only ON audit_events;")
     op.execute("DROP TRIGGER IF EXISTS trg_run_events_append_only ON run_events;")
-    op.execute("DROP FUNCTION IF EXISTS raptor_prevent_update_delete();")
+    op.execute("DROP FUNCTION IF EXISTS lumi_prevent_update_delete();")
     op.drop_index('ix_pub_idempotency_key', table_name='publication_attempts')
     op.drop_constraint('uq_run_events_run_seq', 'run_events', type_='unique')
     op.drop_index('ix_tasks_idempotency_key', table_name='tasks')

@@ -1,4 +1,4 @@
-# RAPTOR — Docker ignore
+# LUMI — Docker ignore
 # Secret / env
 .env
 **/.env

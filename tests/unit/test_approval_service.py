@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 12 ApprovalService testleri (create/decide/consume/replay/expiry)
+# LUMI — AŞAMA 12 ApprovalService testleri (create/decide/consume/replay/expiry)
 import uuid
 
 import pytest

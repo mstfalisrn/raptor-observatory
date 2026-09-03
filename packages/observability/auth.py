@@ -1,4 +1,4 @@
-# RAPTOR — local authentication + RBAC + rate limiting
+# LUMI — local authentication + RBAC + rate limiting
 # CF Access kullanılmıyor (kullanıcı kararı). Bunun yerine:
 #   - session JWT (HS256, JWT_SECRET ile imzalı)
 #   - PBKDF2-HMAC-SHA256 parola hash'i (stdlib, bağımlılıksız)
@@ -54,14 +54,14 @@ def create_session_token(user_id: str, role: str, expires_seconds: int = 12 * 36
         "iat": now,
         "exp": now + timedelta(seconds=expires_seconds),
         "jti": uuid.uuid4().hex,
-        "iss": "raptor-observatory",
+        "iss": "lumi-observatory",
     }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
 
 
 def decode_session_token(token: str) -> dict:
     # signature + exp + iss doğrulanır; hatalı token raise eder
-    return jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"], issuer="raptor-observatory")
+    return jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"], issuer="lumi-observatory")
 
 
 # ---------------------------------------------------------------------------

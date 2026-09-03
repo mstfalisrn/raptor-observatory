@@ -1,4 +1,4 @@
-# RAPTOR — Planner (LLM → Pydantic doğrulamalı, argümanlı action planı)
+# LUMI — Planner (LLM → Pydantic doğrulamalı, argümanlı action planı)
 from __future__ import annotations
 
 import json
@@ -54,7 +54,7 @@ class Planner:
         if self.provider is not None:
             try:
                 sys_msg = (
-                    "Sen RAPTOR planlayıcısısın. YALNIZ geçerli JSON döndür. Şema:\n"
+                    "Sen LUMI planlayıcısısın. YALNIZ geçerli JSON döndür. Şema:\n"
                     '{"goal": str, "assumptions": [str], "success_criteria": [str], '
                     '"actions": [{"action_id":"action_1","tool":str,"arguments":{...},'
                     '"reason":str,"expected_evidence":[str],"action_class":"READ_ONLY"}]}\n'
@@ -109,7 +109,7 @@ class Planner:
                  "reason": "oda mesajlarını oku", "expected_evidence": ["oda mesajları"],
                  "action_class": "READ_ONLY"},
                 {"action_id": "action_2", "tool": "github_repo_read",
-                 "arguments": {"repo": "your-owner/raptor-observatory"},
+                 "arguments": {"repo": "your-owner/lumi-observatory"},
                  "reason": "repo etkinliği", "expected_evidence": ["commit/aktivite"],
                  "action_class": "READ_ONLY"},
                 {"action_id": "action_3", "tool": "http_json_read",

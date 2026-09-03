@@ -1,4 +1,4 @@
-# RAPTOR — HTTP/JSON connector (SSRF korumalı, Faz 9 sertleştirme)
+# LUMI — HTTP/JSON connector (SSRF korumalı, Faz 9 sertleştirme)
 from __future__ import annotations
 
 import json

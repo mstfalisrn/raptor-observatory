@@ -1,4 +1,4 @@
-# RAPTOR — Scheduler
+# LUMI — Scheduler
 # Gerçek işler: kaynak tarama + görev oluşturma, outbox publisher, stuck-run recovery, heartbeat
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ except ImportError:
         AgentScorer = None  # type: ignore
         _AGENT_SCORER_TASK = []  # type: ignore
 
-app = FastAPI(title="RAPTOR Scheduler", version="1.0.0")
+app = FastAPI(title="LUMI Scheduler", version="1.0.0")
 
 
 @app.get("/health/live")
@@ -133,7 +133,7 @@ class SchedulerLoop:
                         except Exception as e:
                             import logging as _log
 
-                            _log.getLogger("raptor.scheduler").warning("DLQ publish failed %s", type(e).__name__)
+                            _log.getLogger("lumi.scheduler").warning("DLQ publish failed %s", type(e).__name__)
                         await append_run_event_in_session(s, r.id, "DLQ", {"retry_count": retry})
                     else:
                         backoff_sec = 30 * (2 ** (retry - 1))
@@ -148,7 +148,7 @@ class SchedulerLoop:
                         s.add(new_run)
                         await s.flush()
                         ob = models.OutboxMessage(
-                            topic="raptor.run_queued",
+                            topic="lumi.run_queued",
                             payload={"run_id": str(new_run.id), "task_id": str(new_run.task_id), "retry_of": str(r.id)},
                             idempotency_key=f"retry:{r.id}:{new_run.id}",
                             processed=False,
@@ -174,7 +174,7 @@ class SchedulerLoop:
         except Exception as e:
             import logging as _log2
 
-            _log2.getLogger("raptor.scheduler").warning("auto_promote failed %s", type(e).__name__)
+            _log2.getLogger("lumi.scheduler").warning("auto_promote failed %s", type(e).__name__)
             return 0
 
     async def check_sources(self) -> int:
@@ -225,7 +225,7 @@ class SchedulerLoop:
                         s.add(run)
                         await s.flush()
                         ob = models.OutboxMessage(
-                            topic="raptor.run_queued",
+                            topic="lumi.run_queued",
                             payload={"run_id": str(run.id), "task_id": str(task.id), "source_id": str(src.id)},
                             idempotency_key=f"run:{run.id}",
                             processed=False,
@@ -243,7 +243,7 @@ class SchedulerLoop:
             except Exception as e:
                 import logging as _log2
 
-                _log2.getLogger("raptor.scheduler").warning("scheduler loop failed %s", type(e).__name__)
+                _log2.getLogger("lumi.scheduler").warning("scheduler loop failed %s", type(e).__name__)
             await asyncio.sleep(self.interval)
 
 
@@ -262,7 +262,7 @@ async def _agent_scorer_loop() -> None:
         except Exception as e:
             import logging as _lg
 
-            _lg.getLogger("raptor.scheduler").warning("agent_scorer poll hata: %s", type(e).__name__)
+            _lg.getLogger("lumi.scheduler").warning("agent_scorer poll hata: %s", type(e).__name__)
         await asyncio.sleep(15)
 
 

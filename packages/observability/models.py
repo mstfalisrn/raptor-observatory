@@ -1,4 +1,4 @@
-# RAPTOR — veri modeli (veri tabanı tabloları)
+# LUMI — veri modeli (veri tabanı tabloları)
 # Şartnamedeki asgari tablolar: 23. Event/audit tabloları append-only tasarlandı.
 # Timestamps UTC saklanır; UI UTC gösterir.
 
@@ -507,7 +507,7 @@ class OutboxMessage(_UUIDMixin, Base):
         Index("ix_outbox_topic", "topic"),
         UniqueConstraint("idempotency_key", name="uq_outbox_idempotency"),
     )
-    topic: Mapped[str] = mapped_column(String(120), nullable=False, default="raptor.run_queued")
+    topic: Mapped[str] = mapped_column(String(120), nullable=False, default="lumi.run_queued")
     payload: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     processed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

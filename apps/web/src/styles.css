@@ -281,7 +281,7 @@
   .pressable:active { transform: scale(0.97); }
 }
 
-/* ---- RAPTOR legacy theme (preserved, namespaced) ---- */
+/* ---- LUMI legacy theme (preserved, namespaced) ---- */
 :root {
   --bg: oklch(0.13 0.015 285);
   --panel: oklch(0.17 0.015 285.8);

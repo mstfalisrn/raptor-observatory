@@ -1,4 +1,4 @@
-# RAPTOR — Run Coordinator (görev state machine + bütçe/sınır/kill switch)
+# LUMI — Run Coordinator (görev state machine + bütçe/sınır/kill switch)
 from __future__ import annotations
 
 import asyncio

@@ -947,7 +947,7 @@ export function SettingsPage() {
             <div>
               <h3 className="text-sm font-bold tracking-tight">About</h3>
               <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                RAPTOR — Standalone, observation-focused, Telegram + web managed agent runtime (evidence-based + DID signed reports).
+                LUMI — Standalone, observation-focused, Telegram + web managed agent runtime (evidence-based + DID signed reports).
               </p>
             </div>
             <Settings className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />

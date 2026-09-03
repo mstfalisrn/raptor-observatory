@@ -1,4 +1,4 @@
-# RAPTOR — Verifier (çıktının kanıtını ve hedef koşullarını kontrol eder)
+# LUMI — Verifier (çıktının kanıtını ve hedef koşullarını kontrol eder)
 from __future__ import annotations
 
 import dataclasses

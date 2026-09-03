@@ -1,4 +1,4 @@
-# RAPTOR — gizlilik/redaction yardımcıları
+# LUMI — gizlilik/redaction yardımcıları
 # Sırlar, token, authorization header, cookie, token pattern ve runtime env değerleri
 # modele/semantic memory'ye girmeden önce redakte edilir.
 # Faz4: DLP katılaştırıldı — private key, AWS, yüksek entropi, env literal bloklama

@@ -1,4 +1,4 @@
-"""raptor_initial
+"""lumi_initial
 
 Revision ID: 5014bc0ab4ea
 Revises: 

@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 3 agentic döngü testleri
+# LUMI — AŞAMA 3 agentic döngü testleri
 import asyncio
 import json
 
@@ -24,7 +24,7 @@ class _JSONProvider(LLMProvider):
         self.calls += 1
         plan = {"goal": "observe", "assumptions": [], "success_criteria": ["kanıt"],
                 "actions": [{"action_id": "action_1", "tool": "github_repo_read",
-                             "arguments": {"repo": "your-owner/raptor-observatory"},
+                             "arguments": {"repo": "your-owner/lumi-observatory"},
                              "reason": "repo", "expected_evidence": [], "action_class": "READ_ONLY"}]}
         return LLMResult(text=json.dumps(plan), finish_reason="stop",
                          usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})
@@ -47,7 +47,7 @@ class TestPlanner:
         plan = asyncio.run(pl.make_plan({"title": "t", "prompt": "p", "scope": {"kind": "observe"}}))
         act = plan["actions"][0]
         assert act["tool"] == "github_repo_read"
-        assert act["arguments"].get("repo") == "your-owner/raptor-observatory"
+        assert act["arguments"].get("repo") == "your-owner/lumi-observatory"
 
     def test_template_fallback_has_required_args(self):
         pl = Planner(provider=None)  # template fallback

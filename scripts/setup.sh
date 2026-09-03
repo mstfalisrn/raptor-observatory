@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RAPTOR Agentic Observatory — interactive setup wizard
+# LUMI Agentic Observatory — interactive setup wizard
 # Usage:
 #   ./scripts/setup.sh              # interactive, step-by-step
 #   ./scripts/setup.sh --reconfigure # re-run to edit existing .env
@@ -19,7 +19,7 @@ for arg in "$@"; do
     --reconfigure) RECONFIGURE=true ;;
     --yes|--non-interactive) NONINTERACTIVE=true ;;
     --help|-h)
-      echo "RAPTOR interactive setup wizard"
+      echo "LUMI interactive setup wizard"
       echo ""
       echo "Usage:"
       echo "  ./scripts/setup.sh                # step-by-step wizard (recommended)"
@@ -55,7 +55,7 @@ fi
 banner() {
   echo ""
   echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
-  echo -e "${BOLD}  RAPTOR Agentic Observatory — Setup Wizard${RESET}"
+  echo -e "${BOLD}  LUMI Agentic Observatory — Setup Wizard${RESET}"
   echo -e "${DIM}  Step-by-step: you choose every value. Re-run anytime with --reconfigure.${RESET}"
   echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
   echo ""
@@ -252,7 +252,7 @@ choose_llm_with_checkbox() {
   esac
   _is_on() { [ "$_def" = "$1" ] && echo ON || echo OFF; }
   if command -v whiptail >/dev/null 2>&1 && [ -t 0 ] && [ -t 1 ]; then
-    _out=$(whiptail --title "RAPTOR — LLM Provider" --radiolist "↑↓ to move  SPACE to select  ENTER to confirm" 22 78 11 \
+    _out=$(whiptail --title "LUMI — LLM Provider" --radiolist "↑↓ to move  SPACE to select  ENTER to confirm" 22 78 11 \
       "1"  "Mock (free, no key) — fixtures" "$(_is_on 1)" \
       "2"  "OpenAI (api.openai.com)" "$(_is_on 2)" \
       "3"  "OpenRouter (300+ models)" "$(_is_on 3)" \
@@ -575,7 +575,7 @@ fi
 FINAL_EMAIL="$(get_env_val ADMIN_EMAIL)"
 echo ""
 echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
-echo -e "${GREEN}✅ RAPTOR ready!${RESET}"
+echo -e "${GREEN}✅ LUMI ready!${RESET}"
 echo -e "  ${BOLD}http://localhost:3525${RESET}  admin: ${GREEN}${FINAL_EMAIL}${RESET}  ${DIM}(password: you set in Step 1)${RESET}"
 echo -e "  Logs:   ${CYAN}docker compose logs -f${RESET}"
 echo -e "  Health: ${CYAN}curl -s http://localhost:3525/health/ready | jq${RESET}"

@@ -1,4 +1,4 @@
-# RAPTOR — secret-scan fixture testleri (fail-closed doğrulama)
+# LUMI — secret-scan fixture testleri (fail-closed doğrulama)
 import subprocess
 import tempfile
 from pathlib import Path
@@ -31,15 +31,15 @@ def test_real_telegram_token_fails():
 def test_real_postgres_url_fails():
     with tempfile.TemporaryDirectory() as td:
         p = Path(td)
-        (p / "config.py").write_text('DATABASE_URL=postgresql+asyncpg://raptor:SuperSecret12345678@db:5432/raptor\n')
+        (p / "config.py").write_text('DATABASE_URL=postgresql+asyncpg://lumi:SuperSecret12345678@db:5432/lumi\n')
         code, out = run_scan(p)
         assert code == 1, out
 
 def test_placeholder_postgres_url_passes():
     with tempfile.TemporaryDirectory() as td:
         p = Path(td)
-        (p / "migrations.py").write_text('url="postgresql+asyncpg://raptor:x@localhost/raptor"\n')
-        (p / "compose.yml").write_text('DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/raptor\n')
+        (p / "migrations.py").write_text('url="postgresql+asyncpg://lumi:x@localhost/lumi"\n')
+        (p / "compose.yml").write_text('DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/lumi\n')
         code, out = run_scan(p)
         assert code == 0, out
 

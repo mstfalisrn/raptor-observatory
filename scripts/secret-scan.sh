@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RAPTOR — secret scan v3 (fail-closed)
+# LUMI — secret scan v3 (fail-closed)
 # Exit: 0 temiz, 1 gerçek sır bulundu, 2 tarama hatası (fail-closed)
 # Hiçbir dosya atlatılmaz; placeholder/CHANGE_ME hariç gerçek değer yakalanır.
 set -uo pipefail
@@ -36,7 +36,7 @@ STRONG=(
 
 # Placeholder'ları eşleşmeden çıkar (satır bazında filtrelenir)
 is_placeholder_line() {
-  echo "$1" | grep -qE 'CHANGE_ME|REPLACE_ME|dev-only|example\.com|_here|your-.*-here|\$\{|random|:x@|localhost:5432/raptor|127\.0\.0\.1|<MASKED>|<REDACTED>|\*\*\*|docs/mcp-audit' 2>/dev/null
+  echo "$1" | grep -qE 'CHANGE_ME|REPLACE_ME|dev-only|example\.com|_here|your-.*-here|\$\{|random|:x@|localhost:5432/lumi|127\.0\.0\.1|<MASKED>|<REDACTED>|\*\*\*|docs/mcp-audit' 2>/dev/null
 }
 
 hits=0

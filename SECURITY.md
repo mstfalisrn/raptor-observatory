@@ -1,17 +1,17 @@
-# Security Model — RAPTOR
+# Security Model — LUMI
 
 ## Isolation (Immutable)
 - Repository root is self-contained; no host-specific absolute paths are required to run.
 - Secrets live in an external secrets store outside the repository (not committed, 0600 permissions). Never copy them into the repo or images.
-- External builder/operator infrastructure (containers, volumes, configs, skills, control plane) is **isolated** and not mounted into RAPTOR containers.
-- The operator's Telegram token and model provider keys are not reused by RAPTOR; RAPTOR uses a separate bot and provider credentials.
-- No host root, Docker socket, or operator directory is mounted into RAPTOR containers.
-- The RAPTOR runtime keeps running even if the operator control plane is stopped (separate Docker stack and process supervision).
+- External builder/operator infrastructure (containers, volumes, configs, skills, control plane) is **isolated** and not mounted into LUMI containers.
+- The operator's Telegram token and model provider keys are not reused by LUMI; LUMI uses a separate bot and provider credentials.
+- No host root, Docker socket, or operator directory is mounted into LUMI containers.
+- The LUMI runtime keeps running even if the operator control plane is stopped (separate Docker stack and process supervision).
 
 ## Runtime Security
 - All services run as non-root (UID 10001), with read-only root filesystem, `cap_drop: ALL`, and `no-new-privileges:true`.
 - PostgreSQL and Redis do not expose host ports (internal Docker network only).
-- Only `raptor-gateway` binds to the host, on `127.0.0.1:3525`.
+- Only `lumi-gateway` binds to the host, on `127.0.0.1:3525`.
 
 ## Agent Security
 - **Tools:** only registered and schema-validated tools; arbitrary shell or Docker execution is not allowed.

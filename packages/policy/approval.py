@@ -1,4 +1,4 @@
-# RAPTOR — ApprovalService (onay kaydı oluşturma + atomik karar + consume + replay koruması + continuation + idempotent execution)
+# LUMI — ApprovalService (onay kaydı oluşturma + atomik karar + consume + replay koruması + continuation + idempotent execution)
 from __future__ import annotations
 
 import uuid
@@ -83,7 +83,7 @@ class ApprovalService:
 
         - PENDING -> APPROVED/REJECTED
         - run WAITING_APPROVAL -> QUEUED (approve) veya FAILED (reject) atomik
-        - outbox raptor.run_queued idempotent (approve:{id}) aynı transaction içinde
+        - outbox lumi.run_queued idempotent (approve:{id}) aynı transaction içinde
         """
         a = await self.decide(approval_id, decision, user_id)
         # atomik run transition + outbox — aynı session transaction içinde
@@ -104,7 +104,7 @@ class ApprovalService:
                     # outbox atomik — aynı transaction; failure flush'ta raise eder, yutulmaz
                     self.s.add(
                         models.OutboxMessage(
-                            topic="raptor.run_queued",
+                            topic="lumi.run_queued",
                             payload={"run_id": str(run.id), "approval_id": str(a.id)},
                             idempotency_key=f"approve:{a.id}",
                             processed=False,

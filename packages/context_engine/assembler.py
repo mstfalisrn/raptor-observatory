@@ -1,4 +1,4 @@
-# RAPTOR — Context Assembler / Inspector
+# LUMI — Context Assembler / Inspector
 # Bağlamı token bütçesine göre katmanlar; gizli chain-of-thought GÖSTERMEZ.
 # Her segment meta veri: segment_type, source_id, title, token_count, relevance,
 # freshness, confidence, included_reason, contains_untrusted, redaction_count.

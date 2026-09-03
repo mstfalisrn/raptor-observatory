@@ -1,4 +1,4 @@
-# RAPTOR — SSRF birim testleri
+# LUMI — SSRF birim testleri
 import pytest
 
 from connectors.ssrf import SSRFError, validate_host, validate_url

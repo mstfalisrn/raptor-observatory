@@ -1,4 +1,4 @@
-# RAPTOR — Reporter (kısa insan özeti + makine-okunur sonuç paketi)
+# LUMI — Reporter (kısa insan özeti + makine-okunur sonuç paketi)
 from __future__ import annotations
 
 from datetime import UTC, datetime

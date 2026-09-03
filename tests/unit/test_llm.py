@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 12 LLM provider testleri (mock + openai-compatible + embedding)
+# LUMI — AŞAMA 12 LLM provider testleri (mock + openai-compatible + embedding)
 import pytest
 
 from agent_core.llm import (

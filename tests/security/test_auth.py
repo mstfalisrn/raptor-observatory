@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 2 auth/RBAC testleri (local session, CF Access kullanılmıyor)
+# LUMI — AŞAMA 2 auth/RBAC testleri (local session, CF Access kullanılmıyor)
 import jwt as pyjwt
 import pytest
 
@@ -29,7 +29,7 @@ class TestSessionToken:
         dec = decode_session_token(tok)
         assert dec["sub"] == "u-1"
         assert dec["role"] == "admin"
-        assert dec["iss"] == "raptor-observatory"
+        assert dec["iss"] == "lumi-observatory"
 
     def test_expired_rejected(self):
         # expires_seconds negatif -> hemen expire (exp geçmişte)

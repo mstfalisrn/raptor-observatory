@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 12 security redact/DLP/env-secret testleri
+# LUMI — AŞAMA 12 security redact/DLP/env-secret testleri
 from observability.security import (
     Redactor,
     contains_secret,

@@ -1,4 +1,4 @@
-# RAPTOR — internal health connector (Faz 9 sertleştirme)
+# LUMI — internal health connector (Faz 9 sertleştirme)
 # Yalnız Docker service DNS kullanır; localhost yalnız aynı container için.
 from __future__ import annotations
 
@@ -6,15 +6,15 @@ import httpx
 
 
 class InternalHealthConnector:
-    """Yalnızca RAPTOR container health bilgileri; başka servise erişmez."""
+    """Yalnızca LUMI container health bilgileri; başka servise erişmez."""
 
     def __init__(self, base_urls: dict[str, str] | None = None) -> None:
         # Docker service DNS (compose network içinde) — localhost değil
         # Aynı container içindeyse 127.0.0.1 kullanılabilir; aksi halde service adı
         self._base_urls = base_urls or {
-            "api": "http://raptor-api:8000/health/live",
-            "worker": "http://raptor-worker:8001/health/live",
-            "scheduler": "http://raptor-scheduler:8002/health/live",
+            "api": "http://lumi-api:8000/health/live",
+            "worker": "http://lumi-worker:8001/health/live",
+            "scheduler": "http://lumi-scheduler:8002/health/live",
         }
         # health endpoint'leri için internal allow — SSRF bypass değil, internal network
         self._client = httpx.AsyncClient(timeout=5.0, follow_redirects=False)

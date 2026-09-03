@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 5 Telegram testleri (singleton, dedup helper, redact, allowlist)
+# LUMI — AŞAMA 5 Telegram testleri (singleton, dedup helper, redact, allowlist)
 from agent_core.telegram import TelegramService, get_service, webhook_opaque_path
 from observability.security import redact
 

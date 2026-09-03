@@ -1,11 +1,11 @@
-# Architecture — RAPTOR Agentic Observatory
+# Architecture — LUMI Agentic Observatory
 
 ## Overview
-RAPTOR is an observable, policy-gated agentic runtime that runs as an isolated Docker Compose stack. The builder/operator infrastructure is external and does not sit on the runtime data path.
+LUMI is an observable, policy-gated agentic runtime that runs as an isolated Docker Compose stack. The builder/operator infrastructure is external and does not sit on the runtime data path.
 
 ```
 Telegram Bot API ----\
-                      > raptor-gateway -> raptor-api -> RunCoordinator
+                      > lumi-gateway -> lumi-api -> RunCoordinator
 Web UI / Cloudflare -/                            |
                                                   +-> ContextAssembler
                                                   +-> PolicyEngine
@@ -49,7 +49,7 @@ Each segment carries: `segment_type`, `source_id`, `title`, `token_count`, `rele
 Timestamps are stored as UTC in the database; the UI displays them in the configured local timezone.
 
 ## Queue / Worker
-- Redis list `raptor:queue`. A worker claims a run, executes it via the coordinator, and persists results and events to the database.
+- Redis list `lumi:queue`. A worker claims a run, executes it via the coordinator, and persists results and events to the database.
 - Each tool is executed at most once per iteration; the iteration count equals the tool count (D1 correction).
 
 ## Connectors (MVP)

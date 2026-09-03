@@ -1,15 +1,15 @@
-# RAPTOR — reliable queue (Redis Streams consumer group + outbox publisher)
+# LUMI — reliable queue (Redis Streams consumer group + outbox publisher)
 from __future__ import annotations
 
 import json
 
-STREAM = "raptor:stream:run_queue"
-GROUP = "raptor-workers"
+STREAM = "lumi:stream:run_queue"
+GROUP = "lumi-workers"
 CONSUMER_PREFIX = "worker-"
-DLQ_STREAM = "raptor:stream:dlq"
+DLQ_STREAM = "lumi:stream:dlq"
 
 # outbox topic
-TOPIC_RUN_QUEUED = "raptor.run_queued"
+TOPIC_RUN_QUEUED = "lumi.run_queued"
 
 
 def ensure_stream_group(redis_client) -> None:

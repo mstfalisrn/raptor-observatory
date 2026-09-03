@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 12 connector testleri (http_json, internal_health, github)
+# LUMI — AŞAMA 12 connector testleri (http_json, internal_health, github)
 import json
 
 import httpx

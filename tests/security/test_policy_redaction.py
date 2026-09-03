@@ -1,4 +1,4 @@
-# RAPTOR — policy motoru + redaction birim testleri (workflow-agnostic)
+# LUMI — policy motoru + redaction birim testleri (workflow-agnostic)
 
 from observability.security import redact
 from policy.engine import PolicyEngine, action_hash

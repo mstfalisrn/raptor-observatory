@@ -1,54 +1,54 @@
-# RAPTOR Agentic Observatory — Docker Compose (pinned, standalone)
-# Yalnız raptor-gateway host'ta 127.0.0.1:<GATEWAY_PORT>'e bind eder.
+# LUMI Agentic Observatory — Docker Compose (pinned, standalone)
+# Yalnız lumi-gateway host'ta 127.0.0.1:<GATEWAY_PORT>'e bind eder.
 # PostgreSQL/Redis host portu AÇILMAZ (internal network). Web UI, api image'ına gömülüdür (tek origin).
-name: raptor-observatory
+name: lumi-observatory
 
 services:
   # ------------------------------------------------------ PostgreSQL 16 + pgvector
-  raptor-postgres:
+  lumi-postgres:
     image: pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
-    container_name: raptor-postgres
+    container_name: lumi-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-raptor}
+      POSTGRES_USER: ${POSTGRES_USER:-lumi}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-raptor}
+      POSTGRES_DB: ${POSTGRES_DB:-lumi}
     volumes:
-      - raptor_pgdata:/var/lib/postgresql/data
+      - lumi_pgdata:/var/lib/postgresql/data
       - ./infra/compose/initdb/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raptor}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lumi}"]
       interval: 10s
       timeout: 5s
       retries: 6
       start_period: 10s
     expose: ["5432"]
-    networks: [raptor_internal]
+    networks: [lumi_internal]
 
   # ------------------------------------------------------ Redis 7
-  raptor-redis:
+  lumi-redis:
     image: redis:7.2-alpine@sha256:ccd6aa8d45ff3f033d6fa15b8cc1a50579f65c89f38cf9bb607a954c4f2128ed
-    container_name: raptor-redis
+    container_name: lumi-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
     volumes:
-      - raptor_redisdata:/data
+      - lumi_redisdata:/data
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 6
     expose: ["6379"]
-    networks: [raptor_internal]
+    networks: [lumi_internal]
 
   # ------------------------------------------------------ One-shot migration (API migration çalıştırmaz)
-  raptor-migrate:
+  lumi-migrate:
     build:
       context: .
       dockerfile: apps/migrate/Dockerfile
       args:
         PYTHON_IMAGE: python:3.12-slim@sha256:7a8b475003c4fe15a2cd4e55e5cfc2f3560bdc9333d624f24cdd6d4340fd7a17
-    container_name: raptor-migrate
+    container_name: lumi-migrate
     restart: "no"
     user: "10001:10001"
     read_only: true
@@ -60,19 +60,19 @@ services:
     cpus: 0.5
     environment:
       APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lumi}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-lumi}
     depends_on:
-      raptor-postgres: { condition: service_healthy }
-    networks: [raptor_internal]
+      lumi-postgres: { condition: service_healthy }
+    networks: [lumi_internal]
 
   # ------------------------------------------------------ API + SSE + webhook + (gömülü UI static)
-  raptor-api:
+  lumi-api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
       args:
         PYTHON_IMAGE: python:3.12-slim@sha256:7a8b475003c4fe15a2cd4e55e5cfc2f3560bdc9333d624f24cdd6d4340fd7a17
-    container_name: raptor-api
+    container_name: lumi-api
     restart: unless-stopped
     user: "10001:10001"
     read_only: true
@@ -89,8 +89,8 @@ services:
         max-file: "3"
     environment:
       APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
-      REDIS_URL: redis://raptor-redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lumi}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-lumi}
+      REDIS_URL: redis://lumi-redis:6379/0
       JWT_SECRET: ${JWT_SECRET}
       SESSION_ENCRYPTION_MASTER_KEY: ${SESSION_ENCRYPTION_MASTER_KEY}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-your-email@example.com}
@@ -108,21 +108,21 @@ services:
       RUN_MAX_TOKEN_BUDGET: ${RUN_MAX_TOKEN_BUDGET:-200000}
       TECHNOCORE_BASE_URL: ${TECHNOCORE_BASE_URL:-https://technocore.chat}
     depends_on:
-      raptor-migrate: { condition: service_completed_successfully }
-      raptor-postgres: { condition: service_healthy }
-      raptor-redis: { condition: service_healthy }
+      lumi-migrate: { condition: service_completed_successfully }
+      lumi-postgres: { condition: service_healthy }
+      lumi-redis: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live',timeout=3)\""]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 25s
-    networks: [raptor_internal]
+    networks: [lumi_internal]
 
   # ------------------------------------------------------ Gateway (Caddy) — tek host bind
-  raptor-gateway:
+  lumi-gateway:
     image: caddy:2.8@sha256:226d1f059b75399fe19182893c7184591c07b97afc8dfcf44eeb80c9a77a530f
-    container_name: raptor-gateway
+    container_name: lumi-gateway
     restart: unless-stopped
     user: "0:0"
     security_opt: ["no-new-privileges:true"]
@@ -133,15 +133,15 @@ services:
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
-      raptor-api: { condition: service_healthy }
-    networks: [raptor_internal]
+      lumi-api: { condition: service_healthy }
+    networks: [lumi_internal]
 
   # ------------------------------------------------------ Worker (agent run execution)
-  raptor-worker:
+  lumi-worker:
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
-    container_name: raptor-worker
+    container_name: lumi-worker
     restart: unless-stopped
     user: "10001:10001"
     read_only: true
@@ -158,11 +158,11 @@ services:
         max-file: "3"
     volumes:
       # Technocore DID key (host) → container'a read-only; host'ta UID 10001 okunabilir olmalı (0640 root:10001)
-      - ${TECHNOCORE_KEY_HOST_PATH:-./secrets/raptor-observatory/did.ed25519}:/run/secrets/technocore/did.ed25519:ro
+      - ${TECHNOCORE_KEY_HOST_PATH:-./secrets/lumi-observatory/did.ed25519}:/run/secrets/technocore/did.ed25519:ro
     environment:
       APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
-      REDIS_URL: redis://raptor-redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lumi}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-lumi}
+      REDIS_URL: redis://lumi-redis:6379/0
       SESSION_ENCRYPTION_MASTER_KEY: ${SESSION_ENCRYPTION_MASTER_KEY}
       LLM_PROVIDER: ${LLM_PROVIDER:-mock}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
@@ -175,22 +175,22 @@ services:
       TECHNOCORE_BASE_URL: ${TECHNOCORE_BASE_URL:-https://technocore.chat}
       TECHNOCORE_ED25519_KEY_PATH: /run/secrets/technocore/did.ed25519
     depends_on:
-      raptor-migrate: { condition: service_completed_successfully }
-      raptor-postgres: { condition: service_healthy }
-      raptor-redis: { condition: service_healthy }
+      lumi-migrate: { condition: service_completed_successfully }
+      lumi-postgres: { condition: service_healthy }
+      lumi-redis: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/live',timeout=3)\""]
       interval: 15s
       timeout: 5s
       retries: 5
-    networks: [raptor_internal]
+    networks: [lumi_internal]
 
   # ------------------------------------------------------ Scheduler
-  raptor-scheduler:
+  lumi-scheduler:
     build:
       context: .
       dockerfile: apps/scheduler/Dockerfile
-    container_name: raptor-scheduler
+    container_name: lumi-scheduler
     restart: unless-stopped
     user: "10001:10001"
     read_only: true
@@ -207,8 +207,8 @@ services:
         max-file: "3"
     environment:
       APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@raptor-postgres:5432/${POSTGRES_DB:-raptor}
-      REDIS_URL: redis://raptor-redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lumi}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-lumi}
+      REDIS_URL: redis://lumi-redis:6379/0
       SESSION_ENCRYPTION_MASTER_KEY: ${SESSION_ENCRYPTION_MASTER_KEY}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_ALLOWED_USER_IDS: ${TELEGRAM_ALLOWED_USER_IDS:-}
@@ -216,23 +216,23 @@ services:
       TELEGRAM_GROUP_ENABLED: ${TELEGRAM_GROUP_ENABLED:-false}
       TECHNOCORE_BASE_URL: ${TECHNOCORE_BASE_URL:-https://technocore.chat}
     depends_on:
-      raptor-migrate: { condition: service_completed_successfully }
-      raptor-postgres: { condition: service_healthy }
-      raptor-redis: { condition: service_healthy }
+      lumi-migrate: { condition: service_completed_successfully }
+      lumi-postgres: { condition: service_healthy }
+      lumi-redis: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health/live',timeout=3)\""]
       interval: 15s
       timeout: 5s
       retries: 5
-    networks: [raptor_internal]
+    networks: [lumi_internal]
 
 volumes:
-  raptor_pgdata:
+  lumi_pgdata:
     driver: local
-  raptor_redisdata:
+  lumi_redisdata:
     driver: local
 
 networks:
-  raptor_internal:
+  lumi_internal:
     driver: bridge
     internal: false   # connectors internet erişimi gerekir; yalnız host portları kapalı

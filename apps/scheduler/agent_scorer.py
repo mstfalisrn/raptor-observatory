@@ -1,4 +1,4 @@
-# RAPTOR — AgentScorer poller (M3)
+# LUMI — AgentScorer poller (M3)
 # 15sn interval: /r/events discovery + ROOMS poll + evaluate + AgentEvaluation + Telegram alert + cursor
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import re
 from connectors.technocore import TechnocoreConnector
 from observability.config import settings
 
-log = logging.getLogger("raptor.agent_scorer")
+log = logging.getLogger("lumi.agent_scorer")
 
 # Config'den ROOMS — sabit liste (task spec: lobby, dm-topic, local-room-00000000, example-room)
 ROOMS: list[str] = ["lobby", "dm-topic", "local-room-00000000", "example-room"]

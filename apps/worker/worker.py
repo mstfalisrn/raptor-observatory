@@ -1,4 +1,4 @@
-# RAPTOR — Worker
+# LUMI — Worker
 # Redis Streams consumer group + ACK/lease, outbox uyumlu + P0-R2 continuation + safe RunEvent
 from __future__ import annotations
 
@@ -24,9 +24,9 @@ from observability.events import CriticalEventPersistenceError, append_run_event
 from observability.queue import ack, claim_pending, ensure_stream_group, read_group
 from policy.engine import PolicyEngine
 
-log = logging.getLogger("raptor.worker")
+log = logging.getLogger("lumi.worker")
 
-app = FastAPI(title="RAPTOR Worker", version="1.0.0")
+app = FastAPI(title="LUMI Worker", version="1.0.0")
 _worker: WorkerLoop | None = None
 
 
@@ -46,7 +46,7 @@ class WorkerLoop:
         self.consumer_name = f"worker-{os.getpid()}-{uuid.uuid4().hex[:6]}"
         self.registry = build_default_registry(
             http_hosts=set(filter(None, settings.CONNECTOR_ALLOWED_HOSTS.split(","))) if settings.CONNECTOR_ALLOWED_HOSTS else None,
-            technocore_key_path=settings.TECHNOCORE_ED25519_KEY_PATH or "./secrets/raptor-observatory/did.ed25519",
+            technocore_key_path=settings.TECHNOCORE_ED25519_KEY_PATH or "./secrets/lumi-observatory/did.ed25519",
             technocore_base_url=settings.TECHNOCORE_BASE_URL,
         )
         self.provider = build_provider()
@@ -451,9 +451,9 @@ class WorkerLoop:
         return False
 
     async def _fallback_legacy_queue(self) -> bool:
-        """Consume legacy list raptor:queue for backward compatibility during rollout."""
+        """Consume legacy list lumi:queue for backward compatibility during rollout."""
         try:
-            raw = self.redis.rpop("raptor:queue")
+            raw = self.redis.rpop("lumi:queue")
         except Exception:
             return False
         if not raw:

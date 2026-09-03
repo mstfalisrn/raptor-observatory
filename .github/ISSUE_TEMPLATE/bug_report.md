@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a reproducible bug in RAPTOR
+about: Report a reproducible bug in LUMI
 title: "bug: "
 labels: bug
 assignees: []
@@ -30,7 +30,7 @@ assignees: []
 ## Logs / Evidence
 
 ```text
-# paste `docker logs raptor-api`, `curl /health/ready`, or pytest output
+# paste `docker logs lumi-api`, `curl /health/ready`, or pytest output
 ```
 
 ## Additional context

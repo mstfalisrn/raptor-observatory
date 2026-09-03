@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 12 auth HTTP dependency + rate limiter redis testleri
+# LUMI — AŞAMA 12 auth HTTP dependency + rate limiter redis testleri
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials

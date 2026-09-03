@@ -13,12 +13,12 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg16
         env:
-          POSTGRES_USER: raptor
-          POSTGRES_PASSWORD: raptor
-          POSTGRES_DB: raptor_test
+          POSTGRES_USER: lumi
+          POSTGRES_PASSWORD: lumi
+          POSTGRES_DB: lumi_test
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U raptor"
+          --health-cmd "pg_isready -U lumi"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -39,11 +39,11 @@ jobs:
         run: pip install -r packages/requirements-api.txt -r packages/requirements-worker.txt -r packages/requirements-dev.txt
       - name: Alembic upgrade head
         env:
-          DATABASE_URL: postgresql+asyncpg://raptor:raptor@localhost:5432/raptor_test
+          DATABASE_URL: postgresql+asyncpg://lumi:lumi@localhost:5432/lumi_test
         run: alembic -c migrations/alembic.ini upgrade head
       - name: Alembic downgrade previous then upgrade head
         env:
-          DATABASE_URL: postgresql+asyncpg://raptor:raptor@localhost:5432/raptor_test
+          DATABASE_URL: postgresql+asyncpg://lumi:lumi@localhost:5432/lumi_test
         run: |
           alembic -c migrations/alembic.ini current
           alembic -c migrations/alembic.ini downgrade d4e5f6a7b8c9
@@ -53,7 +53,7 @@ jobs:
       - name: Run tests with coverage (incl PG integration)
         env:
           APP_ENV: test
-          DATABASE_URL: postgresql+asyncpg://raptor:raptor@localhost:5432/raptor_test
+          DATABASE_URL: postgresql+asyncpg://lumi:lumi@localhost:5432/lumi_test
           REDIS_URL: redis://localhost:6379/0
         run: |
           pytest tests/ -q --cov=packages --cov-report=term-missing --cov-fail-under=70
@@ -114,12 +114,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build api image
-        run: docker build -f apps/api/Dockerfile --build-arg PYTHON_IMAGE=python:3.12-slim -t raptor-api:test .
+        run: docker build -f apps/api/Dockerfile --build-arg PYTHON_IMAGE=python:3.12-slim -t lumi-api:test .
       - name: Build worker image
-        run: docker build -f apps/worker/Dockerfile --build-arg PYTHON_IMAGE=python:3.12-slim -t raptor-worker:test .
+        run: docker build -f apps/worker/Dockerfile --build-arg PYTHON_IMAGE=python:3.12-slim -t lumi-worker:test .
       - name: Build scheduler image
-        run: docker build -f apps/scheduler/Dockerfile --build-arg PYTHON_IMAGE=python:3.12-slim -t raptor-scheduler:test .
+        run: docker build -f apps/scheduler/Dockerfile --build-arg PYTHON_IMAGE=python:3.12-slim -t lumi-scheduler:test .
       - name: Build migrate image
-        run: docker build -f apps/migrate/Dockerfile --build-arg PYTHON_IMAGE=python:3.12-slim -t raptor-migrate:test .
+        run: docker build -f apps/migrate/Dockerfile --build-arg PYTHON_IMAGE=python:3.12-slim -t lumi-migrate:test .
       - name: Build web image
-        run: docker build -f apps/web/Dockerfile -t raptor-web:test .
+        run: docker build -f apps/web/Dockerfile -t lumi-web:test .

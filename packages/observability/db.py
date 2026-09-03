@@ -1,4 +1,4 @@
-# RAPTOR — DB session / engine (asyncio)
+# LUMI — DB session / engine (asyncio)
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import (

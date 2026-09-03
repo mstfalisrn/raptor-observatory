@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 12 memory service ek testleri (approve/reject/supersede/sweep/search/vector)
+# LUMI — AŞAMA 12 memory service ek testleri (approve/reject/supersede/sweep/search/vector)
 import uuid
 
 import pytest

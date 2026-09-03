@@ -1,14 +1,14 @@
-# Decision Log — RAPTOR
+# Decision Log — LUMI
 
 This file records architecture and product decisions with rationale (append-only intent).
 
 ## D1 — Single-Origin Architecture (UI + API on the Same Origin)
-- **Decision:** Embed the Web UI static build into the `raptor-api` image; remove the separate `raptor-web` service.
+- **Decision:** Embed the Web UI static build into the `lumi-api` image; remove the separate `lumi-web` service.
 - **Rationale:** The specification requires serving the UI under the same origin as the API. A single origin reduces CORS/CSRF/cookie risks and allows SSO / Cloudflare Access to be verified at a single point.
 - **Alternative:** separate static server. Rejected (dual origin).
 
 ## D2 — Redis List Instead of Quartz / Celery
-- **Decision:** Job queue is a Redis list (`raptor:queue`); the worker performs a blocking poll.
+- **Decision:** Job queue is a Redis list (`lumi:queue`); the worker performs a blocking poll.
 - **Rationale:** Fewer dependencies, client-driven, sufficient for the current scale. Can be migrated to RQ/arq in production if needed.
 - **Note:** Replaceable via an abstract queue interface.
 

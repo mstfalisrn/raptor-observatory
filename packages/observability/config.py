@@ -1,4 +1,4 @@
-# RAPTOR Agentic Observatory — merkezi yapılandırma
+# LUMI Agentic Observatory — merkezi yapılandırma
 from __future__ import annotations
 
 from functools import lru_cache
@@ -18,9 +18,9 @@ class Settings(BaseSettings):
     APP_TIMEZONE: str = "UTC"
     SCHEMA_VERSION: int = 1
 
-    # DB (production: raptor_postgres internal host)
+    # DB (production: lumi_postgres internal host)
     DATABASE_URL: str = (
-        "postgresql+asyncpg://raptor:random@localhost:5432/raptor"
+        "postgresql+asyncpg://lumi:random@localhost:5432/lumi"
     )
     REDIS_URL: str = "redis://localhost:6379/0"
 
@@ -101,8 +101,8 @@ class Settings(BaseSettings):
 
     @property
     def secrets_file(self) -> Path:
-        # Üretim secret'ları ./secrets/raptor-observatory/app.env
-        p = Path("./secrets/raptor-observatory/app.env")
+        # Üretim secret'ları ./secrets/app.env
+        p = Path("./secrets/app.env")
         if p.exists():
             return p
         # dev: docker-compose env / .env yeterli

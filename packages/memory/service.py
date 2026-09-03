@@ -1,4 +1,4 @@
-# RAPTOR — Memory service (yaşam döngüsü: CANDIDATE -> ... -> ACTIVE/SUPERSEDED)
+# LUMI — Memory service (yaşam döngüsü: CANDIDATE -> ... -> ACTIVE/SUPERSEDED)
 # Model doğrudan kalıcı gerçek yazamaz; run sonunda memory candidate üretir.
 # Faz4: verified/active filtre, DLP (secret redact), pgvector hazırlığı, ttl/active yönetimi
 from __future__ import annotations

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RAPTOR Agentic Observatory — one-command quickstart (legacy, non-interactive)
+# LUMI Agentic Observatory — one-command quickstart (legacy, non-interactive)
 # Usage: ./scripts/quickstart.sh  (run from repo root or via path)
 # Idempotent: existing .env is preserved; only CHANGE_ME placeholders are replaced.
 # Note: for step-by-step choice, use ./scripts/setup.sh (interactive wizard)
@@ -125,7 +125,7 @@ fi
 if grep -q "DATABASE_URL=.*CHANGE_ME" .env; then
   _pw="$(grep -E '^POSTGRES_PASSWORD=' .env | cut -d= -f2- | awk '{print $1}' | tail -n1 || true)"
   if [ -n "${_pw:-}" ] && [ "${_pw}" != "CHANGE_ME" ]; then
-    sed -i "s|postgresql+psycopg://raptor:CHANGE_ME@|postgresql+psycopg://raptor:${_pw}@|" .env || true
+    sed -i "s|postgresql+psycopg://lumi:CHANGE_ME@|postgresql+psycopg://lumi:${_pw}@|" .env || true
     if grep -q "DATABASE_URL=.*CHANGE_ME" .env; then
       sed -i "/^DATABASE_URL=/ s/CHANGE_ME/${_pw}/" .env || true
     fi
@@ -160,7 +160,7 @@ if [ -z "$ADMIN_EMAIL_VAL" ] || [ "$ADMIN_EMAIL_VAL" = "CHANGE_ME" ]; then
 fi
 echo ""
 echo "════════════════════════════════════════════════════"
-echo "✅ RAPTOR hazır!"
+echo "✅ LUMI hazır!"
 echo "→ http://localhost:3525  admin: ${ADMIN_EMAIL_VAL}  logs: docker compose logs -f"
 echo "→ http://localhost:3525"
 echo "  admin: ${ADMIN_EMAIL_VAL}  (parola: .env → ADMIN_PASSWORD_HASH — ilk kurulumda yukarıda gösterildi)"

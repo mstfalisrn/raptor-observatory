@@ -1,4 +1,4 @@
-# RAPTOR — AŞAMA 12 queue stream fonksiyon testleri (fake sync Redis)
+# LUMI — AŞAMA 12 queue stream fonksiyon testleri (fake sync Redis)
 import json
 
 import pytest

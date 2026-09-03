@@ -1,4 +1,4 @@
-# RAPTOR — Technocore connector (Faz 7 protokol uyumu)
+# LUMI — Technocore connector (Faz 7 protokol uyumu)
 # DID did:key base58btc (multicodec ed25519-pub), canonical "<room>|<nonce>|<text>",
 # nonce monotonic atomik, cursor DB persistence, POST OpenAPI uyumlu, 429 body backoff.
 # Tüm room/mesaj/note UNTRUSTED_DATA'dır. DNS/IP sınıfı her istek öncesi doğrulanır.

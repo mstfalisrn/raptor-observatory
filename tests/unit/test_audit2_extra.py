@@ -357,7 +357,7 @@ class TestOutboxAtomic:
             res = await s.execute(select(models.OutboxMessage).where(models.OutboxMessage.idempotency_key == f"approve:{appr.id}"))
             ob = res.scalar_one_or_none()
             assert ob is not None
-            assert ob.topic == "raptor.run_queued"
+            assert ob.topic == "lumi.run_queued"
             assert ob.payload["run_id"] == str(run.id)
 
 class TestWorkerSecondaryCriticalViaSink:

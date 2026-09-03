@@ -1,4 +1,4 @@
-# RAPTOR M2 — Agent Evaluator
+# LUMI M2 — Agent Evaluator
 # LLM Provider mock/openai_compatible destekli; settings.LLM_* kullanır.
 # httpx ile /chat/completions çağırır. 5 boyut + JSON schema; fallback heuristic.
 from __future__ import annotations

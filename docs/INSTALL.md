@@ -1,6 +1,6 @@
 # Installation
 
-Run the full RAPTOR Agentic Observatory stack locally in under 60 seconds with Docker Compose.
+Run the full LUMI Agentic Observatory stack locally in under 60 seconds with Docker Compose.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ Step-by-step in your terminal — you choose every value. Nothing is auto-filled
 
 ```bash
 # 1) Clone
-git clone https://github.com/your-owner/raptor-observatory.git && cd raptor-observatory
+git clone https://github.com/your-owner/lumi-observatory.git && cd lumi-observatory
 
 # 2) Run the wizard — it walks you through each step:
 ./scripts/setup.sh
@@ -140,11 +140,11 @@ All configuration is via `.env` (see `.env.example`). Values shown as `CHANGE_ME
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `APP_ENV` | no | `development` | `development` / `production` / `test` |
-| `POSTGRES_USER` | no | `raptor` | Postgres user |
-| `POSTGRES_DB` | no | `raptor` | Postgres database |
+| `POSTGRES_USER` | no | `lumi` | Postgres user |
+| `POSTGRES_DB` | no | `lumi` | Postgres database |
 | `POSTGRES_PASSWORD` | yes | `CHANGE_ME` | Postgres password — must match `DATABASE_URL` |
-| `DATABASE_URL` | yes | `postgresql+psycopg://raptor:CHANGE_ME@raptor-postgres:5432/raptor` | Async URL uses `postgresql+asyncpg://` in Compose |
-| `REDIS_URL` | no | `redis://raptor-redis:6379/0` | Redis Streams queue |
+| `DATABASE_URL` | yes | `postgresql+psycopg://lumi:CHANGE_ME@lumi-postgres:5432/lumi` | Async URL uses `postgresql+asyncpg://` in Compose |
+| `REDIS_URL` | no | `redis://lumi-redis:6379/0` | Redis Streams queue |
 | `JWT_SECRET` | yes | `CHANGE_ME` | 64 hex chars — `openssl rand -hex 32` |
 | `SESSION_ENCRYPTION_MASTER_KEY` | yes | `CHANGE_ME` | Session cookie encryption key |
 | `TELEGRAM_WEBHOOK_SECRET` | yes | `CHANGE_ME` | Webhook header verification |
@@ -170,8 +170,8 @@ All configuration is via `.env` (see `.env.example`). Values shown as `CHANGE_ME
 | Symptom | Cause | Fix |
 |---|---|---|
 | `port is already allocated` / `3525 in use` | Another process holds 3525 | `ss -tlnp | grep 3525` then stop it, or `GATEWAY_PORT=3526 docker compose up -d` |
-| `raptor-postgres` unhealthy / `FATAL: password authentication failed` | `POSTGRES_PASSWORD` and `DATABASE_URL` mismatch | Ensure both use the same value: `grep POSTGRES_PASSWORD .env` and `grep DATABASE_URL .env` |
-| `alembic upgrade head` hangs | Postgres not yet healthy | `docker logs raptor-postgres` and `docker inspect --format='{{.State.Health.Status}}' raptor-postgres` — wait for `healthy` |
+| `lumi-postgres` unhealthy / `FATAL: password authentication failed` | `POSTGRES_PASSWORD` and `DATABASE_URL` mismatch | Ensure both use the same value: `grep POSTGRES_PASSWORD .env` and `grep DATABASE_URL .env` |
+| `alembic upgrade head` hangs | Postgres not yet healthy | `docker logs lumi-postgres` and `docker inspect --format='{{.State.Health.Status}}' lumi-postgres` — wait for `healthy` |
 | `secret-scan.sh` fails | A real secret or `.env` was committed | Remove the file, rotate the secret, ensure `.env` is in `.gitignore`; re-run `./scripts/secret-scan.sh .` |
 | `docker: command not found` | Docker not installed | Install Docker Engine 24+ and the Compose plugin |
 | `LLM test` returns 401/403 | Wrong `LLM_API_KEY` or base URL | Check [CONFIGURATION.md](CONFIGURATION.md); test via `POST /api/v1/settings/llm/test` in Settings |
@@ -183,7 +183,7 @@ Useful commands:
 ./scripts/setup.sh --reconfigure  # re-run wizard to fix any value (shows current as defaults)
 nano .env && docker compose up -d --build  # manual edit
 docker compose logs -f                # all services
-docker compose logs -f raptor-api     # API only
+docker compose logs -f lumi-api     # API only
 docker compose ps                     # container status
 curl -s http://localhost:3525/health/ready | jq   # readiness
 ./scripts/secret-scan.sh .            # secret scan — must be clean

@@ -1,4 +1,4 @@
-# Alembic env — RAPTOR şeması (async, asyncpg AŞKI)
+# Alembic env — LUMI şeması (async, asyncpg AŞKI)
 from __future__ import annotations
 
 import asyncio
@@ -29,7 +29,7 @@ database_url = os.environ.get("DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
 elif not config.get_main_option("sqlalchemy.url"):
-    config.set_main_option("sqlalchemy.url", "postgresql+asyncpg://raptor:x@localhost/raptor")
+    config.set_main_option("sqlalchemy.url", "postgresql+asyncpg://lumi:x@localhost/lumi")
 
 
 def run_migrations_offline() -> None:

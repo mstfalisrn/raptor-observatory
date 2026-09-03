@@ -1,4 +1,4 @@
-# RAPTOR — politika + onay motoru
+# LUMI — politika + onay motoru
 # Her tool call: ALLOW | REQUIRE_APPROVAL | DENY
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ TOOL_TO_ACTION = {
     "internal_health": ActionClass.READ_ONLY.value,
     # Yazma
     "technocore_signed_write": ActionClass.PUBLIC_WRITE.value,
-    "db_self_write": ActionClass.SAFE_WRITE.value,   # yalnız RAPTOR'un kendi DB'si
+    "db_self_write": ActionClass.SAFE_WRITE.value,   # yalnız LUMI'un kendi DB'si
     # Politika / yetki
     "apply_privileged": ActionClass.PRIVILEGED_HOST.value,
     "destructive_op": ActionClass.DESTRUCTIVE.value,
