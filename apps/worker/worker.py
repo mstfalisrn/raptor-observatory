@@ -110,7 +110,7 @@ class WorkerLoop:
                 run.error = "task_not_found"
                 await s.commit()
                 return True
-            # lease acquisition: ATOMİK claim (yalnız QUEUED veya lease'i dolmuş EXECUTING)
+            # lease acquisition: ATOMIC claim (only QUEUED or lease-expired EXECUTING)
             import datetime as _dt
             now = _dt.datetime.now(_dt.UTC)
             lease = now + _dt.timedelta(milliseconds=self._lease_ms)

@@ -59,7 +59,7 @@ LUMI supports 40+ inference providers via `openai_compatible`, which covers ever
 
 | Provider | LUMI mode | How to configure in LUMI |
 |---|---|---|
-| **Nous Portal** (OAuth, subscription) | `openai_compatible` | No direct key — get an API key from portal or proxy via OpenRouter. `hermes model` OAuth does not apply to LUMI. |
+| **Nous Portal** (OAuth, subscription) | `openai_compatible` | No direct key — get an API key from portal or proxy via OpenRouter. OAuth subscription models require a separate API key for LUMI. |
 | **OpenAI Codex** (OAuth, ChatGPT plan) | `openai_compatible` | Use `OPENAI_API_KEY` (`sk-...`) from platform.openai.com instead of Codex OAuth. |
 | **GitHub Copilot** (OAuth device code) | `openai_compatible` | No raw key — use OpenRouter proxy for Copilot models or any `openai_compatible` provider. |
 | **GitHub Copilot ACP** (local `copilot --acp`) | — | Not applicable (ACP transport). Use Ollama/LM Studio/vLLM locally instead. |

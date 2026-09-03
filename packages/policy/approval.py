@@ -138,7 +138,7 @@ class ApprovalService:
         if a is None:
             return False
         if a.status != models.ApprovalStatus.APPROVED.value:
-            return False  # yalnız APPROVED tüketilebilir; CONSUMED/PENDING reddedilir
+            return False  # only APPROVED can be consumed; CONSUMED/PENDING are rejected
         a.status = models.ApprovalStatus.CONSUMED.value
         await self.s.flush()
         return True

@@ -33,7 +33,7 @@ class TestLifecycle:
     async def test_approve_guard_requires_candidate(self, session):
         svc = MemoryService(session)
         item = await svc.create_candidate(content="x", source="test")
-        await svc.mark_active(item.id)  # CANDIDATE -> mark_active guard: yalnız APPROVED/AUTO
+        await svc.mark_active(item.id)  # CANDIDATE -> mark_active guard: only APPROVED/AUTO
         assert item.status == MemoryStatus.CANDIDATE.value  # değişmedi
 
     async def test_reject(self, session):

@@ -1,4 +1,4 @@
-# LUMI — AŞAMA 2 auth/RBAC testleri (local session, CF Access kullanılmıyor)
+# LUMI — AŞAMA 2 auth/RBAC testleri (local session, no Cloudflare Access)
 import jwt as pyjwt
 import pytest
 

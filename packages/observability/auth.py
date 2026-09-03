@@ -1,5 +1,5 @@
 # LUMI — local authentication + RBAC + rate limiting
-# CF Access kullanılmıyor (kullanıcı kararı). Bunun yerine:
+# No Cloudflare Access (by design). Instead:
 #   - session JWT (HS256, JWT_SECRET ile imzalı)
 #   - PBKDF2-HMAC-SHA256 parola hash'i (stdlib, bağımlılıksız)
 #   - role bazlı erişim (admin > operator > viewer)

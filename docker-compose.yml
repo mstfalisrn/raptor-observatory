@@ -235,4 +235,4 @@ volumes:
 networks:
   lumi_internal:
     driver: bridge
-    internal: false   # connectors internet erişimi gerekir; yalnız host portları kapalı
+    internal: false   # connectors need internet access; only host ports are closed

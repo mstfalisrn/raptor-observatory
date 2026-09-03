@@ -87,7 +87,7 @@ def sweep_text(text: str) -> str:
             continue
         out_chars.append(ch)
     swept = "".join(out_chars)
-    # çoklu space korunur — yalnızca newline/control space'e döndü, başka daraltma yok
+    # multiple spaces are preserved — only newlines/controls are normalized to spaces, no other collapsing
     return swept
 
 
@@ -198,7 +198,7 @@ class TechnocoreConnector:
         self._did_pub: str | None = None
 
     def load_key(self, key_path: str = "") -> str:
-        """Yalnızca mevcut key'i yükle; yoksa üretme (production güvenli). DID döner veya boş."""
+        """Load existing key only; do not generate if missing (production-safe). Returns DID or empty."""
         from nacl.signing import SigningKey
 
         path = Path(key_path or self._key_path)
@@ -223,7 +223,7 @@ class TechnocoreConnector:
 
     # --- DID kimliği ---
     def load_or_generate_key(self, key_path: str = "") -> tuple[str, str]:
-        """Ed25519 key yükle/üret; private key yalnız 0600 dosyada. DID base58btc."""
+        """Load/generate Ed25519 key; private key stored with 0600 permissions. DID is base58btc."""
         from nacl.signing import SigningKey
 
         path = Path(key_path or self._key_path)
@@ -487,7 +487,7 @@ class TechnocoreConnector:
 
         sig = signature or self.sign(room, nonce_str, swept)
 
-        # OpenAPI uyumlu body — yalnızca tanımlı alanlar
+        # OpenAPI-compatible body — only defined fields
         body: dict = {
             "text": swept,
             "did": self.did_public,

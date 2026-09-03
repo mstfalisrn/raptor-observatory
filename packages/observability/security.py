@@ -36,7 +36,7 @@ _SECRET_VALUE_PATTERNS: list[re.Pattern] = [
     re.compile(r"\b[A-Za-z0-9+/]{32,}={0,2}\b"),
 ]
 
-# Runtime env değerleri buraya eklenir — yalnızca bir kez
+# Runtime env values are added here — only once
 _loaded_env_secrets: set[str] = set()
 # Hangi env anahtarlarının secret olduğu (dar liste — fail-closed değil, false positive azaltır)
 _SECRET_KEY_HINTS = ("PASSWORD", "SECRET", "TOKEN", "API_KEY", "ENCRYPTION", "MASTER_KEY")
@@ -51,7 +51,7 @@ def _is_secret_key(key: str) -> bool:
 def load_secrets_from_env(environ: dict[str, str] | None = None) -> int:
     """Mevcut ortam değerlerini redaksiyon setine ekle. Dönüş: eklenen yeni değer sayısı.
 
-    - Yalnızca secret-hint anahtarları ve uzun (>=12) ve filesystem path'i olmayan değerler.
+    - Only secret-hint keys and long (>=12) values that are not filesystem paths.
     - Placeholder/CHANGE_ME değerleri atlanır.
     - Aynı değer ikinci kez eklenmez (idempotent).
     - Thread-unsafe ama idempotent; startup'ta bir kez çağrılması yeterli.

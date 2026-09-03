@@ -428,7 +428,7 @@ case "$LLM_CHOICE" in
     CUR_KEY="$(get_env_val LLM_API_KEY)"; [ -z "$CUR_KEY" ] && CUR_KEY="CHANGE_ME"
     ask "API key (leave CHANGE_ME if none)" "$CUR_KEY" IN_KEY
     set_env_val "LLM_API_KEY" "$IN_KEY"
-    echo -e "${DIM}  Start with: vLLM --enable-auto-tool-choice --tool-call-parser hermes  or  llama-server --jinja${RESET}"
+    echo -e "${DIM}  Start with: vLLM --enable-auto-tool-choice --tool-call-parser auto  or  llama-server --jinja${RESET}"
     ;;
   15)
     set_env_val "LLM_PROVIDER" "openai_compatible"
@@ -447,7 +447,7 @@ case "$LLM_CHOICE" in
     set_env_val "LLM_MODEL" "$IN_MODEL"
     ask_secret "OpenCode Go API key (OPENCODE_GO_API_KEY)" IN_KEY
     if [ -n "$IN_KEY" ]; then set_env_val "LLM_API_KEY" "$IN_KEY"; else echo -e "${YELLOW}  No key entered — set LLM_API_KEY later${RESET}"; fi
-    echo -e "${DIM}  Get key at https://opencode.ai — Go plan. Also supports hermes model → opencode-go.${RESET}"
+    echo -e "${DIM}  Get key at https://opencode.ai — Go plan. Also supports open models → opencode-go.${RESET}"
     ;;
   17)
     set_env_val "LLM_PROVIDER" "openai_compatible"

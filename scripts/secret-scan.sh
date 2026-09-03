@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # LUMI — secret scan v3 (fail-closed)
 # Exit: 0 temiz, 1 gerçek sır bulundu, 2 tarama hatası (fail-closed)
-# Hiçbir dosya atlatılmaz; placeholder/CHANGE_ME hariç gerçek değer yakalanır.
+# No file is skipped; real secrets are caught except placeholder/CHANGE_ME.
 set -uo pipefail
 ROOT="${1:-.}"
 if [ ! -d "$ROOT" ]; then
@@ -141,7 +141,7 @@ if [ -f ".env.example" ]; then
       fi
       # 8+ karakter ve CHANGE_ME değilse gerçek değer şüphesi
       if [ "${#val}" -ge 8 ] && ! echo "$val" | grep -qE '^\$\{' 2>/dev/null; then
-        echo "❌ .env.example içinde $key gerçek değer içeriyor: $line (yalnız CHANGE_ME olmalı)"
+        echo "❌ .env.example içinde $key gerçek değer içeriyor: $line (must be CHANGE_ME only)"
         hits=1
       fi
     fi

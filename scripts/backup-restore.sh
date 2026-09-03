@@ -25,7 +25,7 @@ case "$action" in
     ;;
   restore)
     SRC="${2:?restore için kaynak dump dosyası gerekir}"
-    # Yedek DB'ye geri yükle (üretim DB'sini ezmeden)
+    # Restore to backup DB (without overwriting production DB)
     docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$CONTAINER" \
       createdb -U "$DB_USER" -O "$DB_USER" lumi_restore_test 2>/dev/null || true
     docker exec -i -e PGPASSWORD="$POSTGRES_PASSWORD" "$CONTAINER" \

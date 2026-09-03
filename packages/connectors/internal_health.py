@@ -1,16 +1,16 @@
-# LUMI — internal health connector (Faz 9 sertleştirme)
-# Yalnız Docker service DNS kullanır; localhost yalnız aynı container için.
+# LUMI — internal health connector (hardening)
+# Only Docker service DNS is used; localhost is only for the same container.
 from __future__ import annotations
 
 import httpx
 
 
 class InternalHealthConnector:
-    """Yalnızca LUMI container health bilgileri; başka servise erişmez."""
+    """Only LUMI container health information; no access to other services."""
 
     def __init__(self, base_urls: dict[str, str] | None = None) -> None:
-        # Docker service DNS (compose network içinde) — localhost değil
-        # Aynı container içindeyse 127.0.0.1 kullanılabilir; aksi halde service adı
+        # Docker service DNS (inside compose network) — not localhost
+        # If inside the same container, 127.0.0.1 can be used; otherwise use service name
         self._base_urls = base_urls or {
             "api": "http://lumi-api:8000/health/live",
             "worker": "http://lumi-worker:8001/health/live",
@@ -40,7 +40,7 @@ class InternalHealthConnector:
         return result
 
     async def check_local(self) -> dict:
-        """Aynı container içinden localhost health kontrolü (yalnız self-check)."""
+        """Localhost health check from the same container (self-check only)."""
         local_urls = {
             "self": "http://127.0.0.1:8000/health/live",
         }

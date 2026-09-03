@@ -84,7 +84,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Requested-With", "Cf-Access-Jwt-Assertion", "X-Telegram-Bot-Api-Secret-Token"],
 )
 
-# --- Local auth (CF Access kullanılmıyor) + rate limit + body size ---
+# --- Local auth (no Cloudflare Access) + rate limit + body size ---
 from observability.auth import (
     create_session_token,
     get_current_user,
@@ -587,7 +587,7 @@ async def settings_non_secret(user: dict = Depends(get_current_user)):
         "technocore_base_url": settings.TECHNOCORE_BASE_URL,
         "run_max_iterations": settings.RUN_MAX_ITERATIONS,
         "run_max_wall_seconds": settings.RUN_MAX_WALL_SECONDS,
-        # secret DEĞERLERİ asla dönmez; yalnız configured/valid durumu:
+        # secret VALUES are never returned; only configured/valid status:
         "telegram_token_configured": bool(settings.TELEGRAM_BOT_TOKEN),
         "llm_key_configured": bool(settings.LLM_API_KEY),
     }

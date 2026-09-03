@@ -29,7 +29,7 @@ base58==2.1.1
 # Telegram
 python-telegram-bot==21.9
 
-# verimlilik / güvenlik
+# efficiency / security
 python-dotenv==1.0.1
 orjson==3.10.12
 passlib==1.7.4

@@ -1,4 +1,4 @@
-# LUMI — Tool executor (yalnız kayıtlı ve şemalı araçları kullanır; keyfi shell/docker yok)
+# LUMI — Tool executor (only registered, schema-validated tools; no arbitrary shell/docker)
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -106,7 +106,7 @@ def build_default_registry(
     reg.register(
         "technocore_signed_write",
         lambda room, payload, idempotency_key: tc.signed_post(room, payload, idempotency_key=idempotency_key),
-        {"name": "technocore_signed_write", "description": "DID imzalı Technocore yayını (yalnız onay)",
+        {"name": "technocore_signed_write", "description": "DID-signed Technocore publish (approval required)",
          "parameters": {"type": "object", "properties": {
              "room": {"type": "string"}, "payload": {"type": "object"}, "idempotency_key": {"type": "string"}},
              "required": ["room", "payload"]}},

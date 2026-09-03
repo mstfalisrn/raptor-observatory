@@ -42,7 +42,7 @@ class TestAllowlist:
     def test_empty_env_denies(self):
         svc = TelegramService.__new__(TelegramService)  # __init__'siz — settings token okumaz
         # env allowlist boşsa allowed() False döner (fail-closed)
-        # Bu test yalnızca 'allowed' metodunun boş liste davranışını doğrular
+        # This test only verifies the 'allowed' method's empty-list behavior
         from observability.config import settings
         original = settings.allowed_user_ids
         settings.TELEGRAM_ALLOWED_USER_IDS = ""

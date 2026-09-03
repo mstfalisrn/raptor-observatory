@@ -1,5 +1,5 @@
 # LUMI — Telegram bot (Faz 6 tam kontrol)
-# Yalnız onaylı numeric user ID'ye yanıt; '*' / allow-all YASAK.
+# Only respond to approved numeric user IDs; '*' / allow-all is FORBIDDEN.
 # Polling (ilk kurulum) + webhook (production). update_id ile idempotent (BIGINT).
 # 11+ komut + approval inline callback + getMe doğrulama + DB allowlist + BIGINT.
 from __future__ import annotations
@@ -57,7 +57,7 @@ class TelegramService:
         if user_id in env_allowed:
             return True
         # DB check synchronous fallback not possible here — async version below
-        # Bu sync metod yalnız env için; DB kontrolü _require içinde
+        # This sync method is for env only; DB check is inside _require
         return bool(env_allowed) and user_id in env_allowed
 
     async def allowed_with_db(self, user_id: int) -> bool:

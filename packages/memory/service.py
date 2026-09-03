@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from observability.models import MemoryItem, MemoryRelation, MemoryStatus
 
-# Retrieval için izinli status'ler — yalnızca doğrulanmış bilgi bağlama girer
+# Allowed statuses for retrieval — only verified information enters the context
 RETRIEVAL_ALLOWED_STATUSES = {
     MemoryStatus.ACTIVE.value,
     MemoryStatus.APPROVED.value,
@@ -80,7 +80,7 @@ class MemoryService:
         item = await self.session.get(MemoryItem, memory_id)
         if item is None:
             return None
-        # Guard: yalnızca CANDIDATE -> APPROVED
+        # Guard: only CANDIDATE -> APPROVED
         if item.status != MemoryStatus.CANDIDATE.value:
             return None
         item.status = MemoryStatus.AUTO_APPROVED.value if auto else MemoryStatus.APPROVED.value
@@ -97,7 +97,7 @@ class MemoryService:
     async def mark_active(self, memory_id: uuid.UUID) -> None:
         item = await self.session.get(MemoryItem, memory_id)
         if item:
-            # Yalnızca APPROVED / AUTO_APPROVED -> ACTIVE
+            # Only APPROVED / AUTO_APPROVED -> ACTIVE
             if item.status in (MemoryStatus.APPROVED.value, MemoryStatus.AUTO_APPROVED.value):
                 item.status = MemoryStatus.ACTIVE.value
                 item.verification_status = VERIFIED_VALUE
@@ -132,7 +132,7 @@ class MemoryService:
                      verified_only: bool = True, allow_expired: bool = False) -> list[MemoryItem]:
         """Genel arama — retrieval için verified/active filtre uygular.
 
-        - verified_only=True ise yalnızca verification_status='verified' ve RETRIEVAL_ALLOWED_STATUSES döner.
+        - if verified_only=True, only verification_status='verified' and RETRIEVAL_ALLOWED_STATUSES are returned.
         - status parametresi verilirse o status filtrelenir ama verified_only hâlâ geçerlidir (Faz4).
         - allow_expired=False ise expires_at geçmiş kayıtlar atlanır.
         """
@@ -168,7 +168,7 @@ class MemoryService:
         return items
 
     async def retrieve_for_context(self, q: str, limit: int = 10) -> list[MemoryItem]:
-        """ContextAssembler için — yalnızca ACTIVE + verified, relevance sıralı."""
+        """For ContextAssembler — only ACTIVE + verified, ordered by relevance."""
         return await self.search(q, limit=limit, verified_only=True, allow_expired=False)
 
     async def vector_search(self, embedding: list[float], limit: int = 10) -> list[MemoryItem]:

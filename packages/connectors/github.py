@@ -73,7 +73,7 @@ class GithubRepoConnector:
 
     async def repo_activity(self, repo: str) -> dict:
         # repo: "owner/name"
-        validate_host("api.github.com")  # SSRF güvenlik kontrolü
+        validate_host("api.github.com")  # SSRF security check
         parts = repo.strip("/").split("/")
         if len(parts) < 2:
             raise ValueError("repo 'owner/name' formatında olmalı")

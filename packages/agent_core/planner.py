@@ -54,7 +54,7 @@ class Planner:
         if self.provider is not None:
             try:
                 sys_msg = (
-                    "Sen LUMI planlayıcısısın. YALNIZ geçerli JSON döndür. Şema:\n"
+                    "You are the LUMI planner. Return ONLY valid JSON. Schema:\n"
                     '{"goal": str, "assumptions": [str], "success_criteria": [str], '
                     '"actions": [{"action_id":"action_1","tool":str,"arguments":{...},'
                     '"reason":str,"expected_evidence":[str],"action_class":"READ_ONLY"}]}\n'
@@ -63,7 +63,7 @@ class Planner:
                     "- github_repo_read: {repo (zorunlu)}\n"
                     "- technocore_read: {room, since}\n"
                     "- internal_health: {}\n"
-                    "- technocore_signed_write: {room, payload, idempotency_key} (yalnız onaylı)\n"
+                    "- technocore_signed_write: {room, payload, idempotency_key} (approval required)\n"
                     "Action ID'leri action_1, action_2, ... sıralı olmalı."
                 )
                 user_msg = f"Görev: {title} — {prompt}\nScope kind: {goal}\n"

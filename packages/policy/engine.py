@@ -28,7 +28,7 @@ TOOL_TO_ACTION = {
     "internal_health": ActionClass.READ_ONLY.value,
     # Yazma
     "technocore_signed_write": ActionClass.PUBLIC_WRITE.value,
-    "db_self_write": ActionClass.SAFE_WRITE.value,   # yalnız LUMI'un kendi DB'si
+    "db_self_write": ActionClass.SAFE_WRITE.value,   # only LUMI's own DB
     # Politika / yetki
     "apply_privileged": ActionClass.PRIVILEGED_HOST.value,
     "destructive_op": ActionClass.DESTRUCTIVE.value,
@@ -59,7 +59,7 @@ class PolicyEngine:
             return PolicyDecision(ActionClass.DESTRUCTIVE.value, "DENY", f"bilinmeyen araç: {tool}")
         action_class = TOOL_TO_ACTION[tool]
         if action_class == ActionClass.DESTRUCTIVE.value:
-            return PolicyDecision(action_class, "DENY", "destructive yalnız fasıl onayı")
+            return PolicyDecision(action_class, "DENY", "destructive requires phase approval")
         if action_class == ActionClass.PRIVILEGED_HOST.value:
             return PolicyDecision(action_class, "REQUIRE_APPROVAL", "host değişikliği insan onayı")
         if action_class in _GATED:

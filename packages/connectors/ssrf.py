@@ -43,7 +43,7 @@ _blocked = [ipaddress.ip_network(n) for n in _BLOCKED_NETWORKS]
 # DNS pin cache — TOCTOU önleme (host -> (ips, expiry))
 _dns_pin: dict[str, tuple[list[str], float]] = {}
 _DNS_PIN_TTL = 300  # 5 dakika
-# Allow port policy — yalnız http/https default portlar (opsiyonel genişletilebilir)
+# Allow port policy — only http/https default ports (optionally extendable)
 _ALLOWED_SCHEMES = {"http", "https"}
 
 class SSRFError(Exception):
@@ -106,7 +106,7 @@ def validate_host(host: str, allowed_hosts: set[str] | None = None) -> None:
     """Host adını doğrular; DNS çözümünden sonra IP sınıfını kontrol eder.
 
     - allowed_hosts verilirse host bunlardan birine tam eşleşmek zorunda (deny-by-allowlist).
-    - allowed_hosts None ise yalnız bloklu IP'ler reddedilir (geriye uyumluluk).
+    - if allowed_hosts is None, only blocked IPs are rejected (backward compat).
     - Hostname allowlist'e yoksa bile bloklu IP'ler reddedilir.
     """
     raw = host
@@ -153,11 +153,11 @@ def validate_url(url: str, allowed_hosts: set[str] | None = None) -> str:
     # unix socket & file benzeri
     if "unix:" in url.lower():
         raise SSRFError("unix socket erişimi engellendi")
-    # port kontrolü — yalnız default veya açıkça izinli portlar (80,443)
+    # port check — only default or explicitly allowed ports (80,443)
     # Non-standard portları reddetmek yerine logla ama SSRF için riskli portları engelle
     if parts.port is not None:
         if parts.port not in (80, 443, 8000, 8001, 8002, 3525):
-            # internal portlar yalnız internal_health için; dış connectorlarda 80/443 dışındakiler şüpheli
+            # internal ports are only for internal_health; for external connectors, non-80/443 ports are suspicious
             # Sıkı mod: allowlist dışındaki portları reddet
             if allowed_hosts is not None and parts.port not in (80, 443):
                 raise SSRFError(f"port allowlist dışı: {parts.port}")

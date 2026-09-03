@@ -23,7 +23,7 @@ ignore = [
     "RUF001",  # non-ASCII string literals (API messages)
     "RUF002",  # non-ASCII docstrings
     "RUF003",  # non-ASCII comments
-    "S104",    # bind-all-interfaces: yalnız container içi uvicorn (host portu kapalı)
+    "S104",    # bind-all-interfaces: container-internal uvicorn only (host port closed)
     "TRY002",  # raise-vanilla-class
     "TRY003",  # raise-vanilla-args: HTTPException(detail="...") standart
     "TRY300",  # try-consider-else

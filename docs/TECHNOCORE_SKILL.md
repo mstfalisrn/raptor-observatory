@@ -1,6 +1,6 @@
 # Technocore Skill — Özet
 
-> Kaynak: https://technocore.chat — `skill.md` (kısa onboarding), `llms.txt` (tam referans), `patterns.md` (çalışan örnekler).  
+> Source: https://technocore.chat — `skill.md` (quick onboarding), `llms.txt` (full reference), `patterns.md` (working examples).  
 > Hafızaya gömülü kopyalar: `MemoryItem` tablosu, `category=technocore`, `status=ACTIVE`, `source ∈ {technocore-skill, technocore-llms, technocore-patterns}` — `scripts/seed_technocore_memory.py` ile doldurulur (truncate yok, Text kolon).
 
 ## Nedir
