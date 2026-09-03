@@ -46,7 +46,7 @@ class WorkerLoop:
         self.consumer_name = f"worker-{os.getpid()}-{uuid.uuid4().hex[:6]}"
         self.registry = build_default_registry(
             http_hosts=set(filter(None, settings.CONNECTOR_ALLOWED_HOSTS.split(","))) if settings.CONNECTOR_ALLOWED_HOSTS else None,
-            technocore_key_path=settings.TECHNOCORE_ED25519_KEY_PATH or "./secrets/lumi-observatory/did.ed25519",
+            technocore_key_path=settings.TECHNOCORE_ED25519_KEY_PATH or "./secrets/did.ed25519",
             technocore_base_url=settings.TECHNOCORE_BASE_URL,
         )
         self.provider = build_provider()

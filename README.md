@@ -81,7 +81,7 @@ Context is assembled in 7 layers (`system_policy`, `task_goal`, `conversation_wi
 | `lumi-postgres` | PostgreSQL 16 + pgvector -- durable state, vectors, append-only events | internal |
 | `lumi-redis` | Redis 7 -- Streams queue/DLQ, coordination, cursors | internal |
 
-All runtime containers run as non-root, read-only filesystem, `cap_drop: ALL`, `no-new-privileges`. Only `lumi-gateway` is bound to the host.
+All runtime containers run as non-root, read-only filesystem, `cap_drop: ALL`, `no-new-privileges`. Only `lumi-gateway` is bound to the host (`127.0.0.1:${GATEWAY_PORT:-3525}` — override with `GATEWAY_PORT` env).
 
 ---
 

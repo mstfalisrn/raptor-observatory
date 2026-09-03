@@ -1,6 +1,6 @@
 # LUMI Agentic Observatory — Docker Compose (pinned, standalone)
-# Yalnız lumi-gateway host'ta 127.0.0.1:<GATEWAY_PORT>'e bind eder.
-# PostgreSQL/Redis host portu AÇILMAZ (internal network). Web UI, api image'ına gömülüdür (tek origin).
+# Only lumi-gateway binds to the host on 127.0.0.1:${GATEWAY_PORT:-3525}.
+# PostgreSQL/Redis are not exposed to the host (internal network). Web UI is baked into the API image (single origin).
 name: lumi-observatory
 
 services:
@@ -10,14 +10,14 @@ services:
     container_name: lumi-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-raptor}
+      POSTGRES_USER: ${POSTGRES_USER:-lumi}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-raptor}
+      POSTGRES_DB: ${POSTGRES_DB:-lumi}
     volumes:
       - lumi_pgdata:/var/lib/postgresql/data
       - ./infra/compose/initdb/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raptor}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lumi}"]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -60,7 +60,7 @@ services:
     cpus: 0.5
     environment:
       APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-raptor}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lumi}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-lumi}
     depends_on:
       lumi-postgres: { condition: service_healthy }
     networks: [lumi_internal]
@@ -89,11 +89,11 @@ services:
         max-file: "3"
     environment:
       APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-raptor}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lumi}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-lumi}
       REDIS_URL: redis://lumi-redis:6379/0
       JWT_SECRET: ${JWT_SECRET}
       SESSION_ENCRYPTION_MASTER_KEY: ${SESSION_ENCRYPTION_MASTER_KEY}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-your-email@example.com}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
@@ -158,10 +158,10 @@ services:
         max-file: "3"
     volumes:
       # Technocore DID key (host) → container'a read-only; host'ta UID 10001 okunabilir olmalı (0640 root:10001)
-      - ${TECHNOCORE_KEY_HOST_PATH:-./secrets/lumi-observatory/did.ed25519}:/run/secrets/technocore/did.ed25519:ro
+      - ${TECHNOCORE_KEY_HOST_PATH:-./secrets/did.ed25519}:/run/secrets/technocore/did.ed25519:ro
     environment:
       APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-raptor}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lumi}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-lumi}
       REDIS_URL: redis://lumi-redis:6379/0
       SESSION_ENCRYPTION_MASTER_KEY: ${SESSION_ENCRYPTION_MASTER_KEY}
       LLM_PROVIDER: ${LLM_PROVIDER:-mock}
@@ -207,7 +207,7 @@ services:
         max-file: "3"
     environment:
       APP_ENV: ${APP_ENV:-production}
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-raptor}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-raptor}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-lumi}:${POSTGRES_PASSWORD}@lumi-postgres:5432/${POSTGRES_DB:-lumi}
       REDIS_URL: redis://lumi-redis:6379/0
       SESSION_ENCRYPTION_MASTER_KEY: ${SESSION_ENCRYPTION_MASTER_KEY}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}

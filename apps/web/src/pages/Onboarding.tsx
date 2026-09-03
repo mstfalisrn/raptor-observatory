@@ -132,7 +132,7 @@ export default function Onboarding({ onDone }: Props) {
             <CardDescription>Sign in with your local admin email and password. On first setup it is created via .env ADMIN_PASSWORD_HASH.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input placeholder="admin email (e.g. your-email@example.com)" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
+            <Input placeholder="admin email (e.g. admin@example.com)" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
             <Input placeholder="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
             {pwErr && <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">⚠ {pwErr}</div>}
             {pwMsg && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{pwMsg}</div>}

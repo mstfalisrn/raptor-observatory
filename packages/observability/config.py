@@ -1,4 +1,4 @@
-# LUMI Agentic Observatory — merkezi yapılandırma
+# LUMI Agentic Observatory — central configuration
 from __future__ import annotations
 
 from functools import lru_cache
@@ -24,15 +24,15 @@ class Settings(BaseSettings):
     )
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # Güvenlik (dev-only placeholder; production'da app.env ile override edilir)
+    # Security (dev-only placeholders; overridden by env/.env in production)
     JWT_SECRET: str = "dev-only-change-me"  # noqa: S105
     SESSION_ENCRYPTION_MASTER_KEY: str = "dev-only-32-byte-master-key-0000000000"
     TELEGRAM_WEBHOOK_SECRET: str = "dev-webhook-secret"  # noqa: S105
     CLOUDFLARE_ACCESS_AUD: str = ""
     CLOUDFLARE_ACCESS_CERT_PEM_PATH: str = ""
 
-    # Local auth (CF Access kullanılmıyor)
-    ADMIN_EMAIL: str = "your-email@example.com"
+    # Local auth (no Cloudflare Access)
+    ADMIN_EMAIL: str = "admin@example.com"
     ADMIN_PASSWORD_HASH: str = ""
     SESSION_TTL_SECONDS: int = 12 * 3600
     RATE_LIMIT_PER_MINUTE: int = 120
@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     TECHNOCORE_ROOM_CLAIM: str = "dm-topic"
     TECHNOCORE_ED25519_KEY_PATH: str = ""
 
-    # API host/port (0.0.0.0 container İÇİ bind; host'ta 127.0.0.1'e Docker port mapping ile kısıtlanır)
+    # API host/port (0.0.0.0 inside container; host binding is restricted to 127.0.0.1 via Docker port mapping)
     API_HOST: str = "0.0.0.0"  # nosec B104
     API_PORT: int = 8000
     WORKER_PORT: int = 8001
@@ -101,11 +101,16 @@ class Settings(BaseSettings):
 
     @property
     def secrets_file(self) -> Path:
-        # Üretim secret'ları ./secrets/app.env
-        p = Path("./secrets/app.env")
-        if p.exists():
-            return p
-        # dev: docker-compose env / .env yeterli
+        # Resolve secrets file — generic first, legacy server path as fallback
+        import os
+        for cand in [
+            os.getenv("SECRETS_FILE", ""),
+            "./secrets/app.env",
+            "/run/secrets/app.env",
+            "./secrets/app.env",  # legacy server path (backward compat)
+        ]:
+            if cand and Path(cand).exists():
+                return Path(cand)
         return Path(".env")
 
 

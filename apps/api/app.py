@@ -74,9 +74,10 @@ if _os.getenv("APP_ENV") == "production":
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://lumi.your-domain.example",
+        # Local dev + gateway (configurable via ALLOWED_ORIGINS env if you expose a public domain)
         "http://127.0.0.1:3525",
         "http://localhost:3525",
+        *([o.strip() for o in __import__("os").getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]),
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

@@ -83,7 +83,7 @@ else:
 p.write_text(t)
 PY
         echo "✓ Generated ADMIN_PASSWORD_HASH (admin password: ${ADMIN_PLAIN})"
-        _admin_email_tmp="$(grep -E '^ADMIN_EMAIL=' .env | cut -d= -f2- | awk '{print $1}' | tail -n1 || echo 'your-email@example.com')"
+        _admin_email_tmp="$(grep -E '^ADMIN_EMAIL=' .env | cut -d= -f2- | awk '{print $1}' | tail -n1 || echo 'admin@example.com')"
         echo "  → Kaydet: admin e-posta=${_admin_email_tmp}  parola=${ADMIN_PLAIN}"
         unset HASHED _admin_email_tmp
       else
@@ -154,9 +154,9 @@ else
 fi
 
 # Clear next steps
-ADMIN_EMAIL_VAL="$(grep -E '^ADMIN_EMAIL=' .env | cut -d= -f2- | awk '{print $1}' | tail -n1 || echo 'your-email@example.com')"
+ADMIN_EMAIL_VAL="$(grep -E '^ADMIN_EMAIL=' .env | cut -d= -f2- | awk '{print $1}' | tail -n1 || echo 'admin@example.com')"
 if [ -z "$ADMIN_EMAIL_VAL" ] || [ "$ADMIN_EMAIL_VAL" = "CHANGE_ME" ]; then
-  ADMIN_EMAIL_VAL="your-email@example.com"
+  ADMIN_EMAIL_VAL="admin@example.com"
 fi
 echo ""
 echo "════════════════════════════════════════════════════"
