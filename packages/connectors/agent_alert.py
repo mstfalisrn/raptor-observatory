@@ -74,32 +74,76 @@ async def send_risk_alert(evaluation: Any) -> bool:
 
     msg = _format_msg(evaluation)
 
-    # Telegram'a göndermeyi dene
+    # Telegram'a göndermeyi dene — scheduler'da `telegram` paketi yok, direkt Bot API kullan
+    try:
+        from observability.config import settings as _settings
+        from observability.db import async_session_factory as _session_factory
+        from observability import models as _models
+        token = getattr(_settings, "TELEGRAM_BOT_TOKEN", "") or ""
+        if token:
+            recipients: set[int] = set()
+            try:
+                recipients.update(int(x) for x in getattr(_settings, "allowed_user_ids", []) or [])
+            except Exception:
+                pass
+            try:
+                async with _session_factory() as _s:
+                    from sqlalchemy import select as _select
+                    res = await _s.execute(_select(_models.TelegramIdentity.telegram_user_id).where(_models.TelegramIdentity.is_allowed == True))  # noqa: E712
+                    for row in res.scalars().all():
+                        try:
+                            recipients.add(int(row))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            if recipients:
+                import httpx as _httpx
+                ok_any = False
+                for uid in recipients:
+                    try:
+                        async with _httpx.AsyncClient(timeout=10) as _client:
+                            r = await _client.post(
+                                f"https://api.telegram.org/bot{token}/sendMessage",
+                                json={"chat_id": uid, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True},
+                            )
+                            if r.status_code == 200 and r.json().get("ok"):
+                                ok_any = True
+                            else:
+                                log.warning("risk alert http %s: %s", r.status_code, r.text[:200])
+                    except Exception as e:
+                        log.warning("risk alert http hata uid=%s: %s", uid, type(e).__name__)
+                if ok_any:
+                    log.info("risk alert gönderildi (httpx): tier=%s room=%s", tier, getattr(evaluation, "room", evaluation.get("room") if isinstance(evaluation, dict) else "?"))
+                    return True
+                log.warning("risk alert httpx alıcılara ulaşamadı")
+            else:
+                log.warning("risk alert: alıcı yok (allowlist boş) — fallback log")
+        else:
+            log.debug("risk alert: TELEGRAM_BOT_TOKEN boş — fallback log")
+    except Exception as e:
+        log.warning("risk alert httpx yol hata (%s): %s", type(e).__name__, e)
+    # fallback: agent_core.telegram varsa dene (api container'da)
     try:
         from agent_core.telegram import get_service  # type: ignore
         svc = get_service()
-        # preferred API — send_to_allowed
         if hasattr(svc, "send_to_allowed"):
             try:
                 ok = await svc.send_to_allowed(msg)
                 if ok:
-                    log.info("risk alert gönderildi: tier=%s room=%s", tier, getattr(evaluation, "room", evaluation.get("room") if isinstance(evaluation, dict) else "?"))
+                    log.info("risk alert gönderildi (agent_core): tier=%s room=%s", tier, getattr(evaluation, "room", evaluation.get("room") if isinstance(evaluation, dict) else "?"))
                     return True
-                log.warning("risk alert send_to_allowed False döndü: %s", msg[:200])
+                log.warning("risk alert send_to_allowed False: %s", msg[:200])
                 return False
             except Exception as e:
                 log.warning("risk alert send_to_allowed hata: %s", e)
-                # fallback: logla
                 log.warning("RISK ALERT (fallback log) %s", msg)
                 return False
-        # fallback: send logic yoksa log
         log.warning("TelegramService.send_to_allowed yok — fallback log: %s", msg)
         return False
     except Exception as e:
-        # import veya service hatası -> fallback log (import hatasız kontrata uyar)
         log.warning("risk alert Telegram erişilemedi (%s) — fallback log: %s", type(e).__name__, msg)
         try:
-            # still try to keep visible
             log.warning("RISK ALERT (fallback) %s", msg)
         except Exception:
             pass
