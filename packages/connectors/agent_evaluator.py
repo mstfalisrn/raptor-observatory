@@ -185,7 +185,7 @@ async def evaluate_agent_message(
             elif isinstance(content, dict):
                 parsed = content
             else:
-                raise ValueError("unexpected content type")
+                raise TypeError("unexpected content type")
             norm = _normalize_llm_result(parsed, text)
             norm["model"] = model
             return norm

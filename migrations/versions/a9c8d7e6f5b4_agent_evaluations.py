@@ -6,16 +6,17 @@ Create Date: 2026-09-02
 
 M2: AgentEvaluation — agent mesaj risk değerlendirmesi (5 boyut + tier)
 """
-from typing import Sequence, Union
+from typing import Union
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = "a9c8d7e6f5b4"
-down_revision: Union[str, None] = "f2a3b4c5d6e7"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "f2a3b4c5d6e7"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

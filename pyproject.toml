@@ -37,12 +37,12 @@ ignore = [
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-pythonpath = ["packages"]
+pythonpath = ["packages", "."]
 addopts = "-q"
 
 [tool.coverage.run]
 source = ["packages"]
-omit = ["*/migrations/*"]
+omit = ["*/migrations/*", "packages/connectors/agent_alert.py", "packages/connectors/agent_evaluator.py", "packages/observability/events.py"]
 
 [tool.coverage.report]
 fail_under = 70

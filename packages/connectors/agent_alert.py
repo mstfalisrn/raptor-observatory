@@ -76,9 +76,9 @@ async def send_risk_alert(evaluation: Any) -> bool:
 
     # Telegram'a göndermeyi dene — scheduler'da `telegram` paketi yok, direkt Bot API kullan
     try:
+        from observability import models as _models
         from observability.config import settings as _settings
         from observability.db import async_session_factory as _session_factory
-        from observability import models as _models
         token = getattr(_settings, "TELEGRAM_BOT_TOKEN", "") or ""
         if token:
             recipients: set[int] = set()
