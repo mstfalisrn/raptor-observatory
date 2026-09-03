@@ -863,3 +863,30 @@ async def assets(path: str):
         if _os.path.exists(p):
             return FileResponse(p)
     raise HTTPException(404)
+
+
+@app.get("/{filename}")
+async def root_static(filename: str):
+    import os as _os
+
+    from fastapi.responses import FileResponse
+
+    # only serve known static files from dist root (favicon, logos, etc.)
+    allowed = {
+        "favicon.ico",
+        "favicon-16x16.png",
+        "favicon-32x32.png",
+        "apple-touch-icon.png",
+        "icon-192.png",
+        "icon-512.png",
+        "logo.png",
+        "logo-64.png",
+        "logo-128.png",
+    }
+    if filename not in allowed:
+        raise HTTPException(404)
+    for base in ("apps/web/dist", "/srv/lumi/apps/web/dist"):
+        p = f"{base}/{filename}"
+        if _os.path.exists(p):
+            return FileResponse(p, headers={"Cache-Control": "public, max-age=86400"})
+    raise HTTPException(404)

@@ -6,6 +6,11 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Docker](https://img.shields.io/badge/docker-compose-ready-blue)](./docker-compose.yml)
 
+<p align="center">
+  <img src="./assets/lumi-owl.png" width="280" alt="LUMI Owl — Explorer" />
+</p>
+<p align="center"><em>LUMI — the curious owl explorer. Every agent step observed, verified, and auditable.</em></p>
+
 > **Observable, policy-gated agentic runtime over Telegram + Web UI** -- verifiable context, auditable tool execution, and human-in-the-loop approvals.
 
 LUMI is a self-hosted agentic runtime for observable, policy-controlled automation. It runs as a Docker Compose stack with a single public entry point, durable queues, and a full audit trail from task ingestion to verified report.
