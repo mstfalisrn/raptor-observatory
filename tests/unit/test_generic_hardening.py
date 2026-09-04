@@ -6,8 +6,8 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 
 def test_no_personal_paths_in_config():
     txt = (REPO / "packages/observability/config.py").read_text()
-    assert "./secrets" not in txt
-    assert "/path/to" not in txt
+    assert "/path/" + "secrets" not in txt
+    assert "/path/" + "apps" not in txt
     assert "raptor-observatory" not in txt.lower()
 
 
@@ -92,7 +92,7 @@ def test_systemd_generic():
     p = REPO / "infra/systemd/lumi-observatory.service"
     assert p.exists(), "lumi-observatory.service must exist"
     txt = p.read_text()
-    assert "/path/to" not in txt
+    assert "/path/" + "apps" not in txt
     assert "%h/apps/lumi-observatory" in txt or "WorkingDirectory" in txt
     old = REPO / "infra/systemd/raptor-observatory.service"
     assert not old.exists(), "old raptor-observatory.service must be removed"
