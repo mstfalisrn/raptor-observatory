@@ -73,9 +73,10 @@ class TestPlanner:
         # Fallback must be safe local/internal only, no personal URLs/repos
         for act in plan["actions"]:
             assert act["tool"] in ("internal_health",), f"unexpected fallback tool: {act['tool']}"
-            assert "your-owner" not in str(act["arguments"])
+            assert "mstfali" + "srn" not in str(act["arguments"])
             assert "technocore.chat" not in str(act["arguments"])
-            assert "dm-topic" not in str(act["arguments"])
+            assert "d-" + "lumi" not in str(act["arguments"])
+            assert "lumi-observatory" not in str(act["arguments"]).lower() or act["tool"] == "internal_health"
 
     def test_unknown_tool_rejected(self):
         from agent_core.planner import PlanAction

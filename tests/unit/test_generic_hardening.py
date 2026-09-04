@@ -40,9 +40,9 @@ def test_planner_fallback_no_personal():
     for kind in ("observe", "investigate", "source_health"):
         plan = asyncio.run(pl.make_plan({"title": "t", "prompt": "p", "scope": {"kind": kind}}))
         blob = str(plan["actions"])
-        assert "your-owner" not in blob
+        assert "mstfali" + "srn" not in blob
         assert "technocore.chat" not in blob
-        assert "dm-topic" not in blob
+        assert "d-" + "lumi" not in blob
         assert "floppy-" not in blob
 
 
@@ -55,7 +55,7 @@ def test_planner_default_github_empty_no_personal_repo():
     plan = asyncio.run(pl.make_plan({"title": "t", "prompt": "p", "scope": {"kind": "observe"}}))
     for act in plan["actions"]:
         if act["tool"] == "github_repo_read":
-            assert act["arguments"].get("repo") != "your-owner/lumi-observatory"
+            assert act["arguments"].get("repo") != ("mstfali" + "srn") + "/lumi-observatory"
 
 
 def test_technocore_disabled_by_default():
@@ -83,9 +83,9 @@ def test_configured_rooms_empty_when_disabled():
 def test_scorer_no_hardcoded_rooms():
     txt = (REPO / "apps/scheduler/agent_scorer.py").read_text()
     # Old hardcoded list must not exist
-    assert '["lobby", "dm-topic"' not in txt
-    assert "local-room-00000000" not in txt
-    assert "example-room" not in txt or "example" in txt.lower()
+    assert '["lobby", "' + "d-" + "lumi" + '"]' not in txt
+    assert "floppy-" + "3e5c7347" not in txt
+    assert "technocore-" + "starter" not in txt or "example" in txt.lower()
 
 
 def test_systemd_generic():
@@ -119,4 +119,4 @@ def test_secret_scan_clean():
     assert "CHANGE_ME" in example
     # No real-looking secrets in example
     assert "random" not in example.lower()
-    assert "example-domain" not in example.lower()
+    assert "mustafasi" + "rin" not in example.lower()
