@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # LUMI — veritabanı yedekleme (PostgreSQL dump) ve restore helper
-# Yedekler /var/backups/lumi-observatory altına timestamp'li yazılır.
+# Yedekler ${LUMI_BACKUP_DIR:-./backups} altına timestamp'li yazılır.
 set -euo pipefail
 
-BACKUP_DIR="${LUMI_BACKUP_DIR:-/var/backups/lumi-observatory}"
-CONTAINER="lumi-postgres"
+BACKUP_DIR="${LUMI_BACKUP_DIR:-./backups}"
+CONTAINER="${LUMI_POSTGRES_CONTAINER:-lumi-postgres}"
 DB_USER="${POSTGRES_USER:-lumi}"
 DB_NAME="${POSTGRES_DB:-lumi}"
 : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD gerekiyor}"

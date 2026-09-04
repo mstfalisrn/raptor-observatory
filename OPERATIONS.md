@@ -21,7 +21,7 @@
 # Load DB_PASSWORD from your external secrets store (not from the repo)
 export DB_PASSWORD="..."  # sourced externally
 ./scripts/backup-restore.sh backup
-./scripts/backup-restore.sh restore /var/backups/lumi-observatory/lumi-<timestamp>.dump
+./scripts/backup-restore.sh restore ${LUMI_BACKUP_DIR:-./backups}/lumi-<timestamp>.dump
 ```
 Restore writes to a separate `lumi_restore_test` database; it does not touch production data.
 

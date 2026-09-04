@@ -30,6 +30,8 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
+    # Fail-closed in production: require real secrets
+    settings.validate_production()
     if settings.ADMIN_PASSWORD_HASH:
         async with async_session_factory() as s:
             res = await s.execute(select(models.User).where(models.User.username == settings.ADMIN_EMAIL))

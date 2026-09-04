@@ -19,6 +19,10 @@ from agent_core.verifier import DefaultVerifier
 from context_engine.assembler import ContextAssembler
 from observability import models
 from observability.config import settings
+
+# Fail-closed in production
+if settings.is_production:
+    settings.validate_production()
 from observability.db import async_session_factory
 from observability.events import CriticalEventPersistenceError, append_run_event_safe
 from observability.queue import ack, claim_pending, ensure_stream_group, read_group

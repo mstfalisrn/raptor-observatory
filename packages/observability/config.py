@@ -18,18 +18,21 @@ class Settings(BaseSettings):
     APP_TIMEZONE: str = "UTC"
     SCHEMA_VERSION: int = 1
 
-    # DB (production: lumi_postgres internal host)
-    DATABASE_URL: str = (
-        "postgresql+asyncpg://lumi:random@localhost:5432/lumi"
-    )
+    # DB — must be provided via environment / secrets file; no hardcoded password
+    DATABASE_URL: str = ""
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # Security (dev-only placeholders; overridden by env/.env in production)
-    JWT_SECRET: str = "dev-only-change-me"  # noqa: S105
-    SESSION_ENCRYPTION_MASTER_KEY: str = "dev-only-32-byte-master-key-0000000000"
-    TELEGRAM_WEBHOOK_SECRET: str = "dev-webhook-secret"  # noqa: S105
+    # Security — fail-closed in production; dev placeholders are non-secret and blocked in prod
+    JWT_SECRET: str = ""
+    SESSION_ENCRYPTION_MASTER_KEY: str = ""
+    TELEGRAM_WEBHOOK_SECRET: str = ""
     CLOUDFLARE_ACCESS_AUD: str = ""
     CLOUDFLARE_ACCESS_CERT_PEM_PATH: str = ""
+
+    # Postgres (used by docker-compose / backup script)
+    POSTGRES_USER: str = "lumi"
+    POSTGRES_DB: str = "lumi"
+    POSTGRES_PASSWORD: str = ""
 
     # Local auth (no Cloudflare Access)
     ADMIN_EMAIL: str = "admin@example.com"
@@ -50,6 +53,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = ""
     LLM_API_KEY: str = ""
 
+    # GitHub — optional; empty means planner must not auto-generate github actions
+    DEFAULT_GITHUB_REPO: str = ""
+
     # Guardrail
     RUN_MAX_ITERATIONS: int = 40
     RUN_MAX_TOOL_CALLS: int = 80
@@ -69,9 +75,11 @@ class Settings(BaseSettings):
     # Memory auto-promote
     MEMORY_AUTO_PROMOTE_THRESHOLD: float = 0.85
 
-    # Technocore
-    TECHNOCORE_BASE_URL: str = "https://technocore.chat"
-    TECHNOCORE_ROOM_CLAIM: str = "dm-topic"
+    # Technocore — optional integration, disabled by default
+    TECHNOCORE_ENABLED: bool = False
+    TECHNOCORE_BASE_URL: str = ""
+    TECHNOCORE_ROOM_CLAIM: str = ""
+    TECHNOCORE_MONITORED_ROOMS: str = ""
     TECHNOCORE_ED25519_KEY_PATH: str = ""
 
     # API host/port (0.0.0.0 inside container; host binding is restricted to 127.0.0.1 via Docker port mapping)
@@ -100,18 +108,44 @@ class Settings(BaseSettings):
         return self.APP_ENV == "production"
 
     @property
+    def technocore_rooms(self) -> list[str]:
+        """Parse TECHNOCORE_MONITORED_ROOMS as comma-separated list."""
+        raw = self.TECHNOCORE_MONITORED_ROOMS.strip()
+        if not raw:
+            return []
+        return [x.strip() for x in raw.split(",") if x.strip()]
+
+    @property
     def secrets_file(self) -> Path:
-        # Resolve secrets file — generic first, legacy server path as fallback
         import os
+
         for cand in [
             os.getenv("SECRETS_FILE", ""),
             "./secrets/app.env",
             "/run/secrets/app.env",
-            "./secrets/app.env",  # legacy server path (backward compat)
         ]:
             if cand and Path(cand).exists():
                 return Path(cand)
         return Path(".env")
+
+    def validate_production(self) -> None:
+        """Fail-closed: production requires real secrets, no placeholders."""
+        if not self.is_production:
+            return
+        placeholders = {"CHANGE_ME", "dev-only-change-me", "dev-only-32-byte-master-key-0000000000", "dev-webhook-secret", "random", ""}
+        errors: list[str] = []
+        # DATABASE_URL must be set and not contain dummy password
+        if not self.DATABASE_URL or "random" in self.DATABASE_URL:
+            errors.append("DATABASE_URL must be set in production (no default password)")
+        if not self.DATABASE_URL:
+            errors.append("DATABASE_URL is required in production")
+        # Security secrets must be set and not placeholders
+        for name in ("JWT_SECRET", "SESSION_ENCRYPTION_MASTER_KEY", "TELEGRAM_WEBHOOK_SECRET", "POSTGRES_PASSWORD", "ADMIN_PASSWORD_HASH"):
+            val = getattr(self, name, "")
+            if not val or val in placeholders or "CHANGE_ME" in val:
+                errors.append(f"{name} must be set to a real secret in production")
+        if errors:
+            raise RuntimeError("Production config invalid: " + "; ".join(errors))
 
 
 @lru_cache

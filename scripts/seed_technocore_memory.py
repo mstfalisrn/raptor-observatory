@@ -32,9 +32,14 @@ import httpx
 from sqlalchemy import select
 
 from observability.db import async_session_factory
+from observability.config import settings
 from observability.models import MemoryItem, MemoryStatus
 
-BASE = "https://technocore.chat"
+if not settings.TECHNOCORE_ENABLED or not settings.TECHNOCORE_BASE_URL:
+    print("Technocore disabled (TECHNOCORE_ENABLED=false or TECHNOCORE_BASE_URL empty), skipping seed.")
+    import sys; sys.exit(0)
+
+BASE = settings.TECHNOCORE_BASE_URL.rstrip("/")
 DOCS: list[tuple[str, str]] = [
     (f"{BASE}/skill.md", "technocore-skill/md"),
     (f"{BASE}/llms.txt", "technocore-llms"),
@@ -76,7 +81,7 @@ async def seed() -> None:
                 existing.content = content
                 existing.category = "technocore"
                 existing.status = MemoryStatus.ACTIVE.value
-                existing.verification_status = "verified"
+                existing.verification_status = "unverified"
                 print(f"update MemoryItem source={source} id={existing.id}")
             else:
                 item = MemoryItem(
@@ -84,7 +89,7 @@ async def seed() -> None:
                     source=source,
                     category="technocore",
                     status=MemoryStatus.ACTIVE.value,
-                    verification_status="verified",
+                    verification_status="unverified",
                     confidence=1.0,
                 )
                 session.add(item)

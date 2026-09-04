@@ -91,7 +91,7 @@ class TestApprovalContinuation:
         _, _, run = await self._make_user_task_run(session, status=models.RunStatus.WAITING_APPROVAL.value)
         svc = ApprovalService(session)
         appr = await svc.create(run_id=str(run.id), action_id="a1", tool="technocore_signed_write",
-                                arguments={"room": "dm-topic", "text": "hello"}, action_class="PUBLIC_WRITE",
+                                arguments={"room": "example-room", "text": "hello"}, action_class="PUBLIC_WRITE",
                                 target="room", ttl_seconds=3600)
         await session.commit()
         # decide_with_continuation atomik: APPROVED + WAITING_APPROVAL->QUEUED + outbox

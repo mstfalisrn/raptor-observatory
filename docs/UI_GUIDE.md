@@ -42,7 +42,7 @@ Save it immediately. Verify the stack: `curl -s http://localhost:3525/health/rea
 | 4 | **Context** | `context` | Context Inspector — 7 layers, token budget, segment breakdown |
 | 5 | **Memory** | `memory` | Candidate -> approved/active -> superseded/expired lifecycle, auto-promotion |
 | 6 | **Sources** | `sources` | Source registry — enable/disable, last access and error history |
-| 7 | **Technocore** | `technocore` | Room `dm-topic`, read cursors, signed write gating |
+| 7 | **Technocore** | `technocore` | Room `<your-room>` (configurable via TECHNOCORE_MONITORED_ROOMS), read cursors, signed write gating |
 | 8 | **Telegram** | `telegram` | Bot status, webhook health, allowed user IDs |
 | 9 | **Settings** | `settings` | Non-secret settings, LLM connectivity test (`POST /v1/settings/llm/test`) |
 | 10 | **Reports** | `reports` | Evidence bundle and auditor packet generation |

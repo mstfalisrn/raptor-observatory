@@ -1,6 +1,6 @@
 # LUMI — veri modeli (veri tabanı tabloları)
 # Şartnamedeki asgari tablolar: 23. Event/audit tabloları append-only tasarlandı.
-# Timestamps UTC saklanır; UI UTC gösterir.
+# Timestamps UTC saklanır; UI app timezone (APP_TIMEZONE, default UTC) gösterir.
 
 from __future__ import annotations
 

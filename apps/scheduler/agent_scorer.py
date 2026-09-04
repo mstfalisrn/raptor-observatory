@@ -11,8 +11,17 @@ from observability.config import settings
 
 log = logging.getLogger("lumi.agent_scorer")
 
-# Config'den ROOMS — sabit liste (task spec: lobby, dm-topic, local-room-00000000, example-room)
-ROOMS: list[str] = ["lobby", "dm-topic", "local-room-00000000", "example-room"]
+def configured_rooms(raw: str) -> list[str]:
+    return [x.strip() for x in raw.split(",") if x.strip()]
+
+def _get_rooms() -> list[str]:
+    from observability.config import settings as _s
+    if not _s.TECHNOCORE_ENABLED or not _s.TECHNOCORE_MONITORED_ROOMS.strip():
+        return []
+    return configured_rooms(_s.TECHNOCORE_MONITORED_ROOMS)
+
+# Backward compat alias — tests may import ROOMS
+ROOMS: list[str] = _get_rooms()
 
 # Scheduler hook için task listesi (import: from scheduler.agent_scorer import _AGENT_SCORER_TASK)
 _AGENT_SCORER_TASK: list[asyncio.Task] = []
@@ -22,12 +31,16 @@ class AgentScorer:
     """Technocore odalarını periyodik tara, mesajları değerlendir, DB'ye yaz, alert gönder."""
 
     def __init__(self, base_url: str | None = None, interval: int = 15) -> None:
-        self.base_url = (base_url or settings.TECHNOCORE_BASE_URL).rstrip("/")
+        self.base_url = (base_url or settings.TECHNOCORE_BASE_URL or "").rstrip("/")
+        if not self.base_url and settings.TECHNOCORE_ENABLED:
+            log.warning("TECHNOCORE_ENABLED but TECHNOCORE_BASE_URL empty")
         self.interval = interval
         self._connector = TechnocoreConnector(base_url=self.base_url)
         self._discovered: set[str] = set()
 
     async def poll_once(self, session) -> int:
+        if not settings.TECHNOCORE_ENABLED:
+            return 0
         """Tek poll döngüsü. Verilen AsyncSession ile cursor'ları yönetir. İşlenen mesaj sayısını döner."""
         processed = 0
 
@@ -51,7 +64,7 @@ class AgentScorer:
                             candidate = mt.group(1)
                     if candidate:
                         candidate = candidate.strip()
-                        if candidate and candidate not in ROOMS and candidate not in self._discovered:
+                        if candidate and candidate not in _get_rooms() and candidate not in self._discovered:
                             # basit validasyon
                             if re.match(r"^[a-z0-9][a-z0-9_-]{0,47}$", candidate):
                                 self._discovered.add(candidate)
@@ -71,7 +84,7 @@ class AgentScorer:
             log.debug("events poll atlandı: %s", type(e).__name__)
 
         # 2) Her oda için since=cursor ile oku, evaluate et, yaz, alert at, cursor ilerlet
-        all_rooms = [*ROOMS, *sorted(self._discovered)]
+        all_rooms = [*_get_rooms(), *sorted(self._discovered)]
         for room in all_rooms:
             try:
                 cursor = await self._connector.get_cursor(room, session)

@@ -8,6 +8,7 @@ import httpx
 from connectors.ssrf import resolve_redirect_url, validate_url
 
 _ALLOWED_CONTENT_TYPES = {"application/json", "application/vnd.api+json", "application/ld+json"}
+_TEXT_FALLBACK_TYPES = {"text/plain", "text/markdown", "text/x-markdown", "application/octet-stream"}
 
 
 class HttpJsonConnector:
@@ -41,11 +42,8 @@ class HttpJsonConnector:
 
                 # Content-Type allowlist
                 ctype = resp.headers.get("content-type", "").split(";")[0].strip().lower()
-                if ctype and ctype not in _ALLOWED_CONTENT_TYPES:
-                    # JSON olmayan içerik reddedilir (allowlist)
-                    # text/json gibi varyantlara izin ver ama strict
-                    if "json" not in ctype:
-                        raise RuntimeError(f"Content-Type allowlist dışı: {ctype}")
+                is_json = ctype in _ALLOWED_CONTENT_TYPES or "json" in ctype
+                is_text = ctype in _TEXT_FALLBACK_TYPES
 
                 # Content-Length erken kontrol (tek başına yeterli değil, ama early abort)
                 clen = resp.headers.get("content-length")
@@ -69,10 +67,23 @@ class HttpJsonConnector:
                 body = b"".join(chunks)
                 if not body:
                     return {}
-                # JSON parse sınırı — max_bytes zaten kontrol edildi
+                # JSON parse — text fallback wrapped as {"text": ...}
+                if not is_json and is_text:
+                    try:
+                        return {"text": body.decode("utf-8", errors="replace")[:5000], "content_type": ctype}
+                    except Exception:
+                        return {"text": body.decode("latin-1", errors="replace")[:5000], "content_type": ctype}
+                # Non-JSON, non-text content-type must be rejected
+                if not is_json and not is_text:
+                    raise RuntimeError(f"Content-Type allowlist dışı: {ctype}")
                 try:
                     return json.loads(body)
                 except json.JSONDecodeError as e:
+                    if is_text:
+                        try:
+                            return {"text": body.decode("utf-8", errors="replace")[:5000], "content_type": ctype}
+                        except Exception:
+                            pass
                     raise RuntimeError(f"JSON parse hatası: {e}") from e
 
     async def aclose(self) -> None:

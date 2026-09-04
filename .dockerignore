@@ -4,7 +4,7 @@
 **/.env
 *secrets*
 app.env
-./secrets
+# (legacy absolute path removed — use secrets/app.env or $SECRETS_FILE)
 
 # Python
 __pycache__/
@@ -35,3 +35,5 @@ Thumbs.db
 # Test artefacts
 tests/.coverage
 tests/artifacts/
+
+secrets/app.env

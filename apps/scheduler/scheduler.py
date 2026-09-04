@@ -10,6 +10,10 @@ from sqlalchemy import select
 
 from observability import models
 from observability.config import settings
+
+# Fail-closed in production
+if settings.is_production:
+    settings.validate_production()
 from observability.db import async_session_factory
 from observability.events import append_run_event_in_session
 

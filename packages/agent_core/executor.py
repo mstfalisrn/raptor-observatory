@@ -63,20 +63,24 @@ def build_default_registry(
     *,
     http_hosts: set[str] | None = None,
     technocore_key_path: str = "",
-    technocore_base_url: str = "https://technocore.chat",
+    technocore_base_url: str = "",
 ) -> ToolRegistry:
     reg = ToolRegistry()
     http = HttpJsonConnector(allowed_hosts=http_hosts)
     gh = GithubRepoConnector()
     health = InternalHealthConnector()
-    tc = TechnocoreConnector(technocore_base_url, ed25519_key_path=technocore_key_path)
-    # worker startup: mevcut key'i yükle (production'da otomatik üretme yok)
-    try:
-        tc.load_key(technocore_key_path)
-    except Exception:
-        tc._signing_key = None
-        tc._did_pub = None
-    # connector'ı registry'ye attach et — worker/API technocore status için
+    # Technocore is optional — only initialize when explicitly enabled
+    from observability.config import settings as _settings
+    tc = None
+    if _settings.TECHNOCORE_ENABLED and (_settings.TECHNOCORE_BASE_URL or technocore_base_url):
+        effective_url = technocore_base_url or _settings.TECHNOCORE_BASE_URL
+        if effective_url:
+            tc = TechnocoreConnector(effective_url, ed25519_key_path=technocore_key_path)
+            try:
+                tc.load_key(technocore_key_path)
+            except Exception:
+                tc._signing_key = None
+                tc._did_pub = None
     reg.technocore = tc
 
     reg.register(
@@ -97,16 +101,26 @@ def build_default_registry(
         {"name": "internal_health", "description": "LUMI container sağlık bilgisi",
          "parameters": {"type": "object", "properties": {}}},
     )
+    async def _tc_read(room: str = "", since: int = 0):  # type: ignore[no-untyped-def]
+        if tc is None:
+            raise RuntimeError("Technocore disabled (set TECHNOCORE_ENABLED=true)")
+        return await tc.read_room(room, since)
+
+    async def _tc_write(room: str, payload: dict, idempotency_key: str = ""):  # type: ignore[no-untyped-def]
+        if tc is None:
+            raise RuntimeError("Technocore disabled (set TECHNOCORE_ENABLED=true)")
+        return await tc.signed_post(room, payload, idempotency_key=idempotency_key)
+
     reg.register(
         "technocore_read",
-        lambda room="dm-topic", since=0: tc.read_room(room, since),
-        {"name": "technocore_read", "description": "Technocore room/event okur (UNTRUSTED)",
+        _tc_read,
+        {"name": "technocore_read", "description": "Technocore room/event reader (optional, requires TECHNOCORE_ENABLED)",
          "parameters": {"type": "object", "properties": {"room": {"type": "string"}, "since": {"type": "integer"}}}},
     )
     reg.register(
         "technocore_signed_write",
-        lambda room, payload, idempotency_key: tc.signed_post(room, payload, idempotency_key=idempotency_key),
-        {"name": "technocore_signed_write", "description": "DID-signed Technocore publish (approval required)",
+        _tc_write,
+        {"name": "technocore_signed_write", "description": "DID-signed Technocore publish (optional, approval required)",
          "parameters": {"type": "object", "properties": {
              "room": {"type": "string"}, "payload": {"type": "object"}, "idempotency_key": {"type": "string"}},
              "required": ["room", "payload"]}},

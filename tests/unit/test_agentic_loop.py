@@ -24,7 +24,7 @@ class _JSONProvider(LLMProvider):
         self.calls += 1
         plan = {"goal": "observe", "assumptions": [], "success_criteria": ["kanıt"],
                 "actions": [{"action_id": "action_1", "tool": "github_repo_read",
-                             "arguments": {"repo": "your-owner/lumi-observatory"},
+                             "arguments": {"repo": "example-owner/example-repo"},
                              "reason": "repo", "expected_evidence": [], "action_class": "READ_ONLY"}]}
         return LLMResult(text=json.dumps(plan), finish_reason="stop",
                          usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})
@@ -47,14 +47,17 @@ class TestPlanner:
         plan = asyncio.run(pl.make_plan({"title": "t", "prompt": "p", "scope": {"kind": "observe"}}))
         act = plan["actions"][0]
         assert act["tool"] == "github_repo_read"
-        assert act["arguments"].get("repo") == "your-owner/lumi-observatory"
+        assert act["arguments"].get("repo") == "example-owner/example-repo"
 
     def test_template_fallback_has_required_args(self):
-        pl = Planner(provider=None)  # template fallback
+        pl = Planner(provider=None)  # template fallback — generic safe actions only
         plan = asyncio.run(pl.make_plan({"title": "t", "prompt": "p", "scope": {"kind": "observe"}}))
-        tools_args = {a["tool"]: a["arguments"] for a in plan["actions"]}
-        assert "github_repo_read" in tools_args and "repo" in tools_args["github_repo_read"]
-        assert "http_json_read" in tools_args and "url" in tools_args["http_json_read"]
+        # Fallback must be safe local/internal only, no personal URLs/repos
+        for act in plan["actions"]:
+            assert act["tool"] in ("internal_health",), f"unexpected fallback tool: {act['tool']}"
+            assert "your-owner" not in str(act["arguments"])
+            assert "technocore.chat" not in str(act["arguments"])
+            assert "dm-topic" not in str(act["arguments"])
 
     def test_unknown_tool_rejected(self):
         from agent_core.planner import PlanAction
