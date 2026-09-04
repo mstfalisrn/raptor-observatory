@@ -23,7 +23,10 @@ class _JSONProvider(LLMProvider):
     async def chat(self, messages, tools=None, **kw):
         self.calls += 1
         plan = {"goal": "observe", "assumptions": [], "success_criteria": ["kanıt"],
-                "actions": [{"action_id": "action_1", "tool": "github_repo_read",
+                "actions": [{"action_id": "action_1", "tool": "http_json_read",
+                             "arguments": {"url": "https://example.com/data.json"},
+                             "reason": "fetch", "expected_evidence": [], "action_class": "READ_ONLY"},
+                            {"action_id": "action_2", "tool": "github_repo_read",
                              "arguments": {"repo": "example-owner/example-repo"},
                              "reason": "repo", "expected_evidence": [], "action_class": "READ_ONLY"}]}
         return LLMResult(text=json.dumps(plan), finish_reason="stop",
@@ -46,8 +49,23 @@ class TestPlanner:
         pl = Planner(provider=p)
         plan = asyncio.run(pl.make_plan({"title": "t", "prompt": "p", "scope": {"kind": "observe"}}))
         act = plan["actions"][0]
-        assert act["tool"] == "github_repo_read"
-        assert act["arguments"].get("repo") == "example-owner/example-repo"
+        assert act["tool"] == "http_json_read"
+        assert act["arguments"].get("url") == "https://example.com/data.json"
+        # github_repo_read action must be filtered: no DEFAULT_GITHUB_REPO configured
+        tools = [a["tool"] for a in plan["actions"]]
+        assert "github_repo_read" not in tools
+
+    def test_repo_action_passes_when_default_repo_configured(self, monkeypatch):
+        from observability.config import settings
+
+        monkeypatch.setattr(settings, "DEFAULT_GITHUB_REPO", "example-owner/example-repo")
+        p = _JSONProvider()
+        pl = Planner(provider=p)
+        plan = asyncio.run(pl.make_plan({"title": "t", "prompt": "p", "scope": {"kind": "observe"}}))
+        tools = [a["tool"] for a in plan["actions"]]
+        assert "github_repo_read" in tools
+        repo_acts = [a for a in plan["actions"] if a["tool"] == "github_repo_read"]
+        assert repo_acts[0]["arguments"].get("repo") == "example-owner/example-repo"
 
     def test_template_fallback_has_required_args(self):
         pl = Planner(provider=None)  # template fallback — generic safe actions only

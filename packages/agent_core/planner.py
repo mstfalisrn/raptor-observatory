@@ -80,19 +80,23 @@ class Planner:
                         text = text.removeprefix("json")
                     try:
                         parsed = json.loads(text)
-                        # Strip personal hardcoded fallbacks if model hallucinates them
+                        # Strip hallucinated repo actions when no default repo is configured:
+                        # with DEFAULT_GITHUB_REPO unset, the operator did not point LUMI at
+                        # any repo, so repo reads are filtered out entirely.
                         if isinstance(parsed.get("actions"), list):
-                            for act in parsed["actions"]:
-                                if not isinstance(act, dict):
-                                    continue
-                                # Filter personal repo references — replace with generic skip
-                                repo = (act.get("arguments") or {}).get("repo", "")
-                                # Filter hallucinated personal repo references
-                                if repo == "your-owner/lumi-observatory" and not settings.DEFAULT_GITHUB_REPO:
-                                    continue
+                            parsed["actions"] = [
+                                act for act in parsed["actions"]
+                                if not (
+                                    isinstance(act, dict)
+                                    and act.get("tool") == "github_repo_read"
+                                    and not settings.DEFAULT_GITHUB_REPO
+                                )
+                            ]
+                            if not parsed["actions"]:
+                                return self._template_plan(goal, title)
                         plan = TaskPlan(**parsed)  # Pydantic doğrulama
                         out = plan.model_dump()
-                        # Remove actions that reference personal defaults when not configured
+                        # Drop repo actions that carry no repo argument (invalid even when a default exists)
                         out["actions"] = [
                             a for a in out["actions"]
                             if not (a["tool"] == "github_repo_read" and not a["arguments"].get("repo"))

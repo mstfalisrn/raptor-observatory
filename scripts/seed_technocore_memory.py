@@ -31,13 +31,13 @@ sys.path.insert(0, str(ROOT / "packages"))
 import httpx
 from sqlalchemy import select
 
-from observability.db import async_session_factory
 from observability.config import settings
+from observability.db import async_session_factory
 from observability.models import MemoryItem, MemoryStatus
 
 if not settings.TECHNOCORE_ENABLED or not settings.TECHNOCORE_BASE_URL:
     print("Technocore disabled (TECHNOCORE_ENABLED=false or TECHNOCORE_BASE_URL empty), skipping seed.")
-    import sys; sys.exit(0)
+    sys.exit(0)
 
 BASE = settings.TECHNOCORE_BASE_URL.rstrip("/")
 DOCS: list[tuple[str, str]] = [
