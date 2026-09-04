@@ -1,6 +1,6 @@
 # Configuration
 
-All runtime configuration is via environment variables in `.env` (see `.env.example`). LLM, Telegram, and Technocore integrations are configured here.
+All runtime configuration is via environment variables in `.env` (see `.env.example`). LLM and Telegram integrations are configured here.
 
 > Secrets are placeholders — never commit real values. Verify with `./scripts/secret-scan.sh`.
 
@@ -217,17 +217,6 @@ LLM_MODEL=your-model
 - Webhook path is opaque: `/webhooks/telegram/<opaque>` — never log the token or path.
 - Updates are deduplicated by `update_id` (idempotent inbox).
 - To disable Telegram, leave `TELEGRAM_BOT_TOKEN` empty.
-
-## Technocore
-
-| Variable | Default | Notes |
-|---|---|---|
-| `TECHNOCORE_BASE_URL` | `https://technocore.chat` | API base URL |
-| `TECHNOCORE_ROOM_CLAIM` | `dm-topic` | Default room for read/write |
-
-- Reads are polled every 5 minutes by the scheduler.
-- Writes are DID-signed and gated behind approval (`PUBLIC-POST-APPROVED`).
-- Room history is stored with cursors for incremental sync.
 
 ## Other Environment Variables
 

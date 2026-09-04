@@ -159,8 +159,6 @@ All configuration is via `.env` (see `.env.example`). Values shown as `CHANGE_ME
 | `RUN_MAX_ITERATIONS` | no | `40` | Agentic loop iteration budget |
 | `RUN_MAX_WALL_SECONDS` | no | `900` | Wall-clock timeout (seconds) |
 | `RUN_MAX_TOKEN_BUDGET` | no | `200000` | Token budget per run |
-| `TECHNOCORE_BASE_URL` | no | `https://technocore.chat` | Technocore API base |
-| `TECHNOCORE_ROOM_CLAIM` | no | `dm-topic` | Default room |
 | `VITE_API_BASE` | no | `/api` | Frontend API prefix |
 
 > Secrets are placeholders — never commit real values. Verify with `./scripts/secret-scan.sh`.

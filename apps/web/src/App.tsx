@@ -7,7 +7,6 @@ import {
   Puzzle,
   Brain,
   Radio,
-  Satellite,
   Send,
   Settings,
   FileText,
@@ -30,7 +29,7 @@ import {
   ContextPage,
   MemoryPage,
   SourcesPage,
-  TechnocorePage,
+  
   TelegramPage,
   SettingsPage,
   AuditPage,
@@ -44,7 +43,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 
-type PageKey = 'dashboard' | 'runs' | 'run-detail' | 'approvals' | 'context' | 'memory' | 'sources' | 'technocore' | 'telegram' | 'settings' | 'audit' | 'reports'
+type PageKey = 'dashboard' | 'runs' | 'run-detail' | 'approvals' | 'context' | 'memory' | 'sources' | 'telegram' | 'settings' | 'audit' | 'reports'
 type NavKey = Exclude<PageKey, 'run-detail'>
 
 const NAV: [NavKey, string, React.ElementType][] = [
@@ -54,7 +53,7 @@ const NAV: [NavKey, string, React.ElementType][] = [
   ['context', 'Context', Puzzle],
   ['memory', 'Memory', Brain],
   ['sources', 'Sources', Radio],
-  ['technocore', 'Technocore', Satellite],
+
   ['telegram', 'Telegram', Send],
   ['settings', 'Settings', Settings],
   ['reports', 'Reports', FileText],
@@ -447,7 +446,6 @@ export default function App() {
               {tab === 'context' && <ContextPage initialRunId={runId} />}
               {tab === 'memory' && <MemoryPage />}
               {tab === 'sources' && <SourcesPage />}
-              {tab === 'technocore' && <TechnocorePage />}
               {tab === 'telegram' && <TelegramPage />}
               {tab === 'settings' && <SettingsPage />}
               {tab === 'reports' && <ReportsPage />}

@@ -21,8 +21,8 @@ This file records architecture and product decisions with rationale (append-only
 - **Decision:** Database uses `postgresql+asyncpg`; the Alembic environment runs in async mode.
 - **Rationale:** The application is async; a synchronous psycopg setup would require two different database URLs.
 
-## D5 — Technocore Public Writes Disabled by Default
-- **Decision:** `technocore_signed_write` is `REQUIRE_APPROVAL` in the policy engine, gated by `PUBLIC-POST-APPROVED`. The DID key is still generated and signatures are verified.
+## D5 — External Public Writes Disabled by Default
+- **Decision:** `external_signed_write` is `REQUIRE_APPROVAL` in the policy engine, gated by `PUBLIC-POST-APPROVED`. The DID key is still generated and signatures are verified.
 - **Rationale:** No writes without explicit user approval — mitigates airdrop / spam abuse.
 
 ## D6 — Cloudflare Access Not Enabled Yet

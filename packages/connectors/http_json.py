@@ -1,4 +1,4 @@
-# LUMI — HTTP/JSON connector (SSRF korumalı, Faz 9 sertleştirme)
+# LUMI — HTTP/JSON connector (SSRF-protected)
 from __future__ import annotations
 
 import json

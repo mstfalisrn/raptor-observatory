@@ -32,7 +32,6 @@ LUMI is a self-hosted agentic runtime for observable, policy-controlled automati
 - **Durable Telegram inbox** -- Webhook receiver with opaque path, `X-Telegram-Bot-Api-Secret-Token` verification, and idempotent `update_id` handling.
 - **Memory with pgvector** -- Candidate -> approved/active lifecycle with embedding retrieval (`pgvector`) at task start; superseded/expired archival keeps history intact.
 - **Live SSE stream** -- `GET /api/v1/events/stream` (`text/event-stream`) with `Last-Event-ID` / `global_seq` cursor, auto-reconnect, and DB-backed global ordering.
-- **Technocore DID integration** -- Reads on a schedule; writes are DID-signed (ed25519) and gated behind approval -- no autonomous public posting.
 - **Web UI** -- Runs, context inspector, approvals, settings, and onboarding wizard (Tailwind 4 + shadcn/ui, light/dark tokens, SSE pulse).
 - **Production-ready hygiene** -- Non-root, read-only containers, `cap_drop: ALL`, isolated networks, secret scanning, and CI gates.
 
@@ -211,15 +210,6 @@ Test the connection via `POST /api/v1/settings/llm/test` or the Web UI -> Settin
 
 Webhook path is opaque: `/webhooks/telegram/<opaque>` -- never logged.
 
-### Technocore
-
-| Variable | Default | Notes |
-|---|---|---|
-| `TECHNOCORE_BASE_URL` | `https://technocore.chat` | API base |
-| `TECHNOCORE_ROOM_CLAIM` | `dm-topic` | Default room |
-
-Reads run every 5 minutes via the scheduler. Writes are DID-signed and require explicit approval.
-
 ---
 
 ## Operations
@@ -318,7 +308,7 @@ CI runs on every push/PR to `master`: `pytest` (pgvector + Redis + coverage >= 7
 | [SECURITY.md](./SECURITY.md) | Isolation, runtime, agent, Telegram, web, and approval security |
 | [OPERATIONS.md](./OPERATIONS.md) | Health, backup/restore, deploy, incident runbook |
 | [docs/INSTALL.md](./docs/INSTALL.md) | Prerequisites, quick start detail, environment reference |
-| [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) | Full env and LLM/Telegram/Technocore matrix |
+| [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) | Full env and LLM/Telegram matrix |
 | [docs/UI_GUIDE.md](./docs/UI_GUIDE.md) | Web UI -- 11 tabs, design system, onboarding, SSE |
 | [CHANGELOG.md](./CHANGELOG.md) | Version history (Keep a Changelog / SemVer) |
 | [LICENSE](./LICENSE) | MIT |

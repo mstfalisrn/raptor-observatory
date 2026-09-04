@@ -900,19 +900,6 @@ export function SourcesPage() {
   )
 }
 
-// ---------- Technocore ----------
-export function TechnocorePage() {
-  const { data, err, loading, reload } = useFetch<{base_url:string, room_claim:string, registered:boolean}>('/v1/technocore')
-  if (loading) return <div className="space-y-5"><h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Satellite className="h-4 w-4" /></span> Technocore</h1><TableSkeleton rows={2}/></div>
-  if (err) return <div className="space-y-5"><h1 className="text-xl font-bold tracking-tight">🛰️ Technocore</h1><Err msg={err} onRetry={reload}/></div>
-  return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-bold tracking-tight flex items-center gap-2.5"><span className="h-8 w-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-md"><Satellite className="h-4 w-4" /></span> Technocore</h1>
-      {data && <Card className="overflow-hidden"><div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.04] to-indigo-500/[0.02] pointer-events-none" /><CardContent className="relative space-y-3 p-5"><div className="font-mono text-sm font-semibold">{data.base_url || '—'}</div><div className="text-sm text-muted-foreground">Oda: <span className="font-mono bg-zinc-100 px-2 py-1 rounded-full text-xs dark:bg-white/10">{data.room_claim || '—'}</span></div><div className="flex items-center gap-2 text-sm">Kayıt: {data.registered ? <Badge variant="success">✓ kayıtlı</Badge> : <Badge variant="secondary">henüz değil (Faz 7)</Badge>}</div></CardContent></Card>}
-      <Button variant="outline" size="sm" className="rounded-xl" onClick={reload}><RefreshCw className="h-4 w-4" /> Refresh</Button>
-    </div>
-  )
-}
 
 // ---------- Telegram ----------
 export function TelegramPage() {
@@ -1111,7 +1098,7 @@ export function AgentsPage() {
                       <span className="font-mono text-xs bg-zinc-100 px-2 py-1 rounded-full dark:bg-white/10">{ev.room} #{ev.seq}</span>
                       <span className="text-sm font-semibold">{ev.nick || ev.did || 'unknown'}</span>
                       <span className="text-xs text-muted-foreground">score {ev.score}</span>
-                      <a href={ev.link} target="_blank" rel="noreferrer" className="ml-auto text-xs text-violet-600 hover:underline font-mono">technocore.chat/r/{ev.room}</a>
+                      <a href={ev.link} target="_blank" rel="noreferrer" className="ml-auto text-xs text-violet-600 hover:underline font-mono">external/r/{ev.room}</a>
                     </div>
                     {ev.reason && <div className="text-sm leading-relaxed">reason: <span className="text-muted-foreground">{ev.reason}</span></div>}
                     {ev.text && <details className="text-xs"><summary className="cursor-pointer font-medium">message</summary><pre className="mt-2 rounded-xl bg-zinc-950 text-zinc-100 p-3 whitespace-pre-wrap break-words max-h-32 overflow-auto">{ev.text.slice(0,1000)}</pre></details>}

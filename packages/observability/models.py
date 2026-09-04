@@ -414,7 +414,7 @@ class TechnocoreCursor(_UUIDMixin, _TimestampMixin, Base):
 
 
 class TechnocoreNonce(_UUIDMixin, _TimestampMixin, Base):
-    """Faz 7: DID başına room nonce monotonic — atomik increment için ayrı tablo."""
+    """Per-room DID nonce monotonic — separate table for atomic increment."""
 
     __tablename__ = "technocore_nonces"
     __table_args__ = (

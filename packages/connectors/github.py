@@ -1,4 +1,4 @@
-# LUMI — GitHub public repo connector (SSRF korumalı, Faz 9 sertleştirme)
+# LUMI — GitHub public repo connector (SSRF-protected)
 from __future__ import annotations
 
 import asyncio

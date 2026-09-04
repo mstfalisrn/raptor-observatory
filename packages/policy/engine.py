@@ -34,7 +34,7 @@ TOOL_TO_ACTION = {
     "destructive_op": ActionClass.DESTRUCTIVE.value,
 }
 
-# Faz onayı gerektiren aşamalar (public write, privileged host, destructive)
+# Phases requiring approval (public write, privileged host, destructive)
 _GATED = {
     ActionClass.PUBLIC_WRITE.value,
     ActionClass.PRIVILEGED_HOST.value,

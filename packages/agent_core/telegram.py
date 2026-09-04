@@ -1,4 +1,4 @@
-# LUMI — Telegram bot (Faz 6 tam kontrol)
+# LUMI — Telegram bot
 # Only respond to approved numeric user IDs; '*' / allow-all is FORBIDDEN.
 # Polling (ilk kurulum) + webhook (production). update_id ile idempotent (BIGINT).
 # 11+ komut + approval inline callback + getMe doğrulama + DB allowlist + BIGINT.

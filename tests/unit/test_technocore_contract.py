@@ -1,4 +1,4 @@
-# LUMI — Faz 7 Technocore contract testleri
+# LUMI — External chat contract tests
 # DID base58btc, canonical string, nonce monotonic, cursor DB, POST OpenAPI, 429 backoff
 from __future__ import annotations
 

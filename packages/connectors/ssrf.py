@@ -1,4 +1,4 @@
-# LUMI — SSRF koruması (Faz 9 sertleştirme)
+# LUMI — SSRF protection
 # Loopback, RFC1918, link-local, metadata IP, multicast, reserved, unspecified,
 # IPv4-mapped IPv6 erişimi engeller. DNS çözümünden ve her redirect'ten sonra
 # IP tekrar sınıflandırılır. DNS pin ile TOCTOU önlenir.
