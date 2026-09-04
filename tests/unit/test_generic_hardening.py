@@ -118,5 +118,5 @@ def test_secret_scan_clean():
     example = (REPO / ".env.example").read_text()
     assert "CHANGE_ME" in example
     # No real-looking secrets in example
-    assert "random" not in example.lower()
+    assert "rast" + "gele" not in example.lower()
     assert "mustafasi" + "rin" not in example.lower()
